@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Creator MVP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Left: Chat Panel -->
+    <div class="chat-panel">
+      <div class="chat-header">
+        <h1>Game Creator</h1>
+        <div class="header-actions">
+          <button id="newProjectButton" title="New Project">+ New</button>
+          <span class="status-indicator" id="statusIndicator">Connecting...</span>
+        </div>
+      </div>
+
+      <!-- Project Selector -->
+      <div class="project-selector" id="projectSelector">
+        <select id="projectSelect">
+          <option value="">-- Select Project --</option>
+        </select>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <!-- Messages will be inserted here -->
+      </div>
+
+      <!-- Streaming Output Display -->
+      <div class="streaming-container hidden" id="streamingContainer">
+        <div class="streaming-header">
+          <span class="streaming-status" id="streamingStatus">Generating...</span>
+          <span class="streaming-file" id="streamingFile"></span>
+        </div>
+        <div class="streaming-output" id="streamingOutput"></div>
+      </div>
+
+      <div class="chat-input-container">
+        <textarea
+          id="chatInput"
+          placeholder="ゲームの指示を入力してください..."
+          rows="3"
+          disabled
+        ></textarea>
+        <div class="input-buttons">
+          <button id="sendButton" disabled>送信</button>
+          <button id="stopButton" class="hidden">停止</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Game Preview -->
+    <div class="preview-panel">
+      <div class="preview-header">
+        <h2 id="previewTitle">Preview</h2>
+        <div class="preview-actions">
+          <button id="versionsButton" class="hidden" title="Version History">History</button>
+          <button id="refreshButton" title="Refresh">&#x21bb;</button>
+        </div>
+      </div>
+
+      <!-- Version Panel -->
+      <div class="version-panel hidden" id="versionPanel">
+        <div class="version-header">
+          <span>Version History</span>
+          <button id="closeVersionsButton">&times;</button>
+        </div>
+        <div class="version-list" id="versionList">
+          <!-- Versions will be inserted here -->
+        </div>
+      </div>
+      <div class="preview-container">
+        <iframe id="gamePreview" sandbox="allow-scripts allow-same-origin"></iframe>
+        <div class="no-project-message" id="noProjectMessage">
+          <p>Select or create a project to start</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
