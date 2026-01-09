@@ -147,6 +147,12 @@ const commitToProject = (projectDir, message) => {
 // ==================== User Operations ====================
 
 const getOrCreateUser = (visitorId) => {
+  // Generate new UUID if visitorId is null or undefined
+  if (!visitorId) {
+    visitorId = require('uuid').v4();
+    console.log('Generated new visitorId:', visitorId);
+  }
+
   const user = db.getOrCreateUser(visitorId);
 
   // Ensure visitor directory exists
