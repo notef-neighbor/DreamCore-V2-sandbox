@@ -6,160 +6,73 @@ const jobManager = require('./jobManager');
 const db = require('./database');
 const geminiClient = require('./geminiClient');
 
-// Game type bundles - automatically include related skills (GRANULAR)
-const GAME_TYPE_BUNDLES = {
-  '2d': {
-    keywords: ['2d', '2次元', '二次元', 'p5', 'canvas', 'キャンバス'],
-    includeSkills: ['p5js-setup']
-  },
-  '3d': {
-    keywords: ['3d', '3次元', '三次元', 'three', '立体', 'webgl'],
-    includeSkills: ['threejs-setup', 'threejs-lighting', 'kawaii-3d']
-  },
-  'shooting': {
-    keywords: ['シューティング', 'shooting', 'shooter', '弾', 'bullet', '撃つ', 'shoot'],
-    includeSkills: ['p5js-collision', 'particles-setup', 'particles-explosion']
-  },
-  'racing': {
-    keywords: ['レース', 'race', 'racing', 'ドライブ', 'drive', '車', 'car'],
-    includeSkills: ['vehicle-physics']
-  },
-  'action': {
-    keywords: ['アクション', 'action', 'ジャンプ', 'jump', '移動', 'move', '走る', 'run'],
-    includeSkills: ['p5js-input', 'p5js-collision']
-  }
-};
-
-// Skills configuration with keywords for auto-detection (GRANULAR SKILLS)
-const SKILLS_CONFIG = {
-  // === KAWAII (デフォルトスタイル、ユーザー指定時は除外) ===
-  'kawaii-colors': {
-    keywords: ['かわいい', 'kawaii', 'パステル', 'pastel', 'ピンク', 'pink', 'ポップ', 'pop'],
-    priority: 0,
-    isDefaultStyle: true,  // デフォルトで適用（ユーザーがデザイン指定時は除外）
-    // Note: excludeIf is checked against user message only, not code
-    excludeIf: ['色を', '色は', '色で', 'カラーは', 'ダーク', 'dark', 'シンプル', 'simple', 'クール', 'cool', 'リアル', 'real', 'モノクロ', '地味']
-  },
-
-  // === 3D (Three.js) ===
-  'threejs-setup': {
-    keywords: ['3d', '3次元', '三次元', 'three', '立体', 'キューブ', 'cube', '球', 'sphere',
-      'カメラ', 'camera', 'メッシュ', 'mesh', 'シーン', 'scene', 'webgl', '3dゲーム', '立体的'],
-    priority: 1,
-    excludeIf: ['2d', '2次元', '二次元']
-  },
-  'threejs-lighting': {
-    keywords: ['ライト', 'light', '影', 'shadow', '照明', 'lighting'],
-    priority: 2,
-    requiresAny: ['threejs-setup']  // threejs-setupがある時のみ
-  },
-  'kawaii-3d': {
-    keywords: ['トゥーン', 'toon', 'かわいい', 'kawaii', 'マテリアル', 'material'],
-    priority: 2,
-    requiresAny: ['threejs-setup']
-  },
-
-  // === 2D (P5.js) ===
-  'p5js-setup': {
-    keywords: ['2d', '2次元', '二次元', 'p5', 'キャンバス', 'canvas', 'シューティング', 'shooting',
-      'アクション', 'action', 'ブロック崩し', 'breakout', 'スプライト', 'sprite'],
-    priority: 1,
-    isDefault: true,
-    excludeIf: ['3d', '3次元', '三次元', 'three', '立体', 'webgl']
-  },
-  'p5js-input': {
-    keywords: ['キーボード', 'keyboard', 'マウス', 'mouse', 'タッチ', 'touch', '操作', 'control',
-      '入力', 'input', 'クリック', 'click', 'タップ', 'tap', 'スワイプ', 'swipe'],
-    priority: 3,
-    requiresAny: ['p5js-setup']
-  },
-  'p5js-collision': {
-    keywords: ['当たり判定', 'collision', '衝突', 'ぶつかる', 'hit', '接触', 'contact'],
-    priority: 3,
-    requiresAny: ['p5js-setup']
-  },
-
-  // === オーディオ（明示的にリクエストされた場合のみ） ===
-  'audio-synth': {
-    keywords: ['音', 'sound', 'サウンド', '効果音', 'se', 'bgm', '音楽', 'music',
-      '鳴る', '鳴らす', 'ピコピコ', '爆発音', 'ジャンプ音', '音を出す', '音をつけ', '音付き'],
-    priority: 4
-  },
-  'audio-mobile': {
-    keywords: [],  // audio-synthが選ばれたら自動で追加
-    priority: 5,
-    requiresAny: ['audio-synth']
-  },
-
-  // === UI ===
-  'kawaii-ui': {
-    keywords: ['ui', 'ボタン', 'button', 'スコア', 'score', 'メニュー', 'menu', 'フォント', 'font',
-      'テキスト', 'text', '表示', 'display'],
-    priority: 4
-  },
-
-  // === 既存スキル（そのまま維持） ===
-  'game-ai': {
-    keywords: ['ai', '敵', 'enemy', 'npc', '追いかけ', 'chase', '逃げる', 'flee',
-      'パスファインディング', 'pathfinding', 'ステートマシン', 'state machine', '巡回', 'patrol'],
-    priority: 6
-  },
-  'tween-animation': {
-    keywords: ['アニメーション', 'animation', 'tween', 'gsap', 'イージング', 'easing',
-      'フェード', 'fade', 'スライド', 'slide', 'バウンス', 'bounce'],
-    priority: 6
-  },
-  'particles-setup': {
-    keywords: ['パーティクル', 'particle', 'エフェクト', 'effect', 'tsparticles'],
-    priority: 6
-  },
-  'particles-explosion': {
-    keywords: ['爆発', 'explosion', '撃破', 'destroy', 'シューティング', 'shooting', '衝突', 'hit'],
-    priority: 6,
-    requiresAny: ['particles-setup']
-  },
-  'particles-effects': {
-    keywords: ['紙吹雪', 'confetti', '花火', 'firework', '雪', 'snow', '火', 'fire', '星', 'star', 'キラキラ', 'sparkle'],
-    priority: 6,
-    requiresAny: ['particles-setup']
-  },
-  'vehicle-physics': {
-    keywords: ['車', 'car', '車両', 'vehicle', 'ドライブ', 'drive', 'レース', 'race', 'racing',
-      'ハンドル', 'steering', 'アクセル', 'accelerate', 'ドリフト', 'drift'],
-    priority: 7
-  }
-};
-
-// Keywords that indicate a game creation request (triggers default skill)
-const GAME_KEYWORDS = ['ゲーム', 'game', '作って', '作成', 'create', 'make', '開発', 'develop', '遊べる', 'playable'];
+// Skills to exclude (causing errors or not ready)
+const EXCLUDED_SKILLS = [
+  'audio-mobile', 'audio-synth', 'game-audio',  // Audio issues
+  'particles', 'particles-effects', 'particles-explosion', 'particles-setup',  // tsParticles API issues
+  'sprite-sheet',  // Not working well yet
+  'nanobanana',  // Internal/utility skill
+  'kawaii-design',  // Deprecated (split into kawaii-colors, kawaii-3d, kawaii-ui)
+  'p5js', 'threejs',  // Deprecated (split into granular skills)
+];
 
 class ClaudeRunner {
   constructor() {
     this.runningProcesses = new Map();
     this.skillsDir = path.join(__dirname, '..', '.claude', 'skills');
-    this.availableSkills = this.listAvailableSkills();
+    this.skillMetadata = this.collectSkillMetadata();
   }
 
-  // List available skills (for detection purposes only - CLI reads content)
-  listAvailableSkills() {
+  // Collect skill metadata from all SKILL.md files (name + description)
+  collectSkillMetadata() {
+    const metadata = [];
+
     try {
       if (!fs.existsSync(this.skillsDir)) {
         console.log('Skills directory not found:', this.skillsDir);
-        return new Set();
+        return metadata;
       }
 
       const skillFolders = fs.readdirSync(this.skillsDir).filter(f => {
+        if (EXCLUDED_SKILLS.includes(f)) return false;
         const skillPath = path.join(this.skillsDir, f, 'SKILL.md');
         return fs.existsSync(skillPath);
       });
 
-      console.log(`Available skills: ${skillFolders.join(', ')}`);
-      console.log('(Claude Code CLI will read skill content as needed)');
-      return new Set(skillFolders);
+      for (const folder of skillFolders) {
+        const skillPath = path.join(this.skillsDir, folder, 'SKILL.md');
+        try {
+          const content = fs.readFileSync(skillPath, 'utf-8');
+          // Extract frontmatter
+          const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+          if (frontmatterMatch) {
+            const frontmatter = frontmatterMatch[1];
+            const nameMatch = frontmatter.match(/name:\s*(.+)/);
+            const descMatch = frontmatter.match(/description:\s*(.+)/);
+
+            metadata.push({
+              name: nameMatch ? nameMatch[1].trim() : folder,
+              description: descMatch ? descMatch[1].trim() : folder
+            });
+          } else {
+            metadata.push({ name: folder, description: folder });
+          }
+        } catch (e) {
+          console.error(`Failed to read skill ${folder}:`, e.message);
+        }
+      }
+
+      console.log(`Loaded ${metadata.length} skill(s): ${metadata.map(s => s.name).join(', ')}`);
+      return metadata;
     } catch (error) {
-      console.error('Error listing skills:', error);
-      return new Set();
+      console.error('Error collecting skill metadata:', error);
+      return metadata;
     }
+  }
+
+  // Get available skill names (for compatibility)
+  get availableSkills() {
+    return new Set(this.skillMetadata.map(s => s.name));
   }
 
   // Use Claude CLI to detect user intent (restore, chat, or edit)
@@ -178,13 +91,15 @@ class ClaudeRunner {
 
       const claude = spawn('claude', [
         '--print',
-        '--dangerously-skip-permissions',
-        prompt
+        '--dangerously-skip-permissions'
       ], {
         cwd: process.cwd(),
-        env: { ...process.env },
-        shell: true
+        env: { ...process.env }
       });
+
+      // Write prompt to stdin to avoid shell escaping issues
+      claude.stdin.write(prompt);
+      claude.stdin.end();
 
       let output = '';
       claude.stdout.on('data', (data) => {
@@ -214,137 +129,455 @@ class ClaudeRunner {
     });
   }
 
-  // Auto-detect which skills to use based on user message
-  // isNewProject: only apply default styles (kawaii-colors) for new projects
+  // Use Claude CLI (Haiku) to detect if request is 2D, 3D, or unclear
+  // Only called for new projects where dimension is not specified
+  async detectDimension(userMessage) {
+    // Quick check for EXPLICIT "2D" or "3D" text only (half-width and full-width)
+    // Everything else is delegated to Claude CLI (Haiku)
+
+    // Only match explicit "3D" text (half-width: 3D, full-width: ３D)
+    if (/3d|３d/i.test(userMessage)) {
+      console.log('Dimension: 3D (explicit keyword detected)');
+      return '3d';
+    }
+
+    // Only match explicit "2D" text (half-width: 2D, full-width: ２D)
+    if (/2d|２d/i.test(userMessage)) {
+      console.log('Dimension: 2D (explicit keyword detected)');
+      return '2d';
+    }
+
+    // For everything else (レース、シューティング、パズル等), ask Claude CLI
+    console.log('Asking Claude CLI for dimension detection...');
+
+    return new Promise((resolve) => {
+      const prompt = `ゲームリクエストを2D/3Dに分類してください。
+
+## 例
+"シューティングゲーム" → 2d
+"パズルゲーム" → 2d
+"ブロック崩し" → 2d
+"3Dレースゲーム" → 3d
+"ボールが跳ねるシミュレーション" → 3d
+"アクションゲーム" → unclear
+"レースゲーム" → unclear
+"ゲームを作って" → unclear
+
+## 分類基準
+- 明らかに2D（横スクロール、シューティング、パズル、テトリス系）→ 2d
+- 明らかに3D（球、物理シミュレーション、3D明記）→ 3d
+- どちらでも作れる（レース、アクション、RPG等）→ unclear
+
+## 今回のリクエスト
+"${userMessage}"
+
+回答(2d/3d/unclearのみ):`;
+
+      const claude = spawn('claude', [
+        '--print',
+        '--model', 'haiku',
+        '--dangerously-skip-permissions'
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      });
+
+      // Write prompt to stdin to avoid shell escaping issues
+      claude.stdin.write(prompt);
+      claude.stdin.end();
+
+      let output = '';
+      claude.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claude.on('close', (code) => {
+        const result = output.trim().toLowerCase();
+        console.log('Dimension detection result:', result);
+        if (result.includes('3d')) {
+          resolve('3d');
+        } else if (result.includes('2d')) {
+          resolve('2d');
+        } else {
+          resolve('unclear');
+        }
+      });
+
+      claude.on('error', () => {
+        console.log('Dimension detection error, defaulting to unclear');
+        resolve('unclear');
+      });
+
+      // Timeout after 8 seconds
+      setTimeout(() => {
+        claude.kill();
+        console.log('Dimension detection timeout');
+        resolve('unclear');
+      }, 8000);
+    });
+  }
+
+  // Guess image role from name and prompt
+  guessImageRole(imageName, prompt) {
+    const combined = (imageName + ' ' + prompt).toLowerCase();
+
+    if (/player|プレイヤー|主人公|hero|character|キャラ/.test(combined)) {
+      return 'プレイヤーキャラクター（右向きが基本）';
+    }
+    if (/enemy|敵|エネミー|monster|モンスター|boss|ボス/.test(combined)) {
+      return '敵キャラクター（プレイヤーと対面＝左向きが基本）';
+    }
+    if (/bullet|弾|shot|ショット|missile|ミサイル/.test(combined)) {
+      return '弾・発射物（進行方向向き）';
+    }
+    if (/item|アイテム|coin|コイン|power|パワー/.test(combined)) {
+      return 'アイテム（向きは重要でない）';
+    }
+    if (/background|背景|bg/.test(combined)) {
+      return '背景（向きは重要でない）';
+    }
+
+    return '不明（コードから判断してください）';
+  }
+
+  // Extract movement-related code patterns for direction analysis
+  extractMovementPatterns(code) {
+    if (!code) return '';
+
+    const patterns = [];
+
+    // Player movement patterns
+    const movementMatches = code.match(/(player|プレイヤー)[\s\S]{0,100}(x\s*[+\-]=|\.x\s*[+\-]=|velocity\.x|vx\s*=)/gi);
+    if (movementMatches) patterns.push('【プレイヤー移動】\n' + movementMatches.slice(0, 3).join('\n'));
+
+    // Key input patterns
+    const keyMatches = code.match(/.{0,30}(RIGHT|LEFT|UP|DOWN|ArrowRight|ArrowLeft|keyIsDown).{0,50}/gi);
+    if (keyMatches) patterns.push('【キー入力】\n' + keyMatches.slice(0, 4).join('\n'));
+
+    // Enemy spawn patterns
+    const enemyMatches = code.match(/(enemy|敵|enemies)[\s\S]{0,80}(x\s*=|spawn|push|new)/gi);
+    if (enemyMatches) patterns.push('【敵の生成】\n' + enemyMatches.slice(0, 3).join('\n'));
+
+    // Scroll or camera patterns
+    const scrollMatches = code.match(/.{0,20}(scroll|camera|背景).{0,50}/gi);
+    if (scrollMatches) patterns.push('【スクロール】\n' + scrollMatches.slice(0, 2).join('\n'));
+
+    // Game type hints
+    const typeHints = [];
+    if (/横スクロール|horizontal|side.?scroll/i.test(code)) typeHints.push('横スクロール');
+    if (/縦スクロール|vertical|shooter/i.test(code)) typeHints.push('縦スクロール');
+    if (/top.?down|見下ろし/i.test(code)) typeHints.push('トップダウン');
+    if (typeHints.length > 0) patterns.push('【ゲームタイプヒント】' + typeHints.join(', '));
+
+    return patterns.join('\n\n') || code.substring(0, 1500);
+  }
+
+  // Use SPEC.md to determine image direction (code analysis as fallback)
+  async analyzeImageDirection(gameCode, gameSpec, imageName, originalPrompt) {
+    console.log(`Analyzing image direction for: ${imageName}`);
+
+    // First, try to get direction from SPEC.md (preferred method)
+    const role = this.guessImageRole(imageName, originalPrompt);
+    const specDirection = this.getDirectionFromSpec(gameSpec, role);
+
+    if (specDirection) {
+      const enhancedPrompt = `${originalPrompt}, facing ${specDirection}, side view, 2D game sprite`;
+      console.log(`Direction from SPEC.md for ${imageName}: ${specDirection}`);
+      console.log(`Enhanced prompt: ${enhancedPrompt}`);
+      return enhancedPrompt;
+    }
+
+    // Fallback: Use AI to analyze (only if spec doesn't have direction info)
+    console.log(`No direction in SPEC.md, using AI analysis for: ${imageName}`);
+
+    return new Promise((resolve) => {
+      const specContext = gameSpec ? gameSpec.substring(0, 800) : '';
+      const movementContext = this.extractMovementPatterns(gameCode);
+
+      const prompt = `ゲームの画像アセットの向きを決定してください。
+
+${specContext ? `## ゲーム仕様書\n${specContext}\n` : ''}
+${movementContext ? `## コードパターン\n${movementContext}\n` : ''}
+
+## 生成する画像
+- 名前: ${imageName}
+- 元のプロンプト: ${originalPrompt}
+- 役割推測: ${role}
+
+## 判断ルール
+- 横スクロール（右に進む）: プレイヤー=right, 敵=left
+- 縦スクロール（上に進む）: プレイヤー=up, 敵=down
+- 不明な場合: プレイヤー=right, 敵=left（デフォルト）
+
+## 出力（1行のみ）
+結果: [向き指定を追加した英語プロンプト]
+
+例:
+結果: cute cat character, game sprite, facing right, side view, 2D style`;
+
+      const claude = spawn('claude', [
+        '--print',
+        '--model', 'haiku',
+        '--dangerously-skip-permissions'
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      });
+
+      // Write prompt to stdin to avoid shell escaping issues
+      claude.stdin.write(prompt);
+      claude.stdin.end();
+
+      let output = '';
+      claude.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claude.on('close', (code) => {
+        const result = output.trim();
+        console.log(`Direction analysis raw output for ${imageName}:`, result);
+
+        // Extract "結果:" line from structured output
+        const resultMatch = result.match(/結果:\s*(.+)/);
+        if (resultMatch) {
+          const enhancedPrompt = resultMatch[1].trim();
+          console.log(`Enhanced prompt for ${imageName}: ${enhancedPrompt}`);
+          resolve(enhancedPrompt);
+          return;
+        }
+
+        // Fallback: try to find any line that looks like a prompt (has "facing" or "view")
+        const lines = result.split('\n').filter(line => line.trim());
+        const promptLine = lines.find(line => /facing|view|向き/i.test(line));
+        if (promptLine) {
+          const cleaned = promptLine.replace(/^(思考|結果|output):\s*/i, '').trim();
+          console.log(`Enhanced prompt (fallback) for ${imageName}: ${cleaned}`);
+          resolve(cleaned);
+          return;
+        }
+
+        // Last resort: use last non-empty line
+        const lastLine = lines[lines.length - 1] || originalPrompt;
+        console.log(`Enhanced prompt (last line) for ${imageName}: ${lastLine}`);
+        resolve(lastLine);
+      });
+
+      claude.on('error', () => {
+        console.log('Image direction analysis error, using original prompt');
+        resolve(originalPrompt);
+      });
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        claude.kill();
+        console.log('Image direction analysis timeout');
+        resolve(originalPrompt);
+      }, 10000);
+    });
+  }
+
+  // Get fallback skills based on framework, dimension, and message
+  // Used when Claude CLI fails
+  getFallbackSkills(framework, dimension, isNewProject) {
+    const commonSkills = isNewProject ? ['kawaii-colors'] : [];
+
+    // Priority 1: detected framework from existing code
+    if (framework === 'threejs') {
+      return ['threejs-setup', 'kawaii-3d', ...commonSkills];
+    }
+    if (framework === 'p5js') {
+      return ['p5js-setup', ...commonSkills];
+    }
+
+    // Priority 2: detected dimension for new projects
+    if (dimension === '3d') {
+      return ['threejs-setup', 'kawaii-3d', ...commonSkills];
+    }
+    if (dimension === '2d') {
+      return ['p5js-setup', ...commonSkills];
+    }
+
+    // Unknown - return minimal
+    return isNewProject ? ['kawaii-colors'] : [];
+  }
+
+  // Detect framework from code (Three.js, P5.js, or unknown)
+  detectFrameworkFromCode(code) {
+    if (!code) return null;
+
+    // Three.js detection - look for specific patterns
+    const threePatterns = [
+      /THREE\./,                           // THREE namespace
+      /new\s+THREE\./,                     // THREE constructor
+      /import.*from\s+['"]three['"]/,      // ES module import
+      /WebGLRenderer/,                     // WebGL renderer
+      /PerspectiveCamera|OrthographicCamera/, // Cameras
+      /BoxGeometry|SphereGeometry|PlaneGeometry/, // Geometries
+      /MeshBasicMaterial|MeshStandardMaterial|MeshPhongMaterial/, // Materials
+      /Scene\(\)/,                         // Scene constructor
+    ];
+
+    // P5.js detection
+    const p5Patterns = [
+      /function\s+setup\s*\(\)/,           // setup function
+      /function\s+draw\s*\(\)/,            // draw function
+      /createCanvas\s*\(/,                 // createCanvas
+      /p5\./,                              // p5 namespace
+      /new\s+p5\s*\(/,                     // p5 instance
+      /background\s*\(\s*\d/,              // background with color
+      /ellipse\s*\(|rect\s*\(|line\s*\(/,  // 2D drawing functions
+    ];
+
+    const hasThree = threePatterns.some(p => p.test(code));
+    const hasP5 = p5Patterns.some(p => p.test(code));
+
+    if (hasThree && !hasP5) return 'threejs';
+    if (hasP5 && !hasThree) return 'p5js';
+    if (hasThree && hasP5) return 'mixed';  // Unusual but possible
+    return null;
+  }
+
+  // AI-driven skill detection using Claude CLI
+  // Returns a list of relevant skill names based on context analysis
+  async detectSkillsWithAI(userMessage, currentCode = null, isNewProject = false, gameSpec = null, dimension = null) {
+    // Build skill list for prompt
+    const skillList = this.skillMetadata.map(s => `- ${s.name}: ${s.description}`).join('\n');
+
+    // Detect framework from current code
+    const framework = this.detectFrameworkFromCode(currentCode);
+    console.log(`Framework detection: ${framework || 'none'} (code length: ${currentCode?.length || 0})`);
+    if (framework) {
+      console.log(`Detected framework from code: ${framework}`);
+    }
+
+    // Build detailed context
+    let contextInfo = '';
+    if (framework) {
+      const frameworkName = {
+        'threejs': 'Three.js (3Dゲーム)',
+        'p5js': 'P5.js (2Dゲーム)',
+        'mixed': 'Three.js + P5.js'
+      }[framework];
+      contextInfo = `現在のフレームワーク: ${frameworkName}`;
+    } else if (dimension) {
+      // Use pre-detected dimension for new projects
+      contextInfo = dimension === '3d' ? '新規3Dプロジェクト' : '新規2Dプロジェクト';
+    } else {
+      contextInfo = '新規プロジェクト';
+    }
+
+    // Include game spec if available
+    let specSummary = '';
+    if (gameSpec) {
+      // Extract key info from SPEC.md (limit to 500 chars)
+      specSummary = gameSpec.substring(0, 500);
+      if (gameSpec.length > 500) specSummary += '...';
+    }
+
+    // Build prompt dynamically from loaded skills (skillList defined at line 361)
+    const prompt = `ユーザーのリクエストに最適なスキルを選んでJSON配列で出力せよ。説明不要。
+
+利用可能なスキル:
+${skillList}
+
+リクエスト: "${userMessage}"
+コンテキスト: ${contextInfo}
+${specSummary ? `現在のゲーム仕様:\n${specSummary}` : ''}
+
+出力（JSON配列のみ）:`;
+
+    return new Promise((resolve) => {
+      // Use haiku model for fast skill detection
+      // Pass prompt via stdin to avoid shell escaping issues
+      const claude = spawn('claude', [
+        '--print',
+        '--model', 'haiku',
+        '--dangerously-skip-permissions'
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      });
+
+      // Write prompt to stdin
+      claude.stdin.write(prompt);
+      claude.stdin.end();
+
+      let output = '';
+      claude.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claude.on('close', (code) => {
+        try {
+          // Extract JSON array from response
+          const jsonMatch = output.match(/\[[\s\S]*?\]/);
+          if (jsonMatch) {
+            const skills = JSON.parse(jsonMatch[0]);
+            // Filter to only available skills
+            const validSkills = skills.filter(s => this.availableSkills.has(s));
+            console.log('AI selected skills:', validSkills.join(', ') || 'none');
+            resolve(validSkills);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to parse AI skill response:', e.message);
+        }
+
+        // Fallback: use dimension-based selection
+        console.log('AI skill detection failed, output was:', output.substring(0, 200));
+        resolve(this.getFallbackSkills(framework, dimension, isNewProject));
+      });
+
+      claude.on('error', (err) => {
+        console.log('AI skill detection error:', err.message);
+        resolve(this.getFallbackSkills(framework, dimension, isNewProject));
+      });
+
+      // Timeout after 15 seconds (haiku is fast, but give it time)
+      setTimeout(() => {
+        claude.kill();
+        console.log('AI skill detection timeout after 15s');
+        resolve(this.getFallbackSkills(framework, dimension, isNewProject));
+      }, 15000);
+    });
+  }
+
+  // Sync version for backward compatibility (uses simple heuristics)
   detectSkills(userMessage, conversationHistory = [], isNewProject = false) {
-    const detectedSkills = [];
-    const bundledSkills = new Set();  // Track skills added via bundles
     const messageLower = userMessage.toLowerCase();
 
-    // Also check recent conversation history
-    const recentHistory = conversationHistory.slice(-5).map(h => h.content.toLowerCase()).join(' ');
-    const fullContext = messageLower + ' ' + recentHistory;
+    // Simple heuristic detection (fallback when async not available)
+    // Include full-width numbers and physics/simulation terms that typically mean 3D
+    const is3D = /3d|３d|３D|3次元|三次元|three|立体|webgl|球|ボール|ball|シミュレーション|simulation|物理/i.test(messageLower);
+    const is2D = /2d|２d|２D|2次元|二次元|p5|canvas|キャンバス/i.test(messageLower);
+    const isRacing = /車|car|レース|race|ドライブ|drive/i.test(messageLower);
 
-    // Check if this is a game creation request
-    const isGameRequest = GAME_KEYWORDS.some(keyword => fullContext.includes(keyword.toLowerCase()));
+    const skills = [];
 
-    // First, add skills with alwaysInclude flag (e.g., kawaii-design)
-    for (const [skillName, config] of Object.entries(SKILLS_CONFIG)) {
-      if (config.alwaysInclude && this.availableSkills.has(skillName)) {
-        detectedSkills.push({
-          name: skillName,
-          matchCount: 100,  // High match count to ensure it's included
-          priority: config.priority,
-          isDefault: false
-        });
-        console.log(`Always including skill: ${skillName}`);
+    // Add default style for new projects
+    if (isNewProject && !/(色を|色は|ダーク|dark|シンプル|simple|クール|cool)/i.test(messageLower)) {
+      skills.push('kawaii-colors');
+    }
+
+    // Core framework
+    if (is3D) {
+      skills.push('threejs-setup', 'kawaii-3d');
+    } else {
+      skills.push('p5js-setup');
+      // Image generation only for 2D
+      if (/画像|キャラクター|敵|アイテム/i.test(messageLower)) {
+        skills.push('image-generation');
       }
     }
 
-    // Then, check game type bundles to auto-include related skills
-    for (const [bundleName, bundle] of Object.entries(GAME_TYPE_BUNDLES)) {
-      const matchesBundle = bundle.keywords.some(keyword =>
-        fullContext.includes(keyword.toLowerCase())
-      );
-      if (matchesBundle) {
-        console.log(`Game type detected: ${bundleName}, auto-including: ${bundle.includeSkills.join(', ')}`);
-        for (const skillName of bundle.includeSkills) {
-          bundledSkills.add(skillName);
-        }
-      }
-    }
+    // Additional skills
+    if (isRacing) skills.push('vehicle-physics');
+    if (/アニメーション|animation|gsap/i.test(messageLower)) skills.push('tween-animation');
+    if (/ai|敵|enemy|追いかけ|逃げる/i.test(messageLower)) skills.push('game-ai');
 
-    for (const [skillName, config] of Object.entries(SKILLS_CONFIG)) {
-      if (!this.availableSkills.has(skillName)) continue;
-
-      // Check if this skill should be excluded based on context
-      if (config.excludeIf) {
-        // For design/style skills, check only user message (not code history)
-        const contextToCheck = config.isDefaultStyle ? messageLower : fullContext;
-        const shouldExclude = config.excludeIf.some(keyword =>
-          contextToCheck.includes(keyword.toLowerCase())
-        );
-        if (shouldExclude) {
-          console.log(`Excluding ${skillName} due to exclusion keywords`);
-          continue;
-        }
-      }
-
-      const matchCount = config.keywords.filter(keyword =>
-        fullContext.includes(keyword.toLowerCase())
-      ).length;
-
-      // Include if matched by keywords OR included via bundle
-      if (matchCount > 0 || bundledSkills.has(skillName)) {
-        detectedSkills.push({
-          name: skillName,
-          matchCount: matchCount + (bundledSkills.has(skillName) ? 10 : 0),  // Boost bundled skills
-          priority: config.priority,
-          isDefault: config.isDefault || false
-        });
-      }
-    }
-
-    // Sort by priority (asc) first, then match count (desc)
-    // This ensures 3D gets priority when explicitly requested
-    detectedSkills.sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
-      return b.matchCount - a.matchCount;
-    });
-
-    // If game request but no specific skills detected, use default
-    const is3DRequest = ['3d', '3次元', '三次元', 'three', '立体'].some(k => fullContext.includes(k));
-
-    if (isGameRequest && detectedSkills.length === 0) {
-      if (is3DRequest && this.availableSkills.has('threejs-setup')) {
-        detectedSkills.push({
-          name: 'threejs-setup',
-          matchCount: 1,
-          priority: 1,
-          isDefault: false
-        });
-        console.log('Using threejs-setup for 3D game request');
-      } else if (this.availableSkills.has('p5js-setup')) {
-        detectedSkills.push({
-          name: 'p5js-setup',
-          matchCount: 1,
-          priority: 1,
-          isDefault: true
-        });
-        console.log('Using p5js-setup as default for game request');
-      }
-    }
-
-    // Remove duplicates
-    let uniqueSkills = [...new Set(detectedSkills.map(s => s.name))];
-
-    // Add default style (kawaii-colors) ONLY for new projects
-    // Don't change the style of existing projects unless explicitly requested
-    if (isNewProject) {
-      const hasDesignKeywords = SKILLS_CONFIG['kawaii-colors']?.excludeIf?.some(k =>
-        messageLower.includes(k.toLowerCase())
-      );
-      if (isGameRequest && !hasDesignKeywords && !uniqueSkills.includes('kawaii-colors')) {
-        uniqueSkills.unshift('kawaii-colors');  // Add at beginning (highest priority)
-        console.log('Adding default kawaii-colors style (new project)');
-      }
-    }
-
-    // Add dependent skills (requiresAny)
-    for (const [skillName, config] of Object.entries(SKILLS_CONFIG)) {
-      if (config.requiresAny && !uniqueSkills.includes(skillName)) {
-        const hasRequired = config.requiresAny.some(req => uniqueSkills.includes(req));
-        if (hasRequired && this.availableSkills.has(skillName)) {
-          uniqueSkills.push(skillName);
-          console.log(`Adding ${skillName} (required by ${config.requiresAny.join('/')})`);
-        }
-      }
-    }
-
-    // Limit to 6 skills (granular skills are smaller, so we can include more)
-    const limitedSkills = uniqueSkills.slice(0, 6);
-    console.log('Detected skills:', limitedSkills.length > 0 ? limitedSkills.join(', ') : 'none');
-    return limitedSkills;
+    const validSkills = skills.filter(s => this.availableSkills.has(s)).slice(0, 6);
+    console.log('Detected skills (sync):', validSkills.join(', ') || 'none');
+    return validSkills;
   }
 
   // Build mandatory skill reading instructions for Claude CLI
@@ -383,28 +616,9 @@ ${skillPaths}
     return contents.join('\n\n');
   }
 
-  // Get skill descriptions (from frontmatter) for Stage 1
+  // Get skill descriptions (from metadata)
   getSkillDescriptions() {
-    const descriptions = [];
-    for (const skillName of this.availableSkills) {
-      const config = SKILLS_CONFIG[skillName];
-      if (config) {
-        // Use description from SKILLS_CONFIG or read from file
-        const skillPath = path.join(this.skillsDir, skillName, 'SKILL.md');
-        if (fs.existsSync(skillPath)) {
-          try {
-            const content = fs.readFileSync(skillPath, 'utf-8');
-            // Extract description from frontmatter
-            const match = content.match(/description:\s*(.+)/);
-            const desc = match ? match[1].trim() : skillName;
-            descriptions.push(`- ${skillName}: ${desc}`);
-          } catch (e) {
-            descriptions.push(`- ${skillName}`);
-          }
-        }
-      }
-    }
-    return descriptions.join('\n');
+    return this.skillMetadata.map(s => `- ${s.name}: ${s.description}`).join('\n');
   }
 
   // Get skill content for Gemini (prioritized, granular skills)
@@ -540,7 +754,8 @@ ${skillInstructions}
   }
 
   // Generate images for the project and save them
-  async generateProjectImages(visitorId, projectId, images, jobId) {
+  // gameCode and gameSpec are used by Haiku to determine image direction
+  async generateProjectImages(visitorId, projectId, images, jobId, gameCode = null, gameSpec = null) {
     const generatedAssets = {};
     const maxImages = 3;  // Limit to 3 images per request
 
@@ -553,15 +768,29 @@ ${skillInstructions}
       const img = imagesToGenerate[i];
 
       try {
+        // Use Claude CLI (Haiku) to analyze and determine image direction
         jobManager.updateProgress(
           jobId,
-          55 + Math.floor((i / totalImages) * 15),
+          55 + Math.floor((i / totalImages) * 10),
+          `画像の向きを分析中: ${img.name} (${i + 1}/${totalImages})`
+        );
+
+        const enhancedPrompt = await this.analyzeImageDirection(
+          gameCode,
+          gameSpec,
+          img.name,
+          img.prompt
+        );
+
+        jobManager.updateProgress(
+          jobId,
+          60 + Math.floor((i / totalImages) * 15),
           `画像生成中: ${img.name} (${i + 1}/${totalImages})`
         );
 
-        // Generate image with transparent background
+        // Generate image with AI-determined direction
         const result = await geminiClient.generateImage({
-          prompt: img.prompt,
+          prompt: enhancedPrompt,
           style: img.style || 'kawaii',
           transparent: true
         });
@@ -620,20 +849,97 @@ ${skillInstructions}
         }
       }
 
-      // Detect skills based on user message (pass isNewProject for default styles)
-      const detectedSkills = this.detectSkills(userMessage, history, isNewProject);
+      // For new projects, detect if 2D or 3D is specified
+      let detectedDimension = null;
+      let effectiveUserMessage = userMessage;
+
+      if (isNewProject) {
+        // First check if user is responding to dimension question
+        const userMessageLower = userMessage.toLowerCase();
+        const is2DSelection = userMessageLower.includes('2dで作成') || userMessageLower.includes('2dで') || userMessageLower === '2d';
+        const is3DSelection = userMessageLower.includes('3dで作成') || userMessageLower.includes('3dで') || userMessageLower === '3d';
+
+        if (is2DSelection || is3DSelection) {
+          detectedDimension = is2DSelection ? '2d' : '3d';
+          console.log(`User selected ${detectedDimension.toUpperCase()} from suggestion`);
+
+          // Get original request from conversation history
+          if (history && history.length > 0) {
+            // Find the last user message that's not a dimension selection
+            for (let i = history.length - 1; i >= 0; i--) {
+              const msg = history[i];
+              if (msg.role === 'user') {
+                const msgLower = msg.content.toLowerCase();
+                if (!msgLower.includes('2dで') && !msgLower.includes('3dで')) {
+                  effectiveUserMessage = `${detectedDimension.toUpperCase()}で${msg.content}`;
+                  console.log('Combined message:', effectiveUserMessage);
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          // Use AI to detect dimension
+          jobManager.updateProgress(jobId, 3, '2D/3D判定中...');
+          detectedDimension = await this.detectDimension(userMessage);
+          console.log('Detected dimension:', detectedDimension);
+
+          if (detectedDimension === 'unclear') {
+            // Store the original request in history before asking
+            userManager.addToHistory(visitorId, projectId, 'user', userMessage);
+
+            // Ask user to clarify
+            jobManager.updateProgress(jobId, 100, '確認が必要です');
+            jobManager.notifySubscribers(jobId, {
+              type: 'geminiChat',
+              mode: 'chat',
+              message: '2Dゲームと3Dゲーム、どちらで作成しますか？',
+              suggestions: ['2Dで作成', '3Dで作成']
+            });
+            return {
+              mode: 'chat',
+              message: '2Dゲームと3Dゲーム、どちらで作成しますか？',
+              suggestions: ['2Dで作成', '3Dで作成']
+            };
+          }
+        }
+      }
+
+      // For new projects: Create SPEC.md FIRST (before code generation)
+      // For existing projects: Read existing SPEC.md
+      let gameSpec = null;
+      if (isNewProject && detectedDimension) {
+        jobManager.updateProgress(jobId, 4, '仕様書を作成中...');
+        gameSpec = await this.createInitialSpec(visitorId, projectId, effectiveUserMessage, detectedDimension);
+        if (gameSpec) {
+          console.log('Initial SPEC.md created with sprite directions');
+        }
+      } else if (!isNewProject) {
+        gameSpec = this.readSpec(visitorId, projectId);
+        if (gameSpec) {
+          console.log('Including existing SPEC.md in code generation');
+        }
+      }
+
+      // AI-driven skill detection (async) - now with game spec and dimension for better context
+      jobManager.updateProgress(jobId, 5, 'スキルを分析中...');
+      let detectedSkills = await this.detectSkillsWithAI(effectiveUserMessage, currentCode, isNewProject, gameSpec, detectedDimension);
+
+      // Filter out kawaii skills if SPEC.md has explicit design style
+      if (gameSpec && this.hasExplicitDesignStyle(gameSpec)) {
+        const kawaiiSkills = ['kawaii-colors', 'kawaii-ui', 'kawaii-3d'];
+        const originalCount = detectedSkills.length;
+        detectedSkills = detectedSkills.filter(s => !kawaiiSkills.includes(s));
+        if (detectedSkills.length < originalCount) {
+          console.log('Kawaii skills removed due to explicit design style in SPEC.md');
+        }
+      }
 
       // Get skill content for Gemini (prioritized raw content)
       let skillSummary = null;
       if (detectedSkills.length > 0 && !debugOptions.disableSkills) {
-        jobManager.updateProgress(jobId, 10, `スキル準備中: ${detectedSkills.slice(0, 3).join(', ')}`);
+        jobManager.updateProgress(jobId, 12, `スキル選択: ${detectedSkills.slice(0, 3).join(', ')}`);
         skillSummary = this.getSkillContentForGemini(detectedSkills);
-      }
-
-      // Read SPEC.md for existing projects (to preserve specs)
-      const gameSpec = !isNewProject ? this.readSpec(visitorId, projectId) : null;
-      if (gameSpec) {
-        console.log('Including SPEC.md in prompt to preserve existing specs');
       }
 
       jobManager.updateProgress(jobId, 20, 'Gemini APIでコード生成中...');
@@ -643,7 +949,7 @@ ${skillInstructions}
 
       // Call Gemini with streaming (include skill summary and game spec if available)
       const result = await geminiClient.generateCode({
-        userMessage,
+        userMessage: effectiveUserMessage,
         currentCode,
         conversationHistory: history || [],
         skillSummary,
@@ -723,7 +1029,8 @@ ${skillInstructions}
   }
 
   // Apply Gemini-generated result (create or edit mode)
-  async applyGeminiResult(visitorId, projectId, geminiResult, jobId) {
+  // gameCode and gameSpec are used by Haiku to determine image direction
+  async applyGeminiResult(visitorId, projectId, geminiResult, jobId, gameCode = null, gameSpec = null) {
     const projectDir = userManager.getProjectDir(visitorId, projectId);
 
     try {
@@ -733,11 +1040,14 @@ ${skillInstructions}
         console.log(`Gemini requested ${geminiResult.images.length} image(s)`);
         jobManager.updateProgress(jobId, 52, `画像を生成中...`);
 
+        // Pass gameCode and gameSpec for Haiku to analyze image direction
         generatedAssets = await this.generateProjectImages(
           visitorId,
           projectId,
           geminiResult.images,
-          jobId
+          jobId,
+          gameCode,
+          gameSpec
         );
 
         // Notify frontend about generated images
@@ -879,22 +1189,6 @@ ${skillInstructions}
       return { success: true };
     }
 
-    // Build prompt (optionally disable skills)
-    let prompt, detectedSkills;
-    if (debugOptions.disableSkills) {
-      console.log('[DEBUG] Skills disabled');
-      prompt = this.buildPromptWithoutSkills(visitorId, projectId, userMessage);
-      detectedSkills = [];
-    } else {
-      const result = this.buildPrompt(visitorId, projectId, userMessage);
-      prompt = result.prompt;
-      detectedSkills = result.detectedSkills;
-    }
-
-    if (detectedSkills.length > 0) {
-      jobManager.updateProgress(jobId, 10, `使用スキル: ${detectedSkills.join(', ')}`);
-    }
-
     // Skip Gemini if useClaude is enabled
     if (!debugOptions.useClaude) {
       // Try Gemini first for code generation
@@ -921,7 +1215,17 @@ ${skillInstructions}
         }
 
         // Gemini succeeded - apply the result
-        const applied = await this.applyGeminiResult(visitorId, projectId, geminiResult, jobId);
+        // Get game code for Haiku to analyze image direction
+        // For create mode: use generated code; for edit mode: use existing code
+        let gameCodeForImages = null;
+        if (geminiResult.mode === 'edit') {
+          gameCodeForImages = userManager.readProjectFile(visitorId, projectId, 'index.html');
+        } else if (geminiResult.files && geminiResult.files.length > 0) {
+          const indexFile = geminiResult.files.find(f => f.path === 'index.html');
+          gameCodeForImages = indexFile ? indexFile.content : geminiResult.files[0].content;
+        }
+        const gameSpec = this.readSpec(visitorId, projectId);
+        const applied = await this.applyGeminiResult(visitorId, projectId, geminiResult, jobId, gameCodeForImages, gameSpec);
 
         if (applied) {
           const responseMessage = geminiResult.summary || 'Geminiでゲームを生成しました';
@@ -936,9 +1240,9 @@ ${skillInstructions}
 
           console.log('Job completed with Gemini:', jobId);
 
-          // Update SPEC.md asynchronously (don't wait)
-          this.updateSpec(visitorId, projectId).catch(err => {
-            console.error('SPEC.md update error:', err.message);
+          // Update specs asynchronously (don't wait) - pass userMessage for selective update
+          this.updateSpec(visitorId, projectId, effectiveUserMessage).catch(err => {
+            console.error('Spec update error:', err.message);
           });
 
           return { success: true };
@@ -950,6 +1254,22 @@ ${skillInstructions}
 
     // Fall back to Claude Code CLI
     console.log('Using Claude Code CLI for job:', jobId, 'in:', projectDir);
+
+    // Build prompt for Claude CLI (uses sync skill detection)
+    let prompt, detectedSkills;
+    if (debugOptions.disableSkills) {
+      console.log('[DEBUG] Skills disabled');
+      prompt = this.buildPromptWithoutSkills(visitorId, projectId, userMessage);
+      detectedSkills = [];
+    } else {
+      const result = this.buildPrompt(visitorId, projectId, userMessage);
+      prompt = result.prompt;
+      detectedSkills = result.detectedSkills;
+    }
+
+    if (detectedSkills.length > 0) {
+      jobManager.updateProgress(jobId, 10, `Claude CLI スキル: ${detectedSkills.join(', ')}`);
+    }
 
     return new Promise((resolve) => {
       const claude = spawn('claude', [
@@ -1075,9 +1395,9 @@ ${skillInstructions}
             html: currentHtml
           });
 
-          // Update SPEC.md asynchronously (don't wait)
-          this.updateSpec(visitorId, projectId).catch(err => {
-            console.error('SPEC.md update error:', err.message);
+          // Update specs asynchronously (don't wait) - pass userMessage for selective update
+          this.updateSpec(visitorId, projectId, userMessage).catch(err => {
+            console.error('Spec update error:', err.message);
           });
 
           resolve({ success: true });
@@ -1233,14 +1553,14 @@ ${skillInstructions}
     return jobManager.cancelJob(jobId);
   }
 
-  // Update SPEC.md asynchronously after code generation
-  async updateSpec(visitorId, projectId) {
+  // Update specs asynchronously after code generation (selective update)
+  async updateSpec(visitorId, projectId, userMessage = '') {
     const projectDir = userManager.getProjectDir(visitorId, projectId);
-    const specPath = path.join(projectDir, 'SPEC.md');
+    const specsDir = path.join(projectDir, 'specs');
     const indexPath = path.join(projectDir, 'index.html');
 
     if (!fs.existsSync(indexPath)) {
-      console.log('No index.html, skipping SPEC.md update');
+      console.log('No index.html, skipping spec update');
       return;
     }
 
@@ -1251,52 +1571,113 @@ ${skillInstructions}
       return;
     }
 
-    console.log('Updating SPEC.md...');
+    // Detect which specs need updating
+    const relevantSpecs = await this.detectRelevantSpecs(userMessage);
+    console.log(`Updating specs: ${relevantSpecs.join(', ')}`);
 
-    const prompt = `以下のゲームコードを分析し、SPEC.md を更新してください。
+    // Always ensure progress.md is updated
+    if (!relevantSpecs.includes('progress')) {
+      relevantSpecs.push('progress');
+    }
 
-## 現在のコード
-\`\`\`html
-${currentCode}
-\`\`\`
+    // Update each relevant spec file
+    for (const specType of relevantSpecs) {
+      await this.updateSingleSpec(visitorId, projectId, specType, currentCode);
+    }
+  }
 
-## SPEC.md のフォーマット（厳守）
-\`\`\`markdown
-# ゲーム仕様
+  // Update a single spec file
+  async updateSingleSpec(visitorId, projectId, specType, currentCode) {
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specsDir = path.join(projectDir, 'specs');
 
-## デザイン
-- 背景色: [色]
-- プレイヤー: [外見の説明]
-- 敵: [外見の説明]
-- UI: [スタイルの説明]
+    // Ensure specs directory exists
+    if (!fs.existsSync(specsDir)) {
+      fs.mkdirSync(specsDir, { recursive: true });
+    }
+
+    const specPath = path.join(specsDir, `${specType}.md`);
+    const currentSpec = fs.existsSync(specPath) ? fs.readFileSync(specPath, 'utf-8') : '';
+
+    const templates = {
+      game: `# ゲーム概要
+
+## 基本情報
+- ゲーム名: [名前]
+- ジャンル: [シューティング/アクション/パズル/etc]
+- タイプ: [横スクロール/縦スクロール/トップダウン/3D]
+- 進行方向: [right/up/none]
+
+## デザインスタイル
+- アートスタイル: [kawaii/pixel/anime/etc]
+- カラーパレット: [パステル/ビビッド/ダーク]
+- スプライトの向き:
+  - プレイヤー: [right/left/up/down]
+  - 敵: [right/left/up/down]
+
+## 世界観・テーマ
+- 舞台: [宇宙/森/海/都市]
+- 雰囲気: [明るい/ダーク/コミカル]`,
+
+      mechanics: `# ゲームメカニクス
+
+## キャラクター
+### プレイヤー
+- 外見: [詳細]
+- HP: [数値]
+- 移動速度: [数値]
+
+### 敵
+- 種類: [説明]
+- 行動パターン: [説明]
+
+## アイテム・パワーアップ
+- [なし/アイテム名: 効果]
 
 ## 操作方法
-- 移動: [操作方法]
-- アクション: [操作方法]
+- 移動: [説明]
+- 攻撃/アクション: [説明]
 
 ## ゲームルール
-- [ルール1]
-- [ルール2]
+- 勝利条件: [説明]
+- ゲームオーバー条件: [説明]
+- スコア: [説明]`,
 
-## 現在の機能
-- [機能1]
-- [機能2]
-\`\`\`
+      progress: `# 実装状況
 
-重要:
-- 現在のコードから読み取れる仕様のみ記載
-- 推測や提案は含めない
-- シンプルに箇条書き
+## 完了
+- [実装済み機能のリスト]
 
-${specPath} を直接編集してください。`;
+## 次の目標
+- [予定の機能]`
+    };
 
     return new Promise((resolve) => {
+      const prompt = `ゲームコードを分析し、${specType}.md を更新してください。
+
+## 現在のコード（抜粋）
+\`\`\`html
+${currentCode.substring(0, 6000)}
+\`\`\`
+
+## 現在の${specType}.md
+${currentSpec || '（なし）'}
+
+## テンプレート
+${templates[specType]}
+
+## 指示
+- コードから読み取れる情報で更新
+- 既存の値は維持（コードで確認できるもののみ変更）
+- マークダウン形式で出力のみ（説明不要）`;
+
       const claude = spawn('claude', [
         '--print',
+        '--model', 'haiku',
         '--dangerously-skip-permissions'
       ], {
         cwd: projectDir,
-        env: { ...process.env, HOME: process.env.HOME }
+        env: { ...process.env }
       });
 
       claude.stdin.write(prompt);
@@ -1308,31 +1689,406 @@ ${specPath} を直接編集してください。`;
       });
 
       claude.on('close', (code) => {
-        if (code === 0) {
-          console.log('SPEC.md updated successfully');
+        if (code === 0 && output.includes('#')) {
+          // Extract markdown content
+          const content = output.trim();
+          fs.writeFileSync(specPath, content, 'utf-8');
+          console.log(`Updated specs/${specType}.md`);
         } else {
-          console.log('SPEC.md update failed, code:', code);
+          console.log(`Failed to update ${specType}.md`);
         }
         resolve();
       });
 
-      // Timeout after 30 seconds
+      claude.on('error', () => {
+        resolve();
+      });
+
+      // Timeout after 15 seconds per file
       setTimeout(() => {
         claude.kill();
         resolve();
-      }, 30000);
+      }, 15000);
     });
   }
 
-  // Read SPEC.md for a project
+  // Create initial specs (3 files) BEFORE code generation (for new projects)
+  async createInitialSpec(visitorId, projectId, userMessage, dimension) {
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specsDir = path.join(projectDir, 'specs');
+
+    console.log('Creating initial specs (3 files) before code generation...');
+
+    // Create specs directory
+    if (!fs.existsSync(specsDir)) {
+      fs.mkdirSync(specsDir, { recursive: true });
+    }
+
+    return new Promise((resolve) => {
+      const prompt = `ユーザーのリクエストからゲーム仕様を3つのJSONオブジェクトで出力してください。
+
+## ユーザーのリクエスト
+「${userMessage}」
+
+## 検出された次元
+${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
+
+## 出力フォーマット（厳守・JSON形式）
+\`\`\`json
+{
+  "game": "# ゲーム概要\\n\\n## 基本情報\\n- ゲーム名: [名前]\\n- ジャンル: [シューティング/アクション/パズル/etc]\\n- タイプ: [横スクロール/縦スクロール/トップダウン/3D]\\n- 進行方向: [right/up/none]\\n\\n## デザインスタイル\\n- アートスタイル: [kawaii/pixel/anime/etc]\\n- カラーパレット: [パステル/ビビッド/ダーク]\\n- スプライトの向き:\\n  - プレイヤー: [right/left/up/down]\\n  - 敵: [right/left/up/down]\\n\\n## 世界観・テーマ\\n- 舞台: [宇宙/森/海/都市]\\n- 雰囲気: [明るい/ダーク/コミカル]",
+  "mechanics": "# ゲームメカニクス\\n\\n## キャラクター\\n### プレイヤー\\n- 外見: [詳細]\\n- HP: [数値]\\n- 移動速度: [数値]\\n\\n### 敵\\n- 種類: [説明]\\n- 行動パターン: [説明]\\n\\n## アイテム・パワーアップ\\n- [なし/アイテム名: 効果]\\n\\n## 操作方法\\n- 移動: [説明]\\n- 攻撃/アクション: [説明]\\n\\n## ゲームルール\\n- 勝利条件: [説明]\\n- ゲームオーバー条件: [説明]\\n- スコア: [説明]",
+  "progress": "# 実装状況\\n\\n## 完了\\n- 初期セットアップ\\n\\n## 次の目標\\n- 基本ゲームプレイの実装"
+}
+\`\`\`
+
+## 注意
+- デザインスタイル未指定時は「kawaii」をデフォルト
+- スプライト向き: 横スクロール(右進行)→プレイヤーright/敵left、縦スクロール→プレイヤーup/敵down
+- JSON形式で出力すること`;
+
+      const claude = spawn('claude', [
+        '--print',
+        '--model', 'haiku',
+        '--dangerously-skip-permissions'
+      ], {
+        cwd: projectDir,
+        env: { ...process.env }
+      });
+
+      claude.stdin.write(prompt);
+      claude.stdin.end();
+
+      let output = '';
+      claude.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claude.on('close', (code) => {
+        try {
+          // Extract JSON from response
+          const jsonMatch = output.match(/\{[\s\S]*"game"[\s\S]*"mechanics"[\s\S]*"progress"[\s\S]*\}/);
+          if (jsonMatch) {
+            const specs = JSON.parse(jsonMatch[0]);
+
+            // Write 3 separate files
+            if (specs.game) {
+              fs.writeFileSync(path.join(specsDir, 'game.md'), specs.game, 'utf-8');
+            }
+            if (specs.mechanics) {
+              fs.writeFileSync(path.join(specsDir, 'mechanics.md'), specs.mechanics, 'utf-8');
+            }
+            if (specs.progress) {
+              fs.writeFileSync(path.join(specsDir, 'progress.md'), specs.progress, 'utf-8');
+            }
+
+            console.log('Initial specs created: game.md, mechanics.md, progress.md');
+
+            // Return combined for backward compatibility
+            resolve([specs.game, specs.mechanics, specs.progress].filter(Boolean).join('\n\n---\n\n'));
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to parse spec JSON:', e.message);
+        }
+
+        // Fallback: create minimal specs
+        console.log('Spec creation failed, creating minimal defaults');
+        const defaults = this.createDefaultSpecs(userMessage, dimension);
+        fs.writeFileSync(path.join(specsDir, 'game.md'), defaults.game, 'utf-8');
+        fs.writeFileSync(path.join(specsDir, 'mechanics.md'), defaults.mechanics, 'utf-8');
+        fs.writeFileSync(path.join(specsDir, 'progress.md'), defaults.progress, 'utf-8');
+        resolve([defaults.game, defaults.mechanics, defaults.progress].join('\n\n---\n\n'));
+      });
+
+      claude.on('error', () => {
+        console.log('Initial spec creation error');
+        const defaults = this.createDefaultSpecs(userMessage, dimension);
+        fs.writeFileSync(path.join(specsDir, 'game.md'), defaults.game, 'utf-8');
+        fs.writeFileSync(path.join(specsDir, 'mechanics.md'), defaults.mechanics, 'utf-8');
+        fs.writeFileSync(path.join(specsDir, 'progress.md'), defaults.progress, 'utf-8');
+        resolve([defaults.game, defaults.mechanics, defaults.progress].join('\n\n---\n\n'));
+      });
+
+      // Timeout after 15 seconds
+      setTimeout(() => {
+        claude.kill();
+        console.log('Initial spec creation timeout');
+        resolve(null);
+      }, 15000);
+    });
+  }
+
+  // Create default specs when AI fails
+  createDefaultSpecs(userMessage, dimension) {
+    const is3D = dimension === '3d';
+    return {
+      game: `# ゲーム概要
+
+## 基本情報
+- ゲーム名: 新規ゲーム
+- ジャンル: アクション
+- タイプ: ${is3D ? '3D' : '横スクロール'}
+- 進行方向: ${is3D ? 'none' : 'right'}
+
+## デザインスタイル
+- アートスタイル: kawaii
+- カラーパレット: パステル
+- スプライトの向き:
+  - プレイヤー: right
+  - 敵: left
+
+## 世界観・テーマ
+- 舞台: ファンタジー
+- 雰囲気: 明るい`,
+
+      mechanics: `# ゲームメカニクス
+
+## キャラクター
+### プレイヤー
+- 外見: かわいいキャラクター
+- HP: 3
+- 移動速度: 5
+
+### 敵
+- 種類: 基本的な敵
+- 行動パターン: 直進
+
+## アイテム・パワーアップ
+- なし
+
+## 操作方法
+- 移動: タッチ/キーボード
+- 攻撃/アクション: タップ/スペース
+
+## ゲームルール
+- 勝利条件: スコアを稼ぐ
+- ゲームオーバー条件: HPが0になる
+- スコア: 敵を倒すと加算`,
+
+      progress: `# 実装状況
+
+## 完了
+- 初期セットアップ
+
+## 次の目標
+- 基本ゲームプレイの実装`
+    };
+  }
+
+  // Check if SPEC.md has explicit design style (non-kawaii)
+  hasExplicitDesignStyle(spec) {
+    if (!spec) return false;
+
+    // Look for design style section
+    const designSection = spec.match(/## デザインスタイル[\s\S]*?(?=##|$)/i);
+    if (!designSection) return false;
+
+    const section = designSection[0].toLowerCase();
+
+    // Check for non-kawaii styles explicitly specified
+    const nonKawaiiStyles = [
+      'pixel', 'ピクセル', 'ドット',
+      'realistic', 'リアル', '写実',
+      'dark', 'ダーク', '暗い',
+      'retro', 'レトロ',
+      'minimalist', 'ミニマル', 'シンプル',
+      'anime', 'アニメ',
+      'sci-fi', 'sf', 'サイファイ',
+      'horror', 'ホラー',
+      'military', 'ミリタリー',
+      'cyberpunk', 'サイバーパンク',
+      'steampunk', 'スチームパンク'
+    ];
+
+    for (const style of nonKawaiiStyles) {
+      if (section.includes(style)) {
+        console.log(`Explicit design style detected: ${style}`);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Get design style from SPEC.md for image generation
+  getDesignStyleFromSpec(spec) {
+    if (!spec) return null;
+
+    const designSection = spec.match(/## デザインスタイル[\s\S]*?(?=##|$)/i);
+    if (!designSection) return null;
+
+    const section = designSection[0];
+
+    // Extract art style
+    const artStyleMatch = section.match(/アートスタイル[:\s]+([^\n]+)/i);
+    if (artStyleMatch) {
+      return artStyleMatch[1].trim();
+    }
+
+    return null;
+  }
+
+  // Extract sprite direction from SPEC.md
+  getDirectionFromSpec(spec, role) {
+    if (!spec) return null;
+
+    // Look for direction in "スプライトの向き" section or "デザインスタイル" section
+    const directionSection = spec.match(/スプライトの向き[\s\S]*?(?=##|$)/i) ||
+                             spec.match(/## デザインスタイル[\s\S]*?(?=##|$)/i);
+    if (!directionSection) return null;
+
+    const section = directionSection[0];
+    const roleLower = role.toLowerCase();
+
+    // Match patterns like "プレイヤー: right" or "- プレイヤー: facing right"
+    let pattern;
+    if (/player|プレイヤー/.test(roleLower)) {
+      pattern = /プレイヤー[:\s]+.*?(right|left|up|down)/i;
+    } else if (/enemy|敵/.test(roleLower)) {
+      pattern = /敵[:\s]+.*?(right|left|up|down)/i;
+    } else if (/bullet|弾/.test(roleLower)) {
+      pattern = /弾[:\s]+.*?(right|left|up|down)/i;
+    }
+
+    if (pattern) {
+      const match = section.match(pattern);
+      if (match) {
+        return match[1].toLowerCase();
+      }
+    }
+
+    return null;
+  }
+
+  // Read SPEC.md for a project (legacy - reads old format or combines new format)
   readSpec(visitorId, projectId) {
     const projectDir = userManager.getProjectDir(visitorId, projectId);
-    const specPath = path.join(projectDir, 'SPEC.md');
+    const specsDir = path.join(projectDir, 'specs');
+    const legacySpecPath = path.join(projectDir, 'SPEC.md');
 
-    if (fs.existsSync(specPath)) {
-      return fs.readFileSync(specPath, 'utf-8');
+    // Check for new 3-file format first
+    if (fs.existsSync(specsDir)) {
+      return this.readSpecs(visitorId, projectId);
+    }
+
+    // Fall back to legacy single file
+    if (fs.existsSync(legacySpecPath)) {
+      return fs.readFileSync(legacySpecPath, 'utf-8');
     }
     return null;
+  }
+
+  // Read new 3-file spec format and combine
+  readSpecs(visitorId, projectId) {
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specsDir = path.join(projectDir, 'specs');
+
+    const specs = {
+      game: this.readSpecFile(specsDir, 'game.md'),
+      mechanics: this.readSpecFile(specsDir, 'mechanics.md'),
+      progress: this.readSpecFile(specsDir, 'progress.md')
+    };
+
+    // Combine for backward compatibility with code generation
+    const combined = [];
+    if (specs.game) combined.push(specs.game);
+    if (specs.mechanics) combined.push(specs.mechanics);
+    if (specs.progress) combined.push(specs.progress);
+
+    return combined.join('\n\n---\n\n') || null;
+  }
+
+  // Read a single spec file
+  readSpecFile(specsDir, filename) {
+    const filePath = path.join(specsDir, filename);
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf-8');
+    }
+    return null;
+  }
+
+  // Read specific spec file for targeted updates
+  readSpecByType(visitorId, projectId, specType) {
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specsDir = path.join(projectDir, 'specs');
+    const filename = `${specType}.md`;
+    return this.readSpecFile(specsDir, filename);
+  }
+
+  // Write a single spec file
+  writeSpecFile(visitorId, projectId, specType, content) {
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specsDir = path.join(projectDir, 'specs');
+
+    if (!fs.existsSync(specsDir)) {
+      fs.mkdirSync(specsDir, { recursive: true });
+    }
+
+    const filePath = path.join(specsDir, `${specType}.md`);
+    fs.writeFileSync(filePath, content, 'utf-8');
+    console.log(`Wrote specs/${specType}.md`);
+  }
+
+  // Detect which spec files need updating based on user message
+  async detectRelevantSpecs(userMessage) {
+    return new Promise((resolve) => {
+      const prompt = `ユーザーのメッセージから、更新が必要な仕様ファイルを判定してください。
+
+## 仕様ファイルの種類
+- game: 見た目・世界観に関する変更（色、スタイル、テーマ、雰囲気）
+- mechanics: ゲームプレイに関する変更（キャラ、敵、アイテム、操作、ルール）
+- progress: 何か実装したら常に更新
+
+## ユーザーのメッセージ
+「${userMessage}」
+
+## 出力（JSON配列のみ）
+例: ["mechanics", "progress"]`;
+
+      const claude = spawn('claude', [
+        '--print',
+        '--model', 'haiku',
+        '--dangerously-skip-permissions'
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      });
+
+      claude.stdin.write(prompt);
+      claude.stdin.end();
+
+      let output = '';
+      claude.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claude.on('close', (code) => {
+        try {
+          const jsonMatch = output.match(/\[[\s\S]*?\]/);
+          if (jsonMatch) {
+            const specs = JSON.parse(jsonMatch[0]);
+            const validSpecs = specs.filter(s => ['game', 'mechanics', 'progress'].includes(s));
+            console.log('Relevant specs:', validSpecs.join(', '));
+            resolve(validSpecs);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to parse spec detection:', e.message);
+        }
+        // Default: update mechanics and progress
+        resolve(['mechanics', 'progress']);
+      });
+
+      claude.on('error', () => {
+        resolve(['mechanics', 'progress']);
+      });
+
+      setTimeout(() => {
+        claude.kill();
+        resolve(['mechanics', 'progress']);
+      }, 8000);
+    });
   }
 }
 
