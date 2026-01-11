@@ -292,6 +292,51 @@ document.getElementById('start-btn').addEventListener('pointerdown', () => {
 
 ---
 
+## z-indexレイヤー管理（重要）
+
+**透明な操作エリアがボタンのタッチを吸い取る問題を防ぐ。**
+
+```css
+/* ★レイヤー階層を明確に定義 */
+
+/* 背景レイヤー: ドラッグ操作エリア、カメラ操作 */
+.drag-zone,
+#camera-zone {
+  z-index: 5;
+  touch-action: none;
+}
+
+/* 中間レイヤー: ジョイスティック */
+#joystick-zone {
+  z-index: 50;
+}
+
+/* 前面レイヤー: ボタン類（常に最前面） */
+.control-area,
+#controls,
+.action-btn,
+#jump-btn,
+#fire-btn {
+  z-index: 100;
+}
+
+/* UI/HUD: スコア、ライフ表示 */
+.hud {
+  z-index: 150;
+  pointer-events: none;  /* タッチを透過 */
+}
+```
+
+### よくある問題と解決
+
+| 症状 | 原因 | 解決 |
+|------|------|------|
+| ボタンが反応しない | 透明エリアがタッチを吸収 | ボタンの `z-index` を上げる |
+| ドラッグ中にボタン誤爆 | レイヤー逆転 | ドラッグエリアの `z-index` を下げる |
+| HUDがタッチを妨害 | 表示専用なのにイベント発生 | `pointer-events: none` を追加 |
+
+---
+
 ## タッチイベントの座標取得
 
 ```javascript
