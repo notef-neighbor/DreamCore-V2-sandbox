@@ -151,6 +151,65 @@ UI要素のタッチイベント競合を防ぐため、z-indexを明確に定�
 | 100 | ボタン | ジャンプ、攻撃 |
 | 150 | HUD | スコア表示 |
 
+## ジョイスティックY軸の方向（重要）
+
+ブラウザ座標系とゲーム座標系の違いを理解する。
+
+```
+ブラウザ座標: 上スワイプ → deltaY < 0（画面上方向がY小）
+ゲーム期待値: 上に倒す → 前進 → 正の値が欲しい
+```
+
+**ジョイスティック実装時は必ずY軸を反転：**
+
+```javascript
+// ジョイスティックの値を計算
+this.vector = {
+  x: clampedX / maxDistance,
+  y: -clampedY / maxDistance  // ★Y軸反転: 上に倒す → プラス値 → 前進
+};
+```
+
+## カメラピッチ方向（重要）
+
+Three.js右手座標系でのカメラ回転：
+
+```
+X軸正回転 → カメラが下を向く
+X軸負回転 → カメラが上を向く
+```
+
+**ドラッグでカメラ操作する場合：**
+
+```javascript
+let cameraPitch = 0;
+
+document.addEventListener('touchmove', (e) => {
+  const deltaY = touch.clientY - lastY;
+
+  // ★ += で正しい方向（上スワイプ=上を向く）
+  cameraPitch += deltaY * 0.005;
+  cameraPitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, cameraPitch));
+
+  camera.rotation.order = 'YXZ';  // ジンバルロック防止
+  camera.rotation.x = cameraPitch;
+}, { passive: false });
+```
+
+**ジョイスティックでカメラ操作する場合：**
+
+```javascript
+// ジョイスティックのY軸は既に反転済み（上=正）
+// Three.jsでX軸正回転=下を向く
+// したがって -= で反転させる
+cameraPitch -= look.y * 0.02;
+```
+
+| 操作方法 | 計算式 | 理由 |
+|----------|--------|------|
+| ドラッグ | `pitch += deltaY` | deltaYは生の値 |
+| ジョイスティック | `pitch -= look.y` | look.yは既に反転済み |
+
 ## 非推奨API（エラーになる）
 
 ```javascript
