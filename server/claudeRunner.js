@@ -23,6 +23,40 @@ class ClaudeRunner {
     this.skillMetadata = this.collectSkillMetadata();
   }
 
+  /**
+   * Clear Claude CLI prompt cache for a specific project directory
+   * This prevents cross-project data leakage via API prompt caching
+   *
+   * Cache directory pattern: ~/.claude/projects/-{cwd_escaped}/
+   * Example: /home/user/project/abc → ~/.claude/projects/-home-user-project-abc/
+   */
+  clearClaudeCache(projectDir) {
+    try {
+      const homeDir = process.env.HOME || '/root';
+      // Convert project path to Claude's cache directory format
+      // /home/notef/GameCreatorMVP/users/abc/123 → -home-notef-GameCreatorMVP-users-abc-123
+      const escapedPath = projectDir.replace(/\//g, '-').replace(/^-/, '');
+      const cacheDir = path.join(homeDir, '.claude', 'projects', `-${escapedPath}`);
+
+      if (fs.existsSync(cacheDir)) {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+        console.log(`Cleared Claude cache: ${cacheDir}`);
+      }
+
+      // Also clear the main GameCreatorMVP cache to prevent cross-project leakage
+      const mainProjectDir = path.join(__dirname, '..');
+      const mainEscapedPath = mainProjectDir.replace(/\//g, '-').replace(/^-/, '');
+      const mainCacheDir = path.join(homeDir, '.claude', 'projects', `-${mainEscapedPath}`);
+
+      if (fs.existsSync(mainCacheDir)) {
+        fs.rmSync(mainCacheDir, { recursive: true, force: true });
+        console.log(`Cleared main Claude cache: ${mainCacheDir}`);
+      }
+    } catch (e) {
+      console.error('Failed to clear Claude cache:', e.message);
+    }
+  }
+
   // Collect skill metadata from all SKILL.md files (name + description)
   collectSkillMetadata() {
     const metadata = [];
@@ -790,6 +824,10 @@ ${skillInstructions}
       let effectiveUserMessage = userMessage;
 
       if (isNewProject) {
+        // Clear Claude CLI cache to prevent cross-project data leakage
+        const projectDir = userManager.getProjectDir(visitorId, projectId);
+        this.clearClaudeCache(projectDir);
+
         // First check if user is responding to dimension question
         const userMessageLower = userMessage.toLowerCase();
         const is2DSelection = userMessageLower.includes('2dで作成') || userMessageLower.includes('2dで') || userMessageLower === '2d';
