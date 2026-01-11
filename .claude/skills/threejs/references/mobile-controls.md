@@ -38,6 +38,7 @@ class VirtualJoystick {
 
   createElements() {
     // ベース（外側の円）
+    // ★重要: 中央配置にはtransformを使用（left/bottom基準だとズレる）
     this.base = document.createElement('div');
     this.base.style.cssText = `
       position: absolute;
@@ -46,11 +47,13 @@ class VirtualJoystick {
       background: rgba(255,255,255,0.2);
       border: 3px solid ${this.color};
       border-radius: 50%;
-      left: ${(this.container.offsetWidth - this.radius * 2) / 2}px;
-      bottom: 10px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
     `;
 
     // スティック（内側の円）
+    // ★重要: marginで中央配置（transformはJSアニメーションで使用するため）
     this.stick = document.createElement('div');
     this.stick.style.cssText = `
       position: absolute;
@@ -58,8 +61,10 @@ class VirtualJoystick {
       height: ${this.innerRadius * 2}px;
       background: ${this.color};
       border-radius: 50%;
-      left: ${this.radius - this.innerRadius}px;
-      top: ${this.radius - this.innerRadius}px;
+      left: 50%;
+      top: 50%;
+      margin-left: -${this.innerRadius}px;
+      margin-top: -${this.innerRadius}px;
       transition: none;
     `;
 
