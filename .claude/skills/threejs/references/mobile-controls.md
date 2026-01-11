@@ -340,3 +340,120 @@ if (isMobile) {
   document.getElementById('action-btn').style.display = 'none';
 }
 ```
+
+---
+
+## ドラッグ式タッチ移動（ジョイスティック不要版）
+
+シンプルなゲームではジョイスティックなしでドラッグ操作が適切：
+
+```javascript
+// ★タッチ状態管理
+const touchState = {
+  active: false,
+  lastX: 0,
+  lastY: 0
+};
+
+// ★画面サイズに依存しない感度
+const sensitivity = () => window.innerWidth / 400;
+
+// ★{ passive: false } でブラウザのスクロールを確実に防止
+document.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  touchState.active = true;
+  touchState.lastX = e.touches[0].clientX;
+  touchState.lastY = e.touches[0].clientY;
+}, { passive: false });
+
+document.addEventListener('touchmove', (e) => {
+  e.preventDefault();  // ★これがないと画面スクロールが優先される
+  if (!touchState.active) return;
+
+  const touch = e.touches[0];
+  // ★相対移動量（Delta）を計算
+  const deltaX = (touch.clientX - touchState.lastX) * sensitivity();
+  const deltaY = (touch.clientY - touchState.lastY) * sensitivity();
+
+  // 3D空間での移動（X=左右、Z=前後）
+  player.position.x += deltaX * 0.01;
+  player.position.z += deltaY * 0.01;  // 注: 2Dと違いY軸反転不要な場合あり
+
+  touchState.lastX = touch.clientX;
+  touchState.lastY = touch.clientY;
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+  touchState.active = false;
+});
+
+document.addEventListener('touchcancel', () => {
+  touchState.active = false;
+});
+```
+
+---
+
+## タッチ操作のベストプラクティス
+
+### 必須事項
+
+| 項目 | 理由 |
+|------|------|
+| `{ passive: false }` | `preventDefault()` を有効にするため |
+| `e.preventDefault()` | ブラウザのスクロールを防止 |
+| `e.touches[0].clientX` | タッチは `e.clientX` ではなくこちら |
+| 相対移動（Delta） | 絶対座標だと指で対象が隠れる |
+| 画面サイズ依存の感度 | どの端末でも同じ操作感 |
+
+### 座標取得の違い
+
+```javascript
+// ★マウスとタッチで座標取得方法が異なる
+function getEventPosition(e) {
+  if (e.touches && e.touches.length > 0) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  } else {
+    return { x: e.clientX, y: e.clientY };
+  }
+}
+```
+
+### マルチタッチID管理（上級）
+
+移動しながら別のボタンを押す操作には、タッチIDによる追跡が必要：
+
+```javascript
+const activeTouches = new Map();
+
+document.addEventListener('touchstart', (e) => {
+  for (const touch of e.changedTouches) {
+    activeTouches.set(touch.identifier, {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      purpose: detectTouchPurpose(touch)  // 'move' or 'action'
+    });
+  }
+}, { passive: false });
+
+document.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  for (const touch of e.changedTouches) {
+    const tracked = activeTouches.get(touch.identifier);
+    if (tracked && tracked.purpose === 'move') {
+      // 移動処理
+    }
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+  for (const touch of e.changedTouches) {
+    activeTouches.delete(touch.identifier);
+  }
+});
+
+function detectTouchPurpose(touch) {
+  // 画面左半分は移動、右半分はアクション
+  return touch.clientX < window.innerWidth / 2 ? 'move' : 'action';
+}
+```

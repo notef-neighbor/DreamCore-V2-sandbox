@@ -134,7 +134,70 @@ p.touchEnded = () => {
 
 ---
 
-## マウス/タッチ位置へ移動
+## ドラッグ式タッチ操作（推奨）
+
+**絶対座標移動は指で自機が隠れるため、相対移動（ドラッグ）方式を推奨。**
+
+```javascript
+// ★重要: タッチ操作の状態管理
+let touchState = {
+  active: false,
+  lastX: 0,
+  lastY: 0
+};
+
+// ★画面サイズに依存しない感度（どの端末でも同じ操作感）
+const sensitivity = () => window.innerWidth / 400;
+
+// ★{ passive: false } でブラウザのスクロールを確実に防止
+document.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  touchState.active = true;
+  touchState.lastX = e.touches[0].clientX;
+  touchState.lastY = e.touches[0].clientY;
+}, { passive: false });
+
+document.addEventListener('touchmove', (e) => {
+  e.preventDefault();  // ★これがないと画面スクロールが優先される
+  if (!touchState.active) return;
+
+  const touch = e.touches[0];
+  // ★相対移動量（Delta）を計算
+  const deltaX = (touch.clientX - touchState.lastX) * sensitivity();
+  const deltaY = (touch.clientY - touchState.lastY) * sensitivity();
+
+  player.x += deltaX;
+  player.y += deltaY;
+
+  // 画面内に制限
+  player.x = Math.max(0, Math.min(player.x, window.innerWidth));
+  player.y = Math.max(0, Math.min(player.y, window.innerHeight));
+
+  touchState.lastX = touch.clientX;
+  touchState.lastY = touch.clientY;
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+  touchState.active = false;
+});
+
+document.addEventListener('touchcancel', () => {
+  touchState.active = false;
+});
+```
+
+### なぜドラッグ式か？
+
+| 方式 | 問題点 |
+|------|--------|
+| 絶対座標移動 | 指で自機が隠れ、敵弾が見えない |
+| ドラッグ式 | 画面のどこでも操作可能、自機が見える |
+
+---
+
+## マウス/タッチ位置へ移動（非推奨）
+
+⚠️ **指で自機が隠れるため、シューティングゲームには不向き**
 
 ```javascript
 p.draw = () => {
@@ -218,8 +281,53 @@ document.getElementById('start-btn').addEventListener('pointerdown', () => {
 
 ---
 
-## 禁止
+## 禁止・注意事項
 
 - `click` のみ使用 → モバイルで反応悪い、`pointerdown` を使う
 - `touchstart` のみ → `pointerdown` なら両対応
 - `return false` 忘れ → 画面スクロールしてしまう
+- **`{ passive: false }` なしで `touchmove` を使う** → `preventDefault()` が効かない
+- **`e.clientX` をタッチで使う** → タッチは `e.touches[0].clientX` を使う
+- **絶対座標移動** → 指で自機が隠れる、ドラッグ式を使う
+
+---
+
+## タッチイベントの座標取得
+
+```javascript
+// ★マウスとタッチで座標取得方法が異なる
+function getEventPosition(e) {
+  if (e.touches && e.touches.length > 0) {
+    // タッチイベント
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  } else {
+    // マウスイベント
+    return { x: e.clientX, y: e.clientY };
+  }
+}
+```
+
+---
+
+## 将来の拡張: マルチタッチID管理
+
+移動しながら別のボタンを押す操作には、タッチIDによる追跡が必要：
+
+```javascript
+const activeTouches = new Map();
+
+document.addEventListener('touchstart', (e) => {
+  for (const touch of e.changedTouches) {
+    activeTouches.set(touch.identifier, {
+      startX: touch.clientX,
+      startY: touch.clientY
+    });
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+  for (const touch of e.changedTouches) {
+    activeTouches.delete(touch.identifier);
+  }
+});
+```
