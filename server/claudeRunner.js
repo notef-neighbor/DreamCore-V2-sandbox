@@ -287,7 +287,7 @@ ${movementContext ? `## コードパターン\n${movementContext}\n` : ''}
 
       const claude = spawn('claude', [
         '--print',
-        '--model', 'haiku',
+        '--model', 'sonnet',  // Use Sonnet for better image direction analysis
         '--dangerously-skip-permissions'
       ], {
         cwd: process.cwd(),
@@ -1723,7 +1723,7 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
 
       const claude = spawn('claude', [
         '--print',
-        '--model', 'haiku',
+        '--model', 'sonnet',  // Use Sonnet for better game spec generation (prevents cross-project leakage)
         '--dangerously-skip-permissions'
       ], {
         cwd: projectDir,
@@ -1784,12 +1784,12 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
         resolve([defaults.game, defaults.mechanics, defaults.progress].join('\n\n---\n\n'));
       });
 
-      // Timeout after 15 seconds
+      // Timeout after 30 seconds (Sonnet is slower than Haiku)
       setTimeout(() => {
         claude.kill();
         console.log('Initial spec creation timeout');
         resolve(null);
-      }, 15000);
+      }, 30000);
     });
   }
 
