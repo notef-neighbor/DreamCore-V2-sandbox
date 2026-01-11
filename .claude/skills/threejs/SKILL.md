@@ -134,5 +134,5 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 - **物理エンジン (cannon-es)**: [references/cannon-es.md](references/cannon-es.md) - メイン推奨
 - **物理エンジン (Rapier)**: [references/rapier.md](references/rapier.md) - 高性能が必要な場合
-- **モバイルジョイスティック**: [references/mobile-controls.md](references/mobile-controls.md)
+- **モバイル入力**: `threejs-input` スキルを使用（ジョイスティック、ボタン、カメラ操作）
 - **非推奨API対応表**: [references/deprecated-apis.md](references/deprecated-apis.md)

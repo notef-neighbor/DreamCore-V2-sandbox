@@ -319,18 +319,18 @@ ${movementContext ? `## コードパターン\n${movementContext}\n` : ''}
 
     // Priority 1: detected framework from existing code
     if (framework === 'threejs') {
-      return ['threejs-setup', 'kawaii-3d', ...commonSkills];
+      return ['threejs-setup', 'threejs-input', 'kawaii-3d', ...commonSkills];
     }
     if (framework === 'p5js') {
-      return ['p5js-setup', ...commonSkills];
+      return ['p5js-setup', 'p5js-input', ...commonSkills];
     }
 
     // Priority 2: detected dimension for new projects
     if (dimension === '3d') {
-      return ['threejs-setup', 'kawaii-3d', ...commonSkills];
+      return ['threejs-setup', 'threejs-input', 'kawaii-3d', ...commonSkills];
     }
     if (dimension === '2d') {
-      return ['p5js-setup', ...commonSkills];
+      return ['p5js-setup', 'p5js-input', ...commonSkills];
     }
 
     // Unknown - return minimal
@@ -495,11 +495,11 @@ ${specSummary ? `現在のゲーム仕様:\n${specSummary}` : ''}
       skills.push('kawaii-colors');
     }
 
-    // Core framework
+    // Core framework + input handling
     if (is3D) {
-      skills.push('threejs-setup', 'kawaii-3d');
+      skills.push('threejs-setup', 'threejs-input', 'kawaii-3d');
     } else {
-      skills.push('p5js-setup');
+      skills.push('p5js-setup', 'p5js-input');
       // Image generation only for 2D
       if (/画像|キャラクター|敵|アイテム/i.test(messageLower)) {
         skills.push('image-generation');
@@ -860,6 +860,15 @@ ${skillInstructions}
       // AI-driven skill detection (async) - now with game spec and dimension for better context
       jobManager.updateProgress(jobId, 5, 'スキルを分析中...');
       let detectedSkills = await this.detectSkillsWithAI(effectiveUserMessage, currentCode, isNewProject, gameSpec, detectedDimension);
+
+      // Force input skills for new projects (ensures proper mobile controls from start)
+      if (isNewProject && detectedDimension) {
+        const inputSkill = detectedDimension === '3d' ? 'threejs-input' : 'p5js-input';
+        if (!detectedSkills.includes(inputSkill)) {
+          detectedSkills.push(inputSkill);
+          console.log(`Forced ${inputSkill} for new ${detectedDimension} project`);
+        }
+      }
 
       // Filter out kawaii skills if SPEC.md has explicit design style
       if (gameSpec && this.hasExplicitDesignStyle(gameSpec)) {

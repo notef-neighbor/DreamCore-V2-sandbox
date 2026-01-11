@@ -20,6 +20,7 @@ const GAME_2D_SKILLS = [
  */
 const GAME_3D_SKILLS = [
   'threejs-setup',     // Three.js基本セットアップ
+  'threejs-input',     // モバイル入力（ジョイスティック、ボタン）
   'threejs-lighting',  // ライティング
   'kawaii-3d',         // KAWAIIスタイル3D
   'visual-polish-3d'   // ビジュアルポーリッシュ3D
