@@ -147,62 +147,10 @@ class ClaudeRunner {
       return '2d';
     }
 
-    // For everything else (レース、シューティング、パズル等), ask Claude CLI
-    console.log('Asking Claude CLI for dimension detection...');
-
-    return new Promise((resolve) => {
-      const prompt = `ユーザーのゲームリクエストを分析し、2Dゲームか3Dゲームかを判断してください。
-
-リクエスト: "${userMessage}"
-
-判断基準:
-- ユーザーが明確に「2D」または「3D」と指定している場合のみ確定
-- 指定がない場合は「unclear」と回答
-
-回答は「2d」「3d」「unclear」のいずれか1単語のみ:`;
-
-      const claude = spawn('claude', [
-        '--print',
-        '--model', 'haiku',
-        '--dangerously-skip-permissions'
-      ], {
-        cwd: process.cwd(),
-        env: { ...process.env }
-      });
-
-      // Write prompt to stdin to avoid shell escaping issues
-      claude.stdin.write(prompt);
-      claude.stdin.end();
-
-      let output = '';
-      claude.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      claude.on('close', (code) => {
-        const result = output.trim().toLowerCase();
-        console.log('Dimension detection result:', result);
-        if (result.includes('3d')) {
-          resolve('3d');
-        } else if (result.includes('2d')) {
-          resolve('2d');
-        } else {
-          resolve('unclear');
-        }
-      });
-
-      claude.on('error', () => {
-        console.log('Dimension detection error, defaulting to unclear');
-        resolve('unclear');
-      });
-
-      // Timeout after 8 seconds
-      setTimeout(() => {
-        claude.kill();
-        console.log('Dimension detection timeout');
-        resolve('unclear');
-      }, 8000);
-    });
+    // For everything else, default to unclear - user must specify
+    // DO NOT use AI to guess - it causes unwanted 3D/2D auto-selection
+    console.log('No explicit 2D/3D specified, returning unclear');
+    return 'unclear';
   }
 
   // Guess image role from name and prompt
