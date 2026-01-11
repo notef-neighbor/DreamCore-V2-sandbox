@@ -30,7 +30,6 @@ const codingRules = `[コーディングルール]
     <script type="module">
     import * as THREE from 'three';
     </script>
-  - 音声: Howler.js (https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js)
 - タッチイベントは passive: false で preventDefault() を適切に使用
 - 画面サイズ変更に対応（resize イベント処理）`;
 

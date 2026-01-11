@@ -879,16 +879,10 @@ ${skillInstructions}
         }
       }
 
-      // For new projects: Create SPEC.md FIRST (before code generation)
       // For existing projects: Read existing SPEC.md
+      // For new projects: Spec will be created AFTER code generation by Gemini
       let gameSpec = null;
-      if (isNewProject && detectedDimension) {
-        jobManager.updateProgress(jobId, 4, '仕様書を作成中...');
-        gameSpec = await this.createInitialSpec(visitorId, projectId, effectiveUserMessage, detectedDimension);
-        if (gameSpec) {
-          console.log('Initial SPEC.md created with sprite directions');
-        }
-      } else if (!isNewProject) {
+      if (!isNewProject) {
         gameSpec = this.readSpec(visitorId, projectId);
         if (gameSpec) {
           console.log('Including existing SPEC.md in code generation');
@@ -1214,10 +1208,18 @@ ${skillInstructions}
 
           console.log('Job completed with Gemini:', jobId);
 
-          // Update specs asynchronously (don't wait) - pass userMessage for selective update
-          this.updateSpec(visitorId, projectId, userMessage).catch(err => {
-            console.error('Spec update error:', err.message);
-          });
+          // Create/Update specs asynchronously (don't wait)
+          // For create mode: create initial spec from generated code
+          // For edit mode: update existing spec
+          if (geminiResult.mode === 'create') {
+            this.createInitialSpecFromCode(visitorId, projectId, userMessage, null, gameCodeForImages).catch(err => {
+              console.error('Spec creation error:', err.message);
+            });
+          } else {
+            this.updateSpec(visitorId, projectId, userMessage).catch(err => {
+              console.error('Spec update error:', err.message);
+            });
+          }
 
           return { success: true };
         }
@@ -1686,7 +1688,80 @@ ${templates[specType]}
     });
   }
 
-  // Create initial specs (3 files) BEFORE code generation (for new projects)
+  // Create initial specs from generated code using Gemini (AFTER code generation)
+  async createInitialSpecFromCode(visitorId, projectId, userMessage, dimension, generatedCode) {
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specsDir = path.join(projectDir, 'specs');
+
+    console.log('Creating specs from generated code using Gemini...');
+
+    // Create specs directory
+    if (!fs.existsSync(specsDir)) {
+      fs.mkdirSync(specsDir, { recursive: true });
+    }
+
+    try {
+      const prompt = `以下のゲームコードを分析し、ゲーム仕様を3つのJSONオブジェクトで出力してください。
+
+## ユーザーのリクエスト
+「${userMessage}」
+
+## 生成されたコード
+\`\`\`html
+${generatedCode ? generatedCode.substring(0, 8000) : '(コードなし)'}
+\`\`\`
+
+## 出力フォーマット（厳守・JSON形式）
+\`\`\`json
+{
+  "game": "# ゲーム概要\\n\\n## 基本情報\\n- ゲーム名: [コードから推測]\\n- ジャンル: [コードから推測]\\n- タイプ: [2D/3D]\\n- 進行方向: [right/up/none]\\n\\n## スプライトの向き\\n- プレイヤー: [right/left/up/down]\\n- 敵: [right/left/up/down]\\n\\n## 世界観・テーマ\\n- 舞台: [コードから推測]\\n- 雰囲気: [コードから推測]",
+  "mechanics": "# ゲームメカニクス\\n\\n## キャラクター\\n### プレイヤー\\n- 外見: [コードから推測]\\n- HP: [数値]\\n- 移動速度: [数値]\\n\\n### 敵\\n- 種類: [コードから推測]\\n- 行動パターン: [コードから推測]\\n\\n## 操作方法\\n- 移動: [コードから推測]\\n- 攻撃/アクション: [コードから推測]\\n\\n## ゲームルール\\n- 勝利条件: [コードから推測]\\n- ゲームオーバー条件: [コードから推測]",
+  "progress": "# 実装状況\\n\\n## 完了\\n- 初期実装完了\\n\\n## 次の目標\\n- 機能拡張"
+}
+\`\`\`
+
+## 注意
+- デザインスタイルはユーザーが明示的に指定した場合のみ記載（指定がなければ書かない）
+- コードを分析して実際の実装内容を反映すること
+- JSON形式で出力すること`;
+
+      const result = await geminiClient.chat(prompt);
+
+      if (result) {
+        // Extract JSON from response
+        const jsonMatch = result.match(/\{[\s\S]*"game"[\s\S]*"mechanics"[\s\S]*"progress"[\s\S]*\}/);
+        if (jsonMatch) {
+          const specs = JSON.parse(jsonMatch[0]);
+
+          // Write 3 separate files
+          if (specs.game) {
+            fs.writeFileSync(path.join(specsDir, 'game.md'), specs.game, 'utf-8');
+          }
+          if (specs.mechanics) {
+            fs.writeFileSync(path.join(specsDir, 'mechanics.md'), specs.mechanics, 'utf-8');
+          }
+          if (specs.progress) {
+            fs.writeFileSync(path.join(specsDir, 'progress.md'), specs.progress, 'utf-8');
+          }
+
+          console.log('Specs created from code: game.md, mechanics.md, progress.md');
+          return [specs.game, specs.mechanics, specs.progress].filter(Boolean).join('\n\n---\n\n');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to create specs from code:', e.message);
+    }
+
+    // Fallback: create minimal specs
+    console.log('Spec creation from code failed, creating minimal defaults');
+    const defaults = this.createDefaultSpecs(userMessage, dimension);
+    fs.writeFileSync(path.join(specsDir, 'game.md'), defaults.game, 'utf-8');
+    fs.writeFileSync(path.join(specsDir, 'mechanics.md'), defaults.mechanics, 'utf-8');
+    fs.writeFileSync(path.join(specsDir, 'progress.md'), defaults.progress, 'utf-8');
+    return [defaults.game, defaults.mechanics, defaults.progress].join('\n\n---\n\n');
+  }
+
+  // Create initial specs (3 files) BEFORE code generation (for new projects) - DEPRECATED
   async createInitialSpec(visitorId, projectId, userMessage, dimension) {
     const projectDir = userManager.getProjectDir(visitorId, projectId);
     const specsDir = path.join(projectDir, 'specs');

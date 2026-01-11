@@ -122,34 +122,52 @@ renderer.setAnimationLoop(() => renderer.render(scene, camera));
 </script>
 ```
 
-## z-indexレイヤー管理（重要）
+## ジョイスティックが動かない問題（頻発・重要）
 
-UI要素のタッチイベント競合を防ぐため、z-indexを明確に定義する。
+### 事象
+ジョイスティックを操作しても反応せず、代わりにカメラが回転する、または無反応になる。
+
+### 原因
+**透明な全画面レイヤーによるイベント遮断**。カメラ操作用の透明要素（#camera-zone）がジョイスティックより手前にあり、タッチがカメラ層に吸収される。
+
+### 解決策：z-indexによる操作優先度の明確化
 
 ```css
-/* Canvas: 最背面 */
+/* z-index: 100 [最優先] - ボタン類 */
+#jump-btn, #retry-btn, .action-btn {
+  z-index: 100;
+  pointer-events: auto;
+}
+
+/* z-index: 50 [優先] - ジョイスティック */
+#joystick-zone {
+  z-index: 50;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+/* z-index: 5 [背景操作] - カメラ領域（ジョイスティックの下に潜る） */
+#camera-zone {
+  z-index: 5;
+  touch-action: none;
+}
+
+/* z-index: 1 [描画層] - Canvas */
 #gameCanvas { z-index: 1; }
 
-/* 背景操作エリア（カメラドラッグ等） */
-#camera-zone { z-index: 5; touch-action: none; }
-
-/* ジョイスティック */
-#joystick-zone { z-index: 50; touch-action: none; }
-
-/* アクションボタン（常に最前面） */
-#jump-btn, #fire-btn, .action-btn { z-index: 100; }
-
-/* HUD（タッチ透過） */
-.hud, #score { z-index: 150; pointer-events: none; }
+/* UIコンテナ：隙間のタッチ遮断を防ぐ */
+#ui-layer { pointer-events: none; }
+#ui-layer > * { pointer-events: auto; }
 ```
 
-| z-index | 用途 | 例 |
-|---------|------|-----|
-| 1 | Canvas | ゲーム描画 |
-| 5 | 背景操作 | カメラドラッグ |
-| 50 | ジョイスティック | 移動操作 |
-| 100 | ボタン | ジャンプ、攻撃 |
-| 150 | HUD | スコア表示 |
+| z-index | 用途 | pointer-events |
+|---------|------|----------------|
+| 100 | ボタン | auto |
+| 50 | ジョイスティック | auto |
+| 5 | カメラ操作 | auto |
+| 1 | Canvas | - |
+
+**ポイント**: カメラ領域（z-index:5）がジョイスティック（z-index:50）より下になるため、ジョイスティック内のタッチは確実にジョイスティックが受け取る。
 
 ## ジョイスティックY軸の方向（重要）
 
@@ -223,3 +241,69 @@ const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game
 renderer.setAnimationLoop(animate);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 ```
+
+## 移動スタック問題（3Dゲーム頻発）
+
+### 事象
+平らな地面で見えない壁に引っかかり、移動が止まる。
+
+### 原因
+当たり判定の過敏反応。足元の地面との「接触」を「壁への衝突」と誤判定。
+
+### 解決策：水平移動時の判定緩和
+
+```javascript
+function checkCollision(player, direction, obstacles) {
+  const box = new THREE.Box3().setFromObject(player);
+
+  // 水平移動時は足元・頭上を判定から除外
+  if (direction.y === 0) {
+    box.min.y += 0.1;  // 足元を少し上げる
+    box.max.y -= 0.1;  // 頭上を少し下げる
+  }
+
+  for (const obs of obstacles) {
+    if (box.intersectsBox(new THREE.Box3().setFromObject(obs))) {
+      return true;  // 衝突
+    }
+  }
+  return false;
+}
+```
+
+**ポイント**: 水平移動時だけ判定ボックスを縮小し、地面との摩擦を無視して純粋な「壁」だけを検知。
+
+## キャラクターが地面に埋まる問題（3Dゲーム頻発）
+
+### 事象
+キャラクターの足が地面に埋没して表示される。
+
+### 原因
+3Dモデルの原点（中心点）と配置座標のズレ。BoxGeometryは中心が原点のため、Y=0に配置すると下半分が地面に埋まる。
+
+### 解決策：ジオメトリの底面合わせ
+
+```javascript
+// ❌ 中心基準（足が埋まる）
+foot.position.y = 0;
+
+// ✅ 底面基準（足裏が地面に接地）
+const footHeight = 0.8;
+foot.position.y = footHeight / 2;  // 高さの半分だけ上にずらす
+```
+
+**全身の配置例：**
+```javascript
+const footH = 0.8, torsoH = 1.2, headH = 0.6;
+
+// 足: 底面がY=0
+foot.position.y = footH / 2;  // 0.4
+
+// 胴体: 足の上
+torso.position.y = footH + torsoH / 2;  // 1.4
+
+// 頭: 胴体の上
+head.position.y = footH + torsoH + headH / 2;  // 2.3
+```
+
+**ポイント**: 各パーツの `position.y = 下のパーツまでの高さ + 自身の高さ/2`
