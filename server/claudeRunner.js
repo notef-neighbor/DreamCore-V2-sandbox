@@ -1177,7 +1177,7 @@ ${skillInstructions}
           console.log('Job completed with Gemini:', jobId);
 
           // Update specs asynchronously (don't wait) - pass userMessage for selective update
-          this.updateSpec(visitorId, projectId, effectiveUserMessage).catch(err => {
+          this.updateSpec(visitorId, projectId, userMessage).catch(err => {
             console.error('Spec update error:', err.message);
           });
 
