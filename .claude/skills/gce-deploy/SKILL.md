@@ -27,7 +27,7 @@ URL: http://34.84.28.42 または https://dreamcorecode.asia
 
 ```bash
 ssh -o BatchMode=yes dreamcorecode@34.84.28.42 -i ~/.ssh/google_compute_engine \
-  'cd /opt/gamecreator && sudo git pull origin main && sudo npm install --silent && pm2 restart gamecreator'
+  'cd /opt/gamecreator && sudo git checkout main && sudo git pull origin main && sudo npm install --silent && pm2 restart gamecreator'
 ```
 
 ### ステータス確認
