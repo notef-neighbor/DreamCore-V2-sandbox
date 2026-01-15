@@ -22,6 +22,7 @@ const INVITED_USERS = [
   'kumagai',
   'notef',
   'amaou',
+  'rikuo',
 ];
 
 const initLoginUsers = () => {
