@@ -103,6 +103,18 @@ const initSchema = () => {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    -- Activity log table (replaces users/ git log)
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
     CREATE INDEX IF NOT EXISTS idx_projects_is_public ON projects(is_public);
@@ -114,6 +126,9 @@ const initSchema = () => {
     CREATE INDEX IF NOT EXISTS idx_login_users_username ON login_users(username);
     CREATE INDEX IF NOT EXISTS idx_sessions_login_user_id ON sessions(login_user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_activity_log_user_id ON activity_log(user_id);
+    CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log(action);
+    CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
   `);
 
   console.log('Database schema initialized');
@@ -425,6 +440,28 @@ const cleanupExpiredSessions = () => {
   sessionQueries.deleteExpired.run();
 };
 
+// ==================== Activity Log Operations ====================
+
+const activityQueries = {
+  create: db.prepare('INSERT INTO activity_log (id, user_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?, ?)'),
+  findByUserId: db.prepare('SELECT * FROM activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
+  findRecent: db.prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?'),
+};
+
+const logActivity = (userId, action, targetType = null, targetId = null, details = null) => {
+  const id = uuidv4();
+  activityQueries.create.run(id, userId, action, targetType, targetId, details);
+  return { id, user_id: userId, action, target_type: targetType, target_id: targetId, details };
+};
+
+const getActivityByUserId = (userId, limit = 50) => {
+  return activityQueries.findByUserId.all(userId, limit);
+};
+
+const getRecentActivity = (limit = 100) => {
+  return activityQueries.findRecent.all(limit);
+};
+
 // ==================== Migration from JSON files ====================
 
 const migrateFromJsonFiles = (usersDir) => {
@@ -557,4 +594,9 @@ module.exports = {
 
   // Migration
   migrateFromJsonFiles,
+
+  // Activity log operations
+  logActivity,
+  getActivityByUserId,
+  getRecentActivity,
 };

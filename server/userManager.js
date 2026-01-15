@@ -11,26 +11,8 @@ if (!fs.existsSync(USERS_DIR)) {
   fs.mkdirSync(USERS_DIR, { recursive: true });
 }
 
-// Initialize users directory git
-const initUsersGit = () => {
-  const gitDir = path.join(USERS_DIR, '.git');
-  if (!fs.existsSync(gitDir)) {
-    try {
-      execSync('git init', { cwd: USERS_DIR, stdio: 'ignore' });
-      execSync('git config user.email "gamecreator@local"', { cwd: USERS_DIR, stdio: 'ignore' });
-      execSync('git config user.name "Game Creator"', { cwd: USERS_DIR, stdio: 'ignore' });
-      // Create .gitignore
-      fs.writeFileSync(path.join(USERS_DIR, '.gitignore'), '# Exclude project-level git\n*/*/.git/\n');
-      execSync('git add -A', { cwd: USERS_DIR, stdio: 'ignore' });
-      execSync('git commit -m "Initialize users directory" --allow-empty', { cwd: USERS_DIR, stdio: 'ignore' });
-      console.log('Users directory git initialized');
-    } catch (e) {
-      console.log('Git init for users directory failed:', e.message);
-    }
-  }
-};
-
-initUsersGit();
+// Note: Users directory git has been replaced with DB activity_log table
+// initUsersGit() is no longer needed - activity is logged to SQLite instead
 
 // Run migration from JSON files if needed
 const runMigration = () => {
@@ -155,16 +137,13 @@ const ensureProjectDir = (visitorId, projectId) => {
   return projectDir;
 };
 
-// Commit to users-level git (activity log)
-const commitToUsers = (message) => {
+// Log activity to database (replaces git-based commitToUsers)
+const logActivity = (action, targetType = null, targetId = null, details = null, userId = null) => {
   try {
-    execGit('git add -A', USERS_DIR);
-    const status = execGit('git status --porcelain', USERS_DIR);
-    if (status && status.trim()) {
-      execGit(`git commit -m "${message.replace(/"/g, '\\"')}"`, USERS_DIR);
-    }
+    db.logActivity(userId, action, targetType, targetId, details);
   } catch (e) {
-    // Ignore errors
+    // Ignore errors - activity logging should not break main flow
+    console.log('Activity log error:', e.message);
   }
 };
 
@@ -198,7 +177,7 @@ const getOrCreateUser = (visitorId) => {
   const visitorDir = path.join(USERS_DIR, visitorId);
   if (!fs.existsSync(visitorDir)) {
     fs.mkdirSync(visitorDir, { recursive: true });
-    commitToUsers(`New user: ${visitorId}`);
+    logActivity('create', 'user', visitorId);
   }
 
   return user.visitor_id;
@@ -232,8 +211,8 @@ const createProject = (visitorId, name = 'New Game') => {
   // Create project directory
   ensureProjectDir(visitorId, project.id);
 
-  // Commit to users git
-  commitToUsers(`Create project: ${name}`);
+  // Log activity
+  logActivity('create', 'project', project.id, name, user.id);
 
   return {
     id: project.id,
@@ -256,14 +235,14 @@ const deleteProject = (visitorId, projectId) => {
     fs.rmSync(projectDir, { recursive: true, force: true });
   }
 
-  commitToUsers(`Delete project: ${projectId}`);
+  logActivity('delete', 'project', projectId);
 };
 
 const renameProject = (visitorId, projectId, newName) => {
   const project = db.updateProject(projectId, newName);
   if (!project) return null;
 
-  commitToUsers(`Rename project: ${newName}`);
+  logActivity('rename', 'project', projectId, newName);
 
   return {
     id: project.id,
@@ -456,8 +435,8 @@ const createVersionSnapshot = (visitorId, projectId, message = '') => {
   const hash = commitToProject(projectDir, message || 'Update');
 
   if (hash) {
-    // Also commit to users/ for global log
-    commitToUsers(`Update: ${message} (${visitorId}/${projectId})`);
+    // Log activity
+    logActivity('update', 'project', projectId, message);
     return { id: hash, message };
   }
 
@@ -582,7 +561,7 @@ const remixProject = (visitorId, sourceProjectId) => {
   execGit('git add -A', targetDir);
   execGit(`git commit -m "Remixed from ${sourceProjectId}"`, targetDir);
 
-  commitToUsers(`Remix project: ${sourceProjectId} -> ${newProject.id}`);
+  logActivity('remix', 'project', newProject.id, `from ${sourceProjectId}`, user.id);
 
   return {
     id: newProject.id,
