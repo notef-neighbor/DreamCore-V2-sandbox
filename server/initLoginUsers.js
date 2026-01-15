@@ -21,6 +21,7 @@ const INVITED_USERS = [
   'kazuki',
   'kumagai',
   'notef',
+  'amaou',
 ];
 
 const initLoginUsers = () => {
