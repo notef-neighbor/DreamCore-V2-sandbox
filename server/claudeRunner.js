@@ -639,7 +639,7 @@ ${skillPaths}
     if (files.length > 0) {
       const indexContent = userManager.readProjectFile(visitorId, projectId, 'index.html');
       const isInitialWelcomePage = indexContent &&
-        indexContent.length < 1000 &&
+        indexContent.length < 2000 &&
         indexContent.includes('Welcome to Game Creator');
       if (!isInitialWelcomePage) {
         isNewProject = false;
@@ -758,7 +758,7 @@ ${skillInstructions}
         // Check if it's just the initial welcome page
         const indexContent = userManager.readProjectFile(visitorId, projectId, 'index.html');
         const isInitialWelcomePage = indexContent &&
-          indexContent.length < 1000 &&
+          indexContent.length < 2000 &&
           indexContent.includes('Welcome to Game Creator');
 
         if (!isInitialWelcomePage) {
@@ -1526,7 +1526,7 @@ ${skillInstructions}
     const currentCode = fs.readFileSync(indexPath, 'utf-8');
 
     // Skip if it's just the welcome page
-    if (currentCode.length < 1000 && currentCode.includes('Welcome to Game Creator')) {
+    if (currentCode.length < 2000 && currentCode.includes('Welcome to Game Creator')) {
       return;
     }
 

@@ -427,7 +427,7 @@ const createVersionSnapshot = (visitorId, projectId, message = '') => {
   const content = fs.readFileSync(indexPath, 'utf-8');
 
   // Skip if it's just the initial welcome page
-  if (content.length < 1000 && content.includes('Welcome to Game Creator')) {
+  if (content.length < 2000 && content.includes('Welcome to Game Creator')) {
     return null;
   }
 

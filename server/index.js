@@ -771,7 +771,7 @@ wss.on('connection', (ws) => {
             if (files.length > 0) {
               const indexContent = userManager.readProjectFile(visitorId, currentProjectId, 'index.html');
               const isInitialWelcomePage = indexContent &&
-                indexContent.length < 1000 &&
+                indexContent.length < 2000 &&
                 indexContent.includes('Welcome to Game Creator');
               if (!isInitialWelcomePage) {
                 isNewProject = false;
