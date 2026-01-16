@@ -119,8 +119,10 @@ class ClaudeRunner {
 
 以下のいずれかを1単語で答えてください：
 - restore: 元に戻したい、取り消したい、undoしたい場合
-- chat: 質問、確認、相談の場合
-- edit: コード変更・修正を求めている場合
+- chat: 質問、確認、相談、アイデア出し、提案依頼の場合（例：「考えて」「提案して」「教えて」「どうすればいい」「何がいい」）
+- edit: 具体的なコード変更・実装を求めている場合（例：「作って」「追加して」「修正して」「変えて」）
+
+重要: 「考えて」「提案して」「アイデアを出して」などはchatです。実際にコードを変更する指示のみeditです。
 
 回答:`;
 
@@ -1306,7 +1308,8 @@ ${skillInstructions}
           userPrompt: geminiResult.userPrompt || userMessage,
           aiSummary: geminiResult.summary || '',
           skills: geminiResult.detectedSkills || [],
-          generator: 'gemini'
+          generator: 'gemini',
+          edits: geminiResult.edits || []
         };
 
         const applied = await this.applyGeminiResult(visitorId, projectId, geminiResult, jobId, gameCodeForImages, gameSpec, aiContext);
