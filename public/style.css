@@ -4194,11 +4194,14 @@ body::before {
    =========================================== */
 
 .mypage-view {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
   background: var(--gray-50);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
 }
 
 /* Header - Minimal */
