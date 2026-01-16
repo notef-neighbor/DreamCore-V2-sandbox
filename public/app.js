@@ -1952,12 +1952,15 @@ class GameCreatorApp {
     }
 
     // For other suggestions, append to existing input
+    // Don't add "して" if suggestion already ends with a complete verb form
+    const needsShite = !/(して|したい|たい|ます|です|する)$/.test(suggestion);
+
     const current = this.chatInput.value.trim().replace(/して$/, ''); // Remove trailing して
     if (current) {
-      // Append with 、and add して at end
-      this.chatInput.value = current + '、' + suggestion + 'して';
+      // Append with 、
+      this.chatInput.value = current + '、' + suggestion + (needsShite ? 'して' : '');
     } else {
-      this.chatInput.value = suggestion + 'して';
+      this.chatInput.value = suggestion + (needsShite ? 'して' : '');
     }
     this.chatInput.focus();
   }
