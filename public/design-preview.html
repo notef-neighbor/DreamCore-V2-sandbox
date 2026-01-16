@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design Preview - 3 Options</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: #1a1a2e;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+      font-size: 2rem;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .option {
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .option-header {
+      padding: 16px 20px;
+      color: white;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .preview-container {
+      height: 500px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ========== Option A: Citrus Pop ========== */
+    .option-a .option-header {
+      background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+    }
+    .option-a .preview-container {
+      background: linear-gradient(180deg, #FFF8F5 0%, #FFF0E8 100%);
+    }
+    .option-a {
+      --primary: #FF6B35;
+      --primary-light: #FFE8DE;
+      --secondary: #00D4AA;
+      --accent: #FFE066;
+      --glass: rgba(255, 255, 255, 0.7);
+      --glass-border: rgba(255, 107, 53, 0.2);
+      --text: #2D2D2D;
+      --text-light: #666666;
+      --shadow-color: rgba(255, 107, 53, 0.25);
+    }
+
+    /* ========== Option B: Electric Mint ========== */
+    .option-b .option-header {
+      background: linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%);
+    }
+    .option-b .preview-container {
+      background: linear-gradient(180deg, #F8F9FF 0%, #EEF0FF 100%);
+    }
+    .option-b {
+      --primary: #6C5CE7;
+      --primary-light: #E8E5FF;
+      --secondary: #00CEC9;
+      --accent: #FDCB6E;
+      --glass: rgba(255, 255, 255, 0.65);
+      --glass-border: rgba(108, 92, 231, 0.2);
+      --text: #1A1A2E;
+      --text-light: #5A5A7A;
+      --shadow-color: rgba(108, 92, 231, 0.25);
+    }
+
+    /* ========== Option C: Coral Breeze ========== */
+    .option-c .option-header {
+      background: linear-gradient(135deg, #FF7675 0%, #FDA7DF 100%);
+    }
+    .option-c .preview-container {
+      background: linear-gradient(180deg, #FFFFFF 0%, #FFF5F5 100%);
+    }
+    .option-c {
+      --primary: #FF7675;
+      --primary-light: #FFE5E5;
+      --secondary: #74B9FF;
+      --accent: #55EFC4;
+      --glass: rgba(255, 255, 255, 0.75);
+      --glass-border: rgba(255, 118, 117, 0.2);
+      --text: #2D3436;
+      --text-light: #636E72;
+      --shadow-color: rgba(255, 118, 117, 0.2);
+    }
+
+    /* ========== Common Preview Elements ========== */
+    .chat-panel-preview {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      bottom: 12px;
+      width: 200px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px var(--shadow-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header-preview {
+      padding: 14px;
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chat-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .new-btn {
+      margin-left: auto;
+      padding: 6px 12px;
+      background: var(--secondary);
+      border: none;
+      border-radius: 20px;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .messages-preview {
+      flex: 1;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .msg {
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      max-width: 90%;
+    }
+
+    .msg-user {
+      background: var(--primary);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .msg-assistant {
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      color: var(--text);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--glass-border);
+    }
+
+    .input-area {
+      padding: 12px;
+      border-top: 1px solid var(--glass-border);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-field {
+      flex: 1;
+      padding: 10px 14px;
+      border: 2px solid var(--glass-border);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.5);
+      font-size: 0.75rem;
+      color: var(--text-light);
+    }
+
+    .send-btn {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 4px 16px var(--shadow-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Preview Panel */
+    .preview-panel-preview {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      bottom: 12px;
+      left: 224px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px var(--shadow-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-header-preview {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .preview-title {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .action-btn {
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.5);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      font-size: 0.65rem;
+      color: var(--text-light);
+      cursor: pointer;
+    }
+
+    .game-area {
+      flex: 1;
+      margin: 12px;
+      background: white;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    /* Decorative elements */
+    .deco-circle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.5;
+      filter: blur(40px);
+    }
+
+    .option-a .deco-circle.c1 {
+      width: 120px;
+      height: 120px;
+      background: #FF6B35;
+      top: -30px;
+      right: -30px;
+    }
+    .option-a .deco-circle.c2 {
+      width: 80px;
+      height: 80px;
+      background: #00D4AA;
+      bottom: 20px;
+      left: 180px;
+    }
+
+    .option-b .deco-circle.c1 {
+      width: 120px;
+      height: 120px;
+      background: #6C5CE7;
+      top: -30px;
+      right: -30px;
+    }
+    .option-b .deco-circle.c2 {
+      width: 80px;
+      height: 80px;
+      background: #00CEC9;
+      bottom: 20px;
+      left: 180px;
+    }
+
+    .option-c .deco-circle.c1 {
+      width: 120px;
+      height: 120px;
+      background: #FF7675;
+      top: -30px;
+      right: -30px;
+    }
+    .option-c .deco-circle.c2 {
+      width: 80px;
+      height: 80px;
+      background: #74B9FF;
+      bottom: 20px;
+      left: 180px;
+    }
+
+    .vote-btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      border: none;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .vote-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--shadow-color);
+    }
+
+    @media (max-width: 768px) {
+      .options {
+        grid-template-columns: 1fr;
+      }
+      .preview-container {
+        height: 400px;
+      }
+      .preview-panel-preview {
+        display: none;
+      }
+      .chat-panel-preview {
+        width: calc(100% - 24px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Pick Your Favorite Design</h1>
+
+  <div class="options">
+    <!-- Option A: Citrus Pop -->
+    <div class="option option-a">
+      <div class="option-header">A: Citrus Pop - ビビッドオレンジ × ミント</div>
+      <div class="preview-container">
+        <div class="deco-circle c1"></div>
+        <div class="deco-circle c2"></div>
+
+        <div class="chat-panel-preview">
+          <div class="chat-header-preview">
+            <span class="chat-title">Game Creator</span>
+            <button class="new-btn">+ 新規</button>
+          </div>
+          <div class="messages-preview">
+            <div class="msg msg-user">シューティングゲームを作って</div>
+            <div class="msg msg-assistant">宇宙シューティングを作成中...</div>
+            <div class="msg msg-user">敵を増やして</div>
+            <div class="msg msg-assistant">敵キャラを3種類追加しました！</div>
+          </div>
+          <div class="input-area">
+            <div class="input-row">
+              <div class="input-field">メッセージを入力...</div>
+              <button class="send-btn">→</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-panel-preview">
+          <div class="preview-header-preview">
+            <span class="preview-title">プレビュー</span>
+            <div class="preview-actions">
+              <button class="action-btn">更新</button>
+              <button class="action-btn">全画面</button>
+            </div>
+          </div>
+          <div class="game-area">🚀</div>
+        </div>
+      </div>
+      <button class="vote-btn" onclick="alert('Option A: Citrus Pop を選択！')">これにする</button>
+    </div>
+
+    <!-- Option B: Electric Mint -->
+    <div class="option option-b">
+      <div class="option-header">B: Electric Mint - パープル × シアン</div>
+      <div class="preview-container">
+        <div class="deco-circle c1"></div>
+        <div class="deco-circle c2"></div>
+
+        <div class="chat-panel-preview">
+          <div class="chat-header-preview">
+            <span class="chat-title">Game Creator</span>
+            <button class="new-btn">+ 新規</button>
+          </div>
+          <div class="messages-preview">
+            <div class="msg msg-user">シューティングゲームを作って</div>
+            <div class="msg msg-assistant">宇宙シューティングを作成中...</div>
+            <div class="msg msg-user">敵を増やして</div>
+            <div class="msg msg-assistant">敵キャラを3種類追加しました！</div>
+          </div>
+          <div class="input-area">
+            <div class="input-row">
+              <div class="input-field">メッセージを入力...</div>
+              <button class="send-btn">→</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-panel-preview">
+          <div class="preview-header-preview">
+            <span class="preview-title">プレビュー</span>
+            <div class="preview-actions">
+              <button class="action-btn">更新</button>
+              <button class="action-btn">全画面</button>
+            </div>
+          </div>
+          <div class="game-area">🎮</div>
+        </div>
+      </div>
+      <button class="vote-btn" onclick="alert('Option B: Electric Mint を選択！')">これにする</button>
+    </div>
+
+    <!-- Option C: Coral Breeze -->
+    <div class="option option-c">
+      <div class="option-header">C: Coral Breeze - コーラル × スカイブルー</div>
+      <div class="preview-container">
+        <div class="deco-circle c1"></div>
+        <div class="deco-circle c2"></div>
+
+        <div class="chat-panel-preview">
+          <div class="chat-header-preview">
+            <span class="chat-title">Game Creator</span>
+            <button class="new-btn">+ 新規</button>
+          </div>
+          <div class="messages-preview">
+            <div class="msg msg-user">シューティングゲームを作って</div>
+            <div class="msg msg-assistant">宇宙シューティングを作成中...</div>
+            <div class="msg msg-user">敵を増やして</div>
+            <div class="msg msg-assistant">敵キャラを3種類追加しました！</div>
+          </div>
+          <div class="input-area">
+            <div class="input-row">
+              <div class="input-field">メッセージを入力...</div>
+              <button class="send-btn">→</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-panel-preview">
+          <div class="preview-header-preview">
+            <span class="preview-title">プレビュー</span>
+            <div class="preview-actions">
+              <button class="action-btn">更新</button>
+              <button class="action-btn">全画面</button>
+            </div>
+          </div>
+          <div class="game-area">🌸</div>
+        </div>
+      </div>
+      <button class="vote-btn" onclick="alert('Option C: Coral Breeze を選択！')">これにする</button>
+    </div>
+  </div>
+</body>
+</html>

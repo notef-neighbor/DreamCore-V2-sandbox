@@ -1121,8 +1121,8 @@ class GameCreatorApp {
         this.projects = data.projects;
         this.updateProjectList();
         // Navigate to the new project with URL update
+        // navigateTo -> handleRouteChange -> selectProject is called internally
         this.navigateTo(`/project/${data.project.id}`, { view: 'editor', projectId: data.project.id });
-        this.selectProject(data.project.id, false);
         this.addMessage(`「${data.project.name}」を作成しました！`, 'system');
         break;
 
@@ -2037,16 +2037,13 @@ class GameCreatorApp {
       return;
     }
 
-    // For other suggestions, append to existing input
-    // Don't add "して" if suggestion already ends with a complete verb form
-    const needsShite = !/(して|したい|たい|ます|です|する)$/.test(suggestion);
-
-    const current = this.chatInput.value.trim().replace(/して$/, ''); // Remove trailing して
+    // For other suggestions, use as-is (suggestions already come in complete form)
+    const current = this.chatInput.value.trim();
     if (current) {
       // Append with 、
-      this.chatInput.value = current + '、' + suggestion + (needsShite ? 'して' : '');
+      this.chatInput.value = current + '、' + suggestion;
     } else {
-      this.chatInput.value = suggestion + (needsShite ? 'して' : '');
+      this.chatInput.value = suggestion;
     }
     this.chatInput.focus();
   }

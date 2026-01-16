@@ -1213,6 +1213,57 @@ ${skillInstructions}
       return { success: true };
     }
 
+    // Handle chat intent (question/consultation) - use Claude Haiku
+    if (intent === 'chat') {
+      console.log('Chat intent detected by Claude, using Haiku...');
+
+      // Check if project exists (chat only makes sense for existing projects)
+      const projectDir = userManager.getProjectDir(visitorId, projectId);
+      const indexPath = require('path').join(projectDir, 'index.html');
+      const projectExists = require('fs').existsSync(indexPath);
+
+      if (projectExists && claudeChat.isAvailable()) {
+        jobManager.updateProgress(jobId, 10, 'Claude Haikuで回答中...');
+
+        try {
+          const gameSpec = this.readSpec(visitorId, projectId);
+          const chatResult = await claudeChat.handleChat({
+            userMessage,
+            projectDir,
+            gameSpec
+          });
+
+          jobManager.updateProgress(jobId, 100, '回答完了');
+          jobManager.notifySubscribers(jobId, {
+            type: 'geminiChat',
+            mode: 'chat',
+            message: chatResult.message,
+            suggestions: chatResult.suggestions || []
+          });
+
+          // Save to history
+          const historyMessage = chatResult.suggestions?.length > 0
+            ? `${chatResult.message}\n\n提案: ${chatResult.suggestions.join('、')}`
+            : chatResult.message;
+          userManager.addToHistory(visitorId, projectId, 'assistant', historyMessage);
+
+          jobManager.completeJob(jobId, {
+            message: chatResult.message,
+            mode: 'chat',
+            generator: 'haiku'
+          });
+
+          console.log('Job completed with Haiku (chat mode):', jobId);
+          return { success: true };
+        } catch (chatError) {
+          console.error('Haiku chat failed, falling back to Gemini:', chatError.message);
+          // Fall through to Gemini
+        }
+      } else {
+        console.log('Project not found or Haiku unavailable, falling back to Gemini');
+      }
+    }
+
     // Skip Gemini if useClaude is enabled
     if (!debugOptions.useClaude) {
       // Try Gemini first for code generation
