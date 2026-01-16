@@ -28,6 +28,9 @@ class GameCreatorApp {
     this.touchStartY = 0;
     this.touchDeltaY = 0;
 
+    // Attached assets for chat (images to be included in prompt)
+    this.attachedAssetsList = [];
+
     // Login elements
     this.loginView = document.getElementById('loginView');
     this.loginForm = document.getElementById('loginForm');
@@ -48,6 +51,7 @@ class GameCreatorApp {
     // DOM elements (editor view)
     this.chatMessages = document.getElementById('chatMessages');
     this.chatInput = document.getElementById('chatInput');
+    this.attachedAssetsContainer = document.getElementById('attachedAssets');
     this.sendButton = document.getElementById('sendButton');
     this.stopButton = document.getElementById('stopButton');
     this.refreshButton = document.getElementById('refreshButton');
@@ -1689,8 +1693,19 @@ class GameCreatorApp {
       return;
     }
 
-    this.addMessage(content, 'user');
+    // Build final content with attached assets prepended
+    let finalContent = content;
+    if (this.attachedAssetsList.length > 0) {
+      const assetLines = this.attachedAssetsList.map(asset =>
+        `画像「${asset.name}」を使用: ${asset.url}`
+      ).join('\n');
+      finalContent = assetLines + '\n\n' + content;
+    }
+
+    // Display message to user (show attached images as thumbnails)
+    this.addMessage(content, 'user', { attachedAssets: this.attachedAssetsList.slice() });
     this.chatInput.value = '';
+    this.clearAttachedAssets();
 
     // Include debug options
     const debugOptions = {
@@ -1700,7 +1715,7 @@ class GameCreatorApp {
 
     this.ws.send(JSON.stringify({
       type: 'message',
-      content,
+      content: finalContent,
       debugOptions
     }));
   }
@@ -1799,6 +1814,18 @@ class GameCreatorApp {
     } else {
       const formattedContent = this.formatContent(content);
       messageDiv.innerHTML = formattedContent;
+    }
+
+    // Add attached asset thumbnails for user messages
+    if (role === 'user' && options.attachedAssets && options.attachedAssets.length > 0) {
+      const thumbsDiv = document.createElement('div');
+      thumbsDiv.className = 'message-attached-assets';
+      thumbsDiv.innerHTML = options.attachedAssets.map(asset => `
+        <div class="message-asset-thumb">
+          <img src="${asset.url}" alt="${asset.name}" />
+        </div>
+      `).join('');
+      messageDiv.insertBefore(thumbsDiv, messageDiv.firstChild);
     }
 
     this.chatMessages.appendChild(messageDiv);
@@ -2778,13 +2805,54 @@ class GameCreatorApp {
   insertAssetToChat() {
     if (!this.selectedAsset) return;
 
-    // Insert asset reference with relative URL into chat input
-    const assetUrl = `/api/assets/${this.selectedAsset.id}`;
-    const assetRef = `画像「${this.selectedAsset.name}」を使用: ${assetUrl}`;
-    this.chatInput.value += (this.chatInput.value ? '\n' : '') + assetRef;
+    // Check if already attached
+    const alreadyAttached = this.attachedAssetsList.some(a => a.id === this.selectedAsset.id);
+    if (!alreadyAttached) {
+      this.attachedAssetsList.push({
+        id: this.selectedAsset.id,
+        name: this.selectedAsset.name,
+        url: `/api/assets/${this.selectedAsset.id}`
+      });
+      this.renderAttachedAssets();
+    }
 
     this.closeAssetModalHandler();
     this.chatInput.focus();
+  }
+
+  renderAttachedAssets() {
+    if (this.attachedAssetsList.length === 0) {
+      this.attachedAssetsContainer.classList.add('hidden');
+      this.attachedAssetsContainer.innerHTML = '';
+      return;
+    }
+
+    this.attachedAssetsContainer.classList.remove('hidden');
+    this.attachedAssetsContainer.innerHTML = this.attachedAssetsList.map(asset => `
+      <div class="attached-asset-item" data-id="${asset.id}">
+        <img src="${asset.url}" alt="${asset.name}" />
+        <span class="attached-asset-name">${asset.name}</span>
+        <button class="attached-asset-remove" data-id="${asset.id}" title="削除">×</button>
+      </div>
+    `).join('');
+
+    // Add remove handlers
+    this.attachedAssetsContainer.querySelectorAll('.attached-asset-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeAttachedAsset(btn.dataset.id);
+      });
+    });
+  }
+
+  removeAttachedAsset(assetId) {
+    this.attachedAssetsList = this.attachedAssetsList.filter(a => a.id !== assetId);
+    this.renderAttachedAssets();
+  }
+
+  clearAttachedAssets() {
+    this.attachedAssetsList = [];
+    this.renderAttachedAssets();
   }
 
   // ==================== Image Generation ====================
