@@ -5,6 +5,79 @@ description: Three.js基本セットアップ。CDN + ES Modules、シーン初�
 
 # Three.js 基本セットアップ
 
+## ★重要: 3Dオブジェクトサイズのガイドライン
+
+3Dゲームでは、カメラ設定とオブジェクトサイズの関係が重要。どのデバイスでも同じゲーム体験を提供するため、以下の基準を使用する。
+
+### 推奨カメラ設定
+
+```javascript
+// FOVは60度を標準とする（画角の統一）
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+
+// 三人称視点の場合の推奨距離
+camera.position.set(0, 5, 10);  // 斜め上後方から
+camera.lookAt(0, 0, 0);
+```
+
+### オブジェクトサイズの目安（3Dワールド単位）
+
+| 要素 | 推奨サイズ | 説明 |
+|------|-----------|------|
+| プレイヤー | 高さ 1.5-2.0 | 人間サイズを基準 |
+| 敵（小） | 0.5-1.0 | プレイヤーの半分程度 |
+| 敵（大） | 2.0-4.0 | プレイヤーより大きい |
+| 地面タイル | 10x10 以上 | 十分な広さを確保 |
+| 収集アイテム | 0.3-0.5 | 小さめで目立つ色 |
+| 障害物 | 1.0-2.0 | プレイヤーと同等 |
+
+### カメラとオブジェクトの関係
+
+```
+カメラ距離10、FOV60度の場合：
+- 高さ2のプレイヤー → 画面の約20%を占める（適切）
+- 高さ0.5のアイテム → 画面の約5%（視認可能）
+
+カメラが近いとオブジェクトが大きく見え、
+カメラが遠いとオブジェクトが小さく見える。
+FOVを固定することで、どのデバイスでも同じ見え方になる。
+```
+
+### サイズの一貫性を保つコード例
+
+```javascript
+// オブジェクトサイズを定数化
+const PLAYER_HEIGHT = 1.8;
+const ENEMY_SIZE = 1.0;
+const ITEM_SIZE = 0.4;
+const GROUND_SIZE = 50;
+
+// プレイヤー作成
+const player = new THREE.Group();
+const body = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.4, PLAYER_HEIGHT - 0.8, 8, 16),
+  new THREE.MeshStandardMaterial({ color: 0x00ffff })
+);
+body.position.y = PLAYER_HEIGHT / 2;
+player.add(body);
+
+// 敵作成
+const enemy = new THREE.Mesh(
+  new THREE.SphereGeometry(ENEMY_SIZE / 2, 16, 16),
+  new THREE.MeshStandardMaterial({ color: 0xff4444 })
+);
+enemy.position.y = ENEMY_SIZE / 2;
+
+// アイテム作成
+const item = new THREE.Mesh(
+  new THREE.OctahedronGeometry(ITEM_SIZE / 2),
+  new THREE.MeshStandardMaterial({ color: 0xffff00 })
+);
+item.position.y = ITEM_SIZE / 2 + 0.3;  // 少し浮かせる
+```
+
+---
+
 ## 重要: Canvas事前配置パターン（推奨）
 
 JavaScriptエラーで画面が真っ白になる問題を防ぐため、**HTMLにCanvas要素を事前配置**する。

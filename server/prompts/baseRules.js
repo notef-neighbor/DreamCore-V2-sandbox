@@ -12,6 +12,23 @@
  * Visual style is determined by user selection and stored in STYLE.md
  */
 
+const screenSizeRules = `[★最重要: 画面サイズとオブジェクトサイズ]
+
+このプロダクトはスマートフォン向けゲームを生成するため、どのデバイスでも同じゲーム体験を提供する必要がある。
+
+2Dゲーム（P5.js）の場合:
+- 仮想画面サイズ 390x844 を基準にする
+- ゲーム内の全てのサイズは仮想座標で指定
+- スケーリングシステムで実デバイスにフィット
+- p5js-setupスキルの「仮想画面サイズシステム」に従うこと
+
+3Dゲーム（Three.js）の場合:
+- FOV 60度を標準とする
+- プレイヤー高さ 1.5-2.0、敵サイズ 0.5-1.0 を基準
+- threejs-setupスキルの「オブジェクトサイズガイドライン」に従うこと
+
+重要: 固定ピクセル値（50px等）を直接使わず、必ずスキルのガイドラインに従うこと`;
+
 const gameDesignRules = `[ゲームデザインルール]
 - 直感的な操作（タップ、スワイプ、ドラッグ）
 - 明確なフィードバック（視覚・音声）
@@ -86,13 +103,16 @@ const prohibitions = `[禁止事項 - CRITICAL]
 - 画面外のオブジェクトは更新・描画から除外`;
 
 module.exports = {
+  screenSizeRules,
   gameDesignRules,
   audioRules,
   prohibitions,
 
   // Combined rules for system prompt
   getBaseRules() {
-    return `${gameDesignRules}
+    return `${screenSizeRules}
+
+${gameDesignRules}
 
 ${audioRules}
 

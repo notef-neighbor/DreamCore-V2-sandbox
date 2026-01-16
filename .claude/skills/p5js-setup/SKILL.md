@@ -13,6 +13,166 @@ description: P5.js基本セットアップ。CDN、setup/draw構造、インス�
 
 ---
 
+## ★最重要: 仮想画面サイズシステム
+
+**全てのゲームで必須。** どのデバイスでも同じゲーム体験を提供するため、固定の仮想画面サイズを使用する。
+
+### 仮想画面サイズ定数
+
+```javascript
+// ★仮想画面サイズ（スマホ縦向き基準）
+const VIRTUAL_WIDTH = 390;
+const VIRTUAL_HEIGHT = 844;
+```
+
+### スケーリング実装
+
+```javascript
+const game = (p) => {
+  let scale = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  p.setup = () => {
+    const canvas = p.createCanvas(p.windowWidth, p.windowHeight);
+    canvas.parent('game-container');
+    calculateScale();
+  };
+
+  function calculateScale() {
+    // デバイス画面に仮想画面をフィットさせる
+    const scaleX = p.windowWidth / VIRTUAL_WIDTH;
+    const scaleY = p.windowHeight / VIRTUAL_HEIGHT;
+    scale = Math.min(scaleX, scaleY);  // アスペクト比を維持
+
+    // センタリング用オフセット
+    offsetX = (p.windowWidth - VIRTUAL_WIDTH * scale) / 2;
+    offsetY = (p.windowHeight - VIRTUAL_HEIGHT * scale) / 2;
+  }
+
+  p.draw = () => {
+    p.background(0);  // レターボックス部分の色
+
+    p.push();
+    p.translate(offsetX, offsetY);
+    p.scale(scale);
+
+    // ★ここからは仮想座標（390x844）で描画
+    drawGame();
+
+    p.pop();
+  };
+
+  function drawGame() {
+    p.background(30);  // ゲーム画面の背景
+
+    // 仮想座標系で描画（どのデバイスでも同じサイズ）
+    p.fill(0, 255, 255);
+    p.ellipse(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2, 50, 50);  // 50pxは常に同じ見た目
+  }
+
+  p.windowResized = () => {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+    calculateScale();
+  };
+};
+
+new p5(game);
+```
+
+### タッチ座標の変換
+
+タッチ入力は実際の画面座標なので、仮想座標に変換する必要がある：
+
+```javascript
+// 実座標 → 仮想座標に変換
+function toVirtualX(screenX) {
+  return (screenX - offsetX) / scale;
+}
+
+function toVirtualY(screenY) {
+  return (screenY - offsetY) / scale;
+}
+
+// マウス/タッチ位置を仮想座標で取得
+p.mousePressed = () => {
+  const vx = toVirtualX(p.mouseX);
+  const vy = toVirtualY(p.mouseY);
+  // vx, vy は仮想座標（0-390, 0-844の範囲）
+};
+```
+
+### オブジェクトサイズの目安（仮想座標基準）
+
+| 要素 | 推奨サイズ | 画面に対する割合 |
+|------|-----------|-----------------|
+| プレイヤー | 40-60px | 約10-15% |
+| 敵（小） | 30-40px | 約8-10% |
+| 敵（大） | 60-80px | 約15-20% |
+| 弾 | 8-16px | 約2-4% |
+| アイテム | 30-40px | 約8-10% |
+| ボタン | 60-80px | 約15-20% |
+
+### 完全な仮想画面対応テンプレート
+
+```javascript
+const VIRTUAL_WIDTH = 390;
+const VIRTUAL_HEIGHT = 844;
+
+const game = (p) => {
+  let scale = 1, offsetX = 0, offsetY = 0;
+  let player = { x: VIRTUAL_WIDTH / 2, y: VIRTUAL_HEIGHT - 100, size: 50 };
+
+  p.setup = () => {
+    const canvas = p.createCanvas(p.windowWidth, p.windowHeight);
+    canvas.parent('game-container');
+    p.imageMode(p.CENTER);
+    calculateScale();
+  };
+
+  function calculateScale() {
+    const scaleX = p.windowWidth / VIRTUAL_WIDTH;
+    const scaleY = p.windowHeight / VIRTUAL_HEIGHT;
+    scale = Math.min(scaleX, scaleY);
+    offsetX = (p.windowWidth - VIRTUAL_WIDTH * scale) / 2;
+    offsetY = (p.windowHeight - VIRTUAL_HEIGHT * scale) / 2;
+  }
+
+  function toVirtualX(x) { return (x - offsetX) / scale; }
+  function toVirtualY(y) { return (y - offsetY) / scale; }
+
+  p.draw = () => {
+    p.background(0);
+    p.push();
+    p.translate(offsetX, offsetY);
+    p.scale(scale);
+
+    // ゲーム描画（仮想座標系）
+    p.background(30);
+    p.fill(0, 255, 255);
+    p.ellipse(player.x, player.y, player.size, player.size);
+
+    p.pop();
+  };
+
+  p.windowResized = () => {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+    calculateScale();
+  };
+
+  // タッチ/マウス座標を仮想座標に変換
+  p.mousePressed = () => {
+    const vx = toVirtualX(p.mouseX);
+    const vy = toVirtualY(p.mouseY);
+    console.log(`Virtual: ${vx}, ${vy}`);
+  };
+};
+
+new p5(game);
+```
+
+---
+
 ## 重要: Canvas配置問題
 
 **P5.jsはデフォルトでcanvasを`body`直下に追加する。**
