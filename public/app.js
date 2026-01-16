@@ -2714,7 +2714,7 @@ class GameCreatorApp {
     if (!this.visitorId) return;
 
     try {
-      const currentProjectId = this.projectId || '';
+      const currentProjectId = this.currentProjectId || '';
       const response = await fetch(`/api/assets?visitorId=${this.visitorId}&currentProjectId=${currentProjectId}`);
       const data = await response.json();
 
