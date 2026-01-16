@@ -545,7 +545,7 @@ const createVersionSnapshot = (visitorId, projectId, message = '', aiContext = n
   return null;
 };
 
-const getVersions = (visitorId, projectId) => {
+const getVersions = (visitorId, projectId, options = {}) => {
   const projectDir = getProjectDir(visitorId, projectId);
 
   if (!fs.existsSync(path.join(projectDir, '.git'))) {
@@ -570,17 +570,68 @@ const getVersions = (visitorId, projectId) => {
     );
 
     if (!isRestoreCommit) {
-      versions.push({
+      const version = {
         id: hash,
         number: versionNum++,
         message: message || 'Update',
         timestamp: new Date(timestamp).toISOString(),
         hash
-      });
+      };
+
+      // Include AI context (edits) if requested
+      if (options.includeEdits) {
+        const aiContext = getAIContextForCommit(projectDir, hash);
+        if (aiContext && aiContext.edits && aiContext.edits.length > 0) {
+          version.edits = aiContext.edits;
+          version.summary = aiContext.aiSummary || '';
+        }
+      }
+
+      versions.push(version);
     }
   }
 
   return versions.slice(0, 20);
+};
+
+/**
+ * Get AI context for a specific git commit
+ * @param {string} projectDir - Project directory path
+ * @param {string} commitHash - Git commit hash
+ * @returns {Object|null} AI context or null if not found
+ */
+const getAIContextForCommit = (projectDir, commitHash) => {
+  try {
+    // First try .ai-context/ files
+    const filesOutput = execGit(`git ls-tree --name-only ${commitHash} .ai-context/`, projectDir);
+    if (filesOutput) {
+      const files = filesOutput.split('\n').filter(f => f.endsWith('.json')).sort().reverse();
+      if (files.length > 0) {
+        const latestFile = files[0];
+        const content = execGit(`git show ${commitHash}:${latestFile}`, projectDir);
+        if (content) {
+          const parsed = JSON.parse(content);
+          if (parsed.edits && parsed.edits.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    }
+
+    // Fallback: generate edits from git diff
+    const diff = execGit(`git diff ${commitHash}^..${commitHash} -- index.html`, projectDir);
+    if (diff) {
+      return {
+        edits: [{ diff }],
+        summary: '',
+        fromGitDiff: true
+      };
+    }
+
+    return null;
+  } catch (e) {
+    return null;
+  }
 };
 
 const restoreVersion = (visitorId, projectId, versionId) => {
@@ -710,6 +761,14 @@ const getLatestAIContext = (visitorId, projectId) => {
   }
 };
 
+/**
+ * Get edits for a specific version (on demand)
+ */
+const getVersionEdits = (visitorId, projectId, versionHash) => {
+  const projectDir = getProjectDir(visitorId, projectId);
+  return getAIContextForCommit(projectDir, versionHash);
+};
+
 module.exports = {
   getProjectDir,
   ensureProjectDir,
@@ -741,6 +800,7 @@ module.exports = {
   // Version control
   createVersionSnapshot,
   getVersions,
+  getVersionEdits,
   restoreVersion,
 
   // AI Context

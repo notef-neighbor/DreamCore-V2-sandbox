@@ -799,6 +799,9 @@ wss.on('connection', (ws) => {
           // Get conversation history
           const history = userManager.getConversationHistory(visitorId, currentProjectId);
 
+          // Get versions (without edits - edits are fetched on demand)
+          const versionsWithEdits = userManager.getVersions(visitorId, currentProjectId);
+
           // Check for active job
           const activeJob = jobManager.getActiveJob(currentProjectId);
 
@@ -806,6 +809,7 @@ wss.on('connection', (ws) => {
             type: 'projectSelected',
             projectId: currentProjectId,
             history,
+            versions: versionsWithEdits,
             activeJob: activeJob || null
           });
 
@@ -1073,6 +1077,21 @@ wss.on('connection', (ws) => {
             type: 'versionsList',
             projectId: data.projectId,
             versions
+          });
+          break;
+
+        case 'getVersionEdits':
+          if (!visitorId || !data.projectId || !data.versionHash) {
+            safeSend({ type: 'error', message: 'Invalid request' });
+            return;
+          }
+          const editsData = userManager.getVersionEdits(visitorId, data.projectId, data.versionHash);
+          safeSend({
+            type: 'versionEdits',
+            projectId: data.projectId,
+            versionHash: data.versionHash,
+            edits: editsData?.edits || [],
+            summary: editsData?.summary || ''
           });
           break;
 

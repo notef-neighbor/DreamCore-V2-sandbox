@@ -1216,39 +1216,49 @@ class GameCreatorApp {
         // Clear and reload history
         this.chatMessages.innerHTML = '';
 
-        // Load Gemini change - first try server, then localStorage fallback
-        this.fetchAIContext().then(savedGeminiChange => {
-          // If server doesn't have data, try localStorage
-          if (!savedGeminiChange) {
-            savedGeminiChange = this.loadSavedGeminiChange();
+        // Get versions with edits from server response
+        const versions = data.versions || [];
+
+        if (data.history && data.history.length > 0) {
+          // Find the last assistant message index for play button
+          let lastAssistantIndex = -1;
+          for (let i = data.history.length - 1; i >= 0; i--) {
+            if (data.history[i].role === 'assistant') {
+              lastAssistantIndex = i;
+              break;
+            }
           }
 
-          if (data.history && data.history.length > 0) {
-            // Find the last assistant message index for play button
-            let lastAssistantIndex = -1;
-            for (let i = data.history.length - 1; i >= 0; i--) {
-              if (data.history[i].role === 'assistant') {
-                lastAssistantIndex = i;
-                break;
-              }
+          // Match assistant messages with versions by reverse order (newest first)
+          // Versions are fetched on demand when button is clicked
+          const assistantIndices = data.history
+            .map((h, i) => h.role === 'assistant' ? i : -1)
+            .filter(i => i >= 0);
+
+          // Create a map: assistant message index -> version hash
+          const assistantToVersionHash = new Map();
+          for (let i = 0; i < Math.min(versions.length, assistantIndices.length); i++) {
+            // Match from the end: latest assistant -> latest version
+            const assistantIdx = assistantIndices[assistantIndices.length - 1 - i];
+            const version = versions[i];
+            assistantToVersionHash.set(assistantIdx, version.hash);
+          }
+
+          data.history.forEach((h, index) => {
+            const isLastAssistant = (h.role === 'assistant' && index === lastAssistantIndex);
+            const options = { showPlayButton: isLastAssistant };
+
+            // Store version hash for on-demand loading
+            if (h.role === 'assistant' && assistantToVersionHash.has(index)) {
+              options.versionHash = assistantToVersionHash.get(index);
             }
 
-            data.history.forEach((h, index) => {
-              const isLastAssistant = (h.role === 'assistant' && index === lastAssistantIndex);
-              const options = { showPlayButton: isLastAssistant };
-
-              // Attach saved Gemini change to the last assistant message
-              if (isLastAssistant && savedGeminiChange) {
-                this.lastGeminiChange = savedGeminiChange;
-              }
-
-              this.addMessage(h.content, h.role, options);
-            });
-          } else {
-            // Show welcome message for new/empty projects
-            this.showWelcomeMessage();
-          }
-        });
+            this.addMessage(h.content, h.role, options);
+          });
+        } else {
+          // Show welcome message for new/empty projects
+          this.showWelcomeMessage();
+        }
 
         this.refreshPreview();
         this.updatePreviewVisibility(true);
@@ -1770,26 +1780,35 @@ class GameCreatorApp {
         messageDiv.innerHTML = this.parseMarkdown(content);
       }
 
-      // Add "Play Game" button if we have an active project and showPlayButton is true
-      if (options.showPlayButton && this.currentProjectId) {
+      // Check if we have gemini changes for this message (realtime) or version hash (history)
+      const geminiChange = options.geminiChange || this.lastGeminiChange;
+      const hasGeminiChange = geminiChange && geminiChange.edits && geminiChange.edits.length > 0;
+      const hasVersionHash = !!options.versionHash;
+
+      // Add buttons if we have an active project and (showPlayButton is true OR we have changes)
+      if (this.currentProjectId && (options.showPlayButton || hasGeminiChange || hasVersionHash)) {
         const btnContainer = document.createElement('div');
         btnContainer.className = 'message-buttons';
 
-        const playBtn = document.createElement('button');
-        playBtn.className = 'play-game-btn';
-        playBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          ゲームを遊ぶ
-        `;
-        playBtn.addEventListener('click', () => {
-          this.showPreviewPanel();
-        });
-        btnContainer.appendChild(playBtn);
+        // Add "Play Game" button only for the last assistant message
+        if (options.showPlayButton) {
+          const playBtn = document.createElement('button');
+          playBtn.className = 'play-game-btn';
+          playBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            ゲームを遊ぶ
+          `;
+          playBtn.addEventListener('click', () => {
+            this.showPreviewPanel();
+          });
+          btnContainer.appendChild(playBtn);
+        }
 
-        // Add "View Changes" button if we have recent Gemini changes
-        if (this.lastGeminiChange) {
+        // Add "View Changes" button
+        if (hasGeminiChange) {
+          // Realtime case: data already available
           const changesBtn = document.createElement('button');
           changesBtn.className = 'view-changes-btn';
           changesBtn.innerHTML = `
@@ -1801,12 +1820,32 @@ class GameCreatorApp {
             </svg>
             変更箇所を見る
           `;
-          const changeData = this.lastGeminiChange;
+          const changeData = geminiChange;
           changesBtn.addEventListener('click', () => {
             this.showChangesModal(changeData);
           });
           btnContainer.appendChild(changesBtn);
-          this.lastGeminiChange = null; // Clear after attaching
+          if (this.lastGeminiChange) {
+            this.lastGeminiChange = null;
+          }
+        } else if (hasVersionHash) {
+          // History case: fetch on demand
+          const changesBtn = document.createElement('button');
+          changesBtn.className = 'view-changes-btn';
+          changesBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            変更箇所を見る
+          `;
+          const versionHash = options.versionHash;
+          changesBtn.addEventListener('click', () => {
+            this.fetchAndShowChanges(versionHash);
+          });
+          btnContainer.appendChild(changesBtn);
         }
 
         messageDiv.appendChild(btnContainer);
@@ -2015,17 +2054,28 @@ class GameCreatorApp {
       html += `<div class="changes-summary">${this.escapeHtml(data.summary)}</div>`;
     }
 
-    if (isEdit && data.edits) {
+    if (data.edits && data.edits.length > 0) {
       data.edits.forEach((edit, i) => {
-        html += `
-          <div class="changes-file">
-            <div class="changes-file-header">${this.escapeHtml(edit.path)}</div>
-            <pre class="changes-diff">
+        if (edit.diff) {
+          // Git diff format
+          html += `
+            <div class="changes-file">
+              <div class="changes-file-header">index.html</div>
+              <pre class="changes-diff"><code>${this.escapeHtml(edit.diff)}</code></pre>
+            </div>
+          `;
+        } else if (edit.old_string && edit.new_string) {
+          // Structured edit format
+          html += `
+            <div class="changes-file">
+              <div class="changes-file-header">${this.escapeHtml(edit.path || 'index.html')}</div>
+              <pre class="changes-diff">
 <code class="diff-old">- ${this.escapeHtml(edit.old_string)}</code>
 <code class="diff-new">+ ${this.escapeHtml(edit.new_string)}</code>
 </pre>
-          </div>
-        `;
+            </div>
+          `;
+        }
       });
     } else if (data.files) {
       data.files.forEach(file => {
@@ -2040,6 +2090,41 @@ class GameCreatorApp {
 
     body.innerHTML = html;
     modal.classList.remove('hidden');
+  }
+
+  // Fetch version edits on demand and show modal
+  fetchAndShowChanges(versionHash) {
+    // Show loading state
+    this.showChangesModal({ edits: [], summary: '読み込み中...' });
+
+    // Request edits from server
+    this.ws.send(JSON.stringify({
+      type: 'getVersionEdits',
+      projectId: this.currentProjectId,
+      versionHash
+    }));
+
+    // Handle response (one-time listener)
+    const handler = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'versionEdits' && data.versionHash === versionHash) {
+          this.ws.removeEventListener('message', handler);
+          this.showChangesModal({
+            edits: data.edits || [],
+            summary: data.summary || ''
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse version edits:', e);
+      }
+    };
+    this.ws.addEventListener('message', handler);
+
+    // Timeout cleanup
+    setTimeout(() => {
+      this.ws.removeEventListener('message', handler);
+    }, 10000);
   }
 
   displayGeneratedCode(data) {
