@@ -131,12 +131,11 @@ const initSchema = () => {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
-    -- Indexes for performance
+    -- Indexes for performance (excluding assets indexes that depend on migrated columns)
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
     CREATE INDEX IF NOT EXISTS idx_projects_is_public ON projects(is_public);
     CREATE INDEX IF NOT EXISTS idx_assets_owner_id ON assets(owner_id);
     CREATE INDEX IF NOT EXISTS idx_assets_is_public ON assets(is_public);
-    CREATE INDEX IF NOT EXISTS idx_assets_is_deleted ON assets(is_deleted);
     CREATE INDEX IF NOT EXISTS idx_project_assets_project_id ON project_assets(project_id);
     CREATE INDEX IF NOT EXISTS idx_project_assets_asset_id ON project_assets(asset_id);
     CREATE INDEX IF NOT EXISTS idx_chat_history_project_id ON chat_history(project_id);
@@ -177,6 +176,9 @@ const migrateAssetsTable = () => {
       db.exec("ALTER TABLE assets ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))");
       console.log('Migration: Added updated_at column to assets');
     }
+
+    // Create indexes that depend on migrated columns (after migration)
+    db.exec("CREATE INDEX IF NOT EXISTS idx_assets_is_deleted ON assets(is_deleted)");
   } catch (err) {
     console.error('Migration error:', err.message);
   }
