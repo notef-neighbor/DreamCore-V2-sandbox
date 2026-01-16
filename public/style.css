@@ -3583,3 +3583,293 @@ body::before {
     padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
+
+/* ===== Message Buttons Container ===== */
+.message-buttons {
+  display: flex;
+  gap: var(--s-8);
+  margin-top: var(--s-12);
+  flex-wrap: wrap;
+}
+
+/* ===== View Changes Button - Nintendo × Kashiwa Sato ===== */
+.view-changes-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-8);
+  background: var(--white);
+  color: var(--gray-900);
+  border: none;
+  padding: var(--s-12) var(--s-16);
+  border-radius: var(--r-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease-out);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.view-changes-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.view-changes-btn:active {
+  transform: translateY(0);
+}
+
+.view-changes-btn svg {
+  width: 14px;
+  height: 14px;
+  color: var(--red);
+}
+
+/* ===== Changes Modal - Nintendo × Kashiwa Sato ===== */
+.changes-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-24);
+}
+
+.changes-modal.hidden {
+  display: none;
+}
+
+.changes-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.changes-modal-content {
+  position: relative;
+  background: var(--white);
+  border-radius: var(--r-24);
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 8px 40px rgba(0, 0, 0, 0.12),
+    0 24px 80px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  animation: scaleIn 0.3s var(--ease-out);
+}
+
+/* Header - Minimal with Red Accent */
+.changes-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--s-24);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.changes-modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  letter-spacing: -0.01em;
+}
+
+.changes-modal-header h3::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: var(--red);
+  border-radius: 2px;
+}
+
+.changes-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-8);
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--gray-400);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.changes-modal-close:hover {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+/* Body */
+.changes-modal-body {
+  padding: var(--s-24);
+  padding-top: var(--s-16);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Summary Card - Clean & Minimal */
+.changes-summary {
+  padding: var(--s-16);
+  background: transparent;
+  margin-bottom: var(--s-20);
+  color: var(--gray-600);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  position: relative;
+  padding-left: var(--s-16);
+  border-left: 2px solid var(--gray-200);
+}
+
+.changes-summary::before {
+  content: '変更内容';
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--s-8);
+}
+
+/* File Changes - Nintendo Clean Style */
+.changes-file {
+  margin-bottom: var(--s-16);
+  border-radius: var(--r-16);
+  overflow: hidden;
+  background: var(--gray-900);
+}
+
+.changes-file:last-child {
+  margin-bottom: 0;
+}
+
+.changes-file-header {
+  background: var(--gray-900);
+  padding: var(--s-12) var(--s-16);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 0.75rem;
+  color: var(--gray-400);
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.changes-file-header::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+  border-radius: var(--r-full);
+  opacity: 0.8;
+}
+
+/* Code Diff - Dark Theme */
+.changes-diff,
+.changes-code {
+  margin: 0;
+  padding: var(--s-16);
+  background: var(--gray-900);
+  overflow-x: auto;
+  font-size: 0.8125rem;
+}
+
+.changes-diff code,
+.changes-code code {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
+  line-height: 1.6;
+}
+
+/* Deleted Code Block */
+.changes-diff code.diff-old {
+  display: block;
+  background: rgba(255, 59, 48, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  padding: var(--s-12) var(--s-16);
+  padding-right: var(--s-48);
+  border-radius: var(--r-8);
+  margin-bottom: var(--s-8);
+  white-space: pre-wrap;
+  word-break: break-all;
+  position: relative;
+  border: 1px solid rgba(255, 59, 48, 0.2);
+}
+
+.changes-diff code.diff-old::before {
+  content: '−';
+  position: absolute;
+  top: var(--s-12);
+  right: var(--s-12);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--red);
+  background: rgba(255, 59, 48, 0.15);
+  border-radius: var(--r-full);
+}
+
+/* Added Code Block */
+.changes-diff code.diff-new {
+  display: block;
+  background: rgba(52, 199, 89, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  padding: var(--s-12) var(--s-16);
+  padding-right: var(--s-48);
+  border-radius: var(--r-8);
+  white-space: pre-wrap;
+  word-break: break-all;
+  position: relative;
+  border: 1px solid rgba(52, 199, 89, 0.2);
+}
+
+.changes-diff code.diff-new::before {
+  content: '+';
+  position: absolute;
+  top: var(--s-12);
+  right: var(--s-12);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #34C759;
+  background: rgba(52, 199, 89, 0.15);
+  border-radius: var(--r-full);
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+  .changes-modal {
+    padding: var(--s-16);
+    align-items: flex-end;
+  }
+
+  .changes-modal-content {
+    max-height: 85vh;
+    border-radius: var(--r-24) var(--r-24) 0 0;
+    animation: slideUp 0.3s var(--ease-out);
+  }
+}

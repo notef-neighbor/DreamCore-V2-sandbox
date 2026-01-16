@@ -186,6 +186,17 @@ app.get('/api/projects/:projectId/code', (req, res) => {
   res.json({ code });
 });
 
+// Get latest AI context (Gemini edits, summary, etc.)
+app.get('/api/projects/:projectId/ai-context', (req, res) => {
+  const visitorId = req.query.visitorId;
+  if (!visitorId) {
+    return res.status(401).json({ error: 'No visitor ID' });
+  }
+
+  const context = userManager.getLatestAIContext(visitorId, req.params.projectId);
+  res.json({ context });
+});
+
 // Download project as ZIP
 app.get('/api/projects/:projectId/download', async (req, res) => {
   const visitorId = req.query.visitorId;
@@ -859,6 +870,12 @@ wss.on('connection', (ws) => {
           let userMessage = data.content;
           const debugOptions = data.debugOptions || {};
 
+          // Auto-fix mode: skip Gemini, use Claude Code CLI directly
+          if (data.autoFix) {
+            debugOptions.useClaude = true;
+            console.log('[AutoFix] Using Claude Code CLI directly for bug fix');
+          }
+
           // Check if style selection is needed for new game creation
           const shouldCheckStyleSelection = !data.skipStyleSelection && !data.selectedStyle;
           if (shouldCheckStyleSelection) {
@@ -955,9 +972,14 @@ wss.on('connection', (ws) => {
               // Subscribe to job updates BEFORE starting processing
               if (jobUnsubscribe) jobUnsubscribe();
               jobUnsubscribe = jobManager.subscribe(job.id, (update) => {
+                console.log('[DEBUG] Job update received:', update.type);
                 // Handle stream content directly
                 if (update.type === 'stream') {
                   safeSend({ type: 'stream', content: update.content });
+                } else if (update.type === 'geminiCode' || update.type === 'geminiChat' || update.type === 'geminiRestore' || update.type === 'imagesGenerated') {
+                  // Send Gemini messages directly with their original type
+                  console.log('[DEBUG] Sending Gemini message:', update.type);
+                  safeSend(update);
                 } else {
                   safeSend({ type: 'jobUpdate', ...update });
 

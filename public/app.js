@@ -439,7 +439,8 @@ class GameCreatorApp {
 
     this.ws.send(JSON.stringify({
       type: 'message',
-      content: fixMessage
+      content: fixMessage,
+      autoFix: true  // Use Claude Code CLI directly for bug fixes
     }));
   }
 
@@ -1139,24 +1140,40 @@ class GameCreatorApp {
 
         // Clear and reload history
         this.chatMessages.innerHTML = '';
-        if (data.history && data.history.length > 0) {
-          // Find the last assistant message index for play button
-          let lastAssistantIndex = -1;
-          for (let i = data.history.length - 1; i >= 0; i--) {
-            if (data.history[i].role === 'assistant') {
-              lastAssistantIndex = i;
-              break;
-            }
+
+        // Load Gemini change - first try server, then localStorage fallback
+        this.fetchAIContext().then(savedGeminiChange => {
+          // If server doesn't have data, try localStorage
+          if (!savedGeminiChange) {
+            savedGeminiChange = this.loadSavedGeminiChange();
           }
 
-          data.history.forEach((h, index) => {
-            const showPlayButton = (h.role === 'assistant' && index === lastAssistantIndex);
-            this.addMessage(h.content, h.role, { showPlayButton });
-          });
-        } else {
-          // Show welcome message for new/empty projects
-          this.showWelcomeMessage();
-        }
+          if (data.history && data.history.length > 0) {
+            // Find the last assistant message index for play button
+            let lastAssistantIndex = -1;
+            for (let i = data.history.length - 1; i >= 0; i--) {
+              if (data.history[i].role === 'assistant') {
+                lastAssistantIndex = i;
+                break;
+              }
+            }
+
+            data.history.forEach((h, index) => {
+              const isLastAssistant = (h.role === 'assistant' && index === lastAssistantIndex);
+              const options = { showPlayButton: isLastAssistant };
+
+              // Attach saved Gemini change to the last assistant message
+              if (isLastAssistant && savedGeminiChange) {
+                this.lastGeminiChange = savedGeminiChange;
+              }
+
+              this.addMessage(h.content, h.role, options);
+            });
+          } else {
+            // Show welcome message for new/empty projects
+            this.showWelcomeMessage();
+          }
+        });
 
         this.refreshPreview();
         this.updatePreviewVisibility(true);
@@ -1280,6 +1297,7 @@ class GameCreatorApp {
         break;
 
       case 'geminiCode':
+        console.log('[DEBUG] geminiCode received:', data);
         this.displayGeneratedCode(data);
         break;
 
@@ -1563,6 +1581,9 @@ class GameCreatorApp {
 
       // Add "Play Game" button if we have an active project and showPlayButton is true
       if (options.showPlayButton && this.currentProjectId) {
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'message-buttons';
+
         const playBtn = document.createElement('button');
         playBtn.className = 'play-game-btn';
         playBtn.innerHTML = `
@@ -1574,7 +1595,30 @@ class GameCreatorApp {
         playBtn.addEventListener('click', () => {
           this.showPreviewPanel();
         });
-        messageDiv.appendChild(playBtn);
+        btnContainer.appendChild(playBtn);
+
+        // Add "View Changes" button if we have recent Gemini changes
+        if (this.lastGeminiChange) {
+          const changesBtn = document.createElement('button');
+          changesBtn.className = 'view-changes-btn';
+          changesBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            変更箇所を見る
+          `;
+          const changeData = this.lastGeminiChange;
+          changesBtn.addEventListener('click', () => {
+            this.showChangesModal(changeData);
+          });
+          btnContainer.appendChild(changesBtn);
+          this.lastGeminiChange = null; // Clear after attaching
+        }
+
+        messageDiv.appendChild(btnContainer);
       }
     } else {
       const formattedContent = this.formatContent(content);
@@ -1730,33 +1774,49 @@ class GameCreatorApp {
     setTimeout(() => notification.close(), 5000);
   }
 
-  displayGeneratedCode(data) {
-    // Remove welcome message if present
-    this.hideWelcomeMessage();
+  showChangesModal(data) {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('changesModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'changesModal';
+      modal.className = 'changes-modal hidden';
+      modal.innerHTML = `
+        <div class="changes-modal-backdrop"></div>
+        <div class="changes-modal-content">
+          <div class="changes-modal-header">
+            <h3>変更内容</h3>
+            <button class="changes-modal-close">&times;</button>
+          </div>
+          <div class="changes-modal-body"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
 
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message gemini-code';
+      // Close handlers
+      modal.querySelector('.changes-modal-backdrop').addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+      modal.querySelector('.changes-modal-close').addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+    }
 
+    // Build content
+    const body = modal.querySelector('.changes-modal-body');
     const isEdit = data.mode === 'edit';
-    let html = `<div class="gemini-header">${isEdit ? 'Gemini差分' : 'Gemini新規作成'}</div>`;
 
+    let html = '';
     if (data.summary) {
-      html += `<div class="gemini-summary">${this.escapeHtml(data.summary)}</div>`;
+      html += `<div class="changes-summary">${this.escapeHtml(data.summary)}</div>`;
     }
 
     if (isEdit && data.edits) {
-      // Edit mode - show diffs
       data.edits.forEach((edit, i) => {
-        const codeId = `code-${Date.now()}-${i}`;
         html += `
-          <div class="gemini-file">
-            <div class="gemini-file-header">
-              <span class="gemini-filename">${this.escapeHtml(edit.path)} (編集 ${i + 1})</span>
-              <button class="gemini-toggle" onclick="document.getElementById('${codeId}').classList.toggle('collapsed')">
-                折りたたむ
-              </button>
-            </div>
-            <pre id="${codeId}" class="gemini-code-block">
+          <div class="changes-file">
+            <div class="changes-file-header">${this.escapeHtml(edit.path)}</div>
+            <pre class="changes-diff">
 <code class="diff-old">- ${this.escapeHtml(edit.old_string)}</code>
 <code class="diff-new">+ ${this.escapeHtml(edit.new_string)}</code>
 </pre>
@@ -1764,44 +1824,70 @@ class GameCreatorApp {
         `;
       });
     } else if (data.files) {
-      // Create mode - show full files
       data.files.forEach(file => {
-        const codeId = `code-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         html += `
-          <div class="gemini-file">
-            <div class="gemini-file-header">
-              <span class="gemini-filename">${this.escapeHtml(file.path)}</span>
-              <button class="gemini-toggle" onclick="document.getElementById('${codeId}').classList.toggle('collapsed')">
-                折りたたむ
-              </button>
-            </div>
-            <pre id="${codeId}" class="gemini-code-block collapsed"><code>${this.escapeHtml(file.content)}</code></pre>
+          <div class="changes-file">
+            <div class="changes-file-header">${this.escapeHtml(file.path)}</div>
+            <pre class="changes-code"><code>${this.escapeHtml(file.content)}</code></pre>
           </div>
         `;
       });
     }
 
-    // Show suggestions as clickable buttons
-    if (data.suggestions && data.suggestions.length > 0) {
-      html += '<div class="chat-suggestions">';
-      data.suggestions.forEach((suggestion, i) => {
-        const btnId = `suggestion-${Date.now()}-${i}`;
-        html += `<button class="suggestion-btn" id="${btnId}" data-suggestion="${this.escapeHtml(suggestion)}">${this.escapeHtml(suggestion)}</button>`;
-      });
-      html += '</div>';
+    body.innerHTML = html;
+    modal.classList.remove('hidden');
+  }
+
+  displayGeneratedCode(data) {
+    // Store the change data for later viewing
+    this.lastGeminiChange = data;
+    console.log('[DEBUG] geminiCode received:', data);
+
+    // Save to localStorage for persistence across page reloads
+    if (this.currentProjectId) {
+      try {
+        localStorage.setItem(`geminiChange_${this.currentProjectId}`, JSON.stringify(data));
+      } catch (e) {
+        console.warn('Failed to save gemini change to localStorage:', e);
+      }
     }
+    // Don't display anything in chat - changes will be shown via "変更箇所を見る" button
+    // The summary will be displayed in the completed message instead
+  }
 
-    messageDiv.innerHTML = html;
-    this.chatMessages.appendChild(messageDiv);
+  // Fetch AI context (edits, summary) from server
+  async fetchAIContext() {
+    if (!this.currentProjectId || !this.visitorId) return null;
+    try {
+      const response = await fetch(`/api/projects/${this.currentProjectId}/ai-context?visitorId=${this.visitorId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.context && data.context.edits && data.context.edits.length > 0) {
+          return {
+            mode: 'edit',  // Required for showChangesModal to display edits
+            summary: data.context.aiSummary,
+            edits: data.context.edits
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch AI context from server:', e);
+    }
+    return null;
+  }
 
-    // Attach click handlers for suggestions
-    messageDiv.querySelectorAll('.suggestion-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.applySuggestion(btn.dataset.suggestion);
-      });
-    });
-
-    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+  // Load saved Gemini change from localStorage (fallback)
+  loadSavedGeminiChange() {
+    if (!this.currentProjectId) return null;
+    try {
+      const saved = localStorage.getItem(`geminiChange_${this.currentProjectId}`);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Failed to load gemini change from localStorage:', e);
+    }
+    return null;
   }
 
   // Simple markdown to HTML conversion

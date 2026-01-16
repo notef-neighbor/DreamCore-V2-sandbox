@@ -475,6 +475,7 @@ const addToHistory = (visitorId, projectId, role, content) => {
  * @param {string} aiContext.aiSummary - AI's summary of changes
  * @param {string[]} aiContext.skills - Skills used for generation
  * @param {string} aiContext.generator - 'gemini' or 'claude'
+ * @param {Array} aiContext.edits - Code edits made (optional)
  */
 const saveAIContext = (projectDir, aiContext) => {
   const contextDir = path.join(projectDir, '.ai-context');
@@ -496,6 +497,7 @@ const saveAIContext = (projectDir, aiContext) => {
     aiSummary: aiContext.aiSummary || '',
     skills: aiContext.skills || [],
     generator: aiContext.generator || 'unknown',
+    edits: aiContext.edits || [],
     systemPromptVersion: '1.0'
   };
 
@@ -671,6 +673,43 @@ const remixProject = (visitorId, sourceProjectId) => {
   };
 };
 
+// ==================== AI Context ====================
+
+/**
+ * Get the latest AI context for a project
+ * @param {string} visitorId - Visitor ID
+ * @param {string} projectId - Project ID
+ * @returns {Object|null} Latest AI context or null if not found
+ */
+const getLatestAIContext = (visitorId, projectId) => {
+  const projectDir = getProjectDir(visitorId, projectId);
+  const contextDir = path.join(projectDir, '.ai-context');
+
+  if (!fs.existsSync(contextDir)) {
+    return null;
+  }
+
+  // Get all context files and sort by name (timestamp-based)
+  const files = fs.readdirSync(contextDir)
+    .filter(f => f.endsWith('.json'))
+    .sort()
+    .reverse();
+
+  if (files.length === 0) {
+    return null;
+  }
+
+  // Read the most recent context file
+  const latestFile = path.join(contextDir, files[0]);
+  try {
+    const content = fs.readFileSync(latestFile, 'utf-8');
+    return JSON.parse(content);
+  } catch (e) {
+    console.error('Failed to read AI context:', e);
+    return null;
+  }
+};
+
 module.exports = {
   getProjectDir,
   ensureProjectDir,
@@ -703,4 +742,7 @@ module.exports = {
   createVersionSnapshot,
   getVersions,
   restoreVersion,
+
+  // AI Context
+  getLatestAIContext,
 };
