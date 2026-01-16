@@ -903,6 +903,12 @@ body::before {
   border-radius: var(--r-4);
 }
 
+.attached-asset-number {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--red);
+}
+
 .attached-asset-name {
   font-size: 0.8rem;
   color: var(--gray-600);
@@ -945,6 +951,7 @@ body::before {
 }
 
 .message-asset-thumb {
+  position: relative;
   width: 60px;
   height: 60px;
   border-radius: var(--r-8);
@@ -956,6 +963,18 @@ body::before {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.message-asset-number {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--white);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 4px;
+  border-radius: var(--r-4);
 }
 
 #chatInput {

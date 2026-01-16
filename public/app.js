@@ -1693,11 +1693,11 @@ class GameCreatorApp {
       return;
     }
 
-    // Build final content with attached assets prepended
+    // Build final content with attached assets prepended (numbered)
     let finalContent = content;
     if (this.attachedAssetsList.length > 0) {
-      const assetLines = this.attachedAssetsList.map(asset =>
-        `画像「${asset.name}」を使用: ${asset.url}`
+      const assetLines = this.attachedAssetsList.map((asset, index) =>
+        `${index + 1}：画像「${asset.name}」を使用: ${asset.url}`
       ).join('\n');
       finalContent = assetLines + '\n\n' + content;
     }
@@ -1816,12 +1816,13 @@ class GameCreatorApp {
       messageDiv.innerHTML = formattedContent;
     }
 
-    // Add attached asset thumbnails for user messages
+    // Add attached asset thumbnails for user messages (with numbers)
     if (role === 'user' && options.attachedAssets && options.attachedAssets.length > 0) {
       const thumbsDiv = document.createElement('div');
       thumbsDiv.className = 'message-attached-assets';
-      thumbsDiv.innerHTML = options.attachedAssets.map(asset => `
+      thumbsDiv.innerHTML = options.attachedAssets.map((asset, index) => `
         <div class="message-asset-thumb">
+          <span class="message-asset-number">【${index + 1}】</span>
           <img src="${asset.url}" alt="${asset.name}" />
         </div>
       `).join('');
@@ -2828,8 +2829,9 @@ class GameCreatorApp {
     }
 
     this.attachedAssetsContainer.classList.remove('hidden');
-    this.attachedAssetsContainer.innerHTML = this.attachedAssetsList.map(asset => `
+    this.attachedAssetsContainer.innerHTML = this.attachedAssetsList.map((asset, index) => `
       <div class="attached-asset-item" data-id="${asset.id}">
+        <span class="attached-asset-number">【${index + 1}】</span>
         <img src="${asset.url}" alt="${asset.name}" />
         <span class="attached-asset-name">${asset.name}</span>
         <button class="attached-asset-remove" data-id="${asset.id}" title="削除">×</button>
