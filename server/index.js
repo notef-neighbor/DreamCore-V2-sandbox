@@ -999,6 +999,9 @@ wss.on('connection', (ws) => {
                   // Send Gemini messages directly with their original type
                   console.log('[DEBUG] Sending Gemini message:', update.type);
                   safeSend(update);
+                } else if (update.type === 'projectRenamed') {
+                  // Send project rename notification directly
+                  safeSend(update);
                 } else {
                   safeSend({ type: 'jobUpdate', ...update });
 

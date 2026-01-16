@@ -1494,13 +1494,23 @@ class GameCreatorApp {
         break;
 
       case 'projectRenamed':
-        this.projects = data.projects;
-        this.updateProjectList();
-        this.renderProjectGrid();
-        if (this.currentProjectId === data.project.id) {
+        // Update projects list if provided
+        if (data.projects) {
+          this.projects = data.projects;
+          this.updateProjectList();
+          this.renderProjectGrid();
+        }
+        // Update current project if it was renamed
+        if (data.project && this.currentProjectId === data.project.id) {
           document.title = `${data.project.name} - ゲームクリエイター`;
           this.currentProjectName = data.project.name;
           this.updateProjectTitle(data.project.name);
+          // Also update in projects array
+          const proj = this.projects.find(p => p.id === data.project.id);
+          if (proj) {
+            proj.name = data.project.name;
+            this.updateProjectList();
+          }
         }
         break;
 

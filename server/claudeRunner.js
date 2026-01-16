@@ -1340,13 +1340,39 @@ ${skillInstructions}
           // For create mode: create initial spec from generated code
           // For edit mode: update existing spec
           if (geminiResult.mode === 'create') {
-            this.createInitialSpecFromCode(visitorId, projectId, userMessage, null, gameCodeForImages).catch(err => {
-              console.error('Spec creation error:', err.message);
-            });
+            this.createInitialSpecFromCode(visitorId, projectId, userMessage, null, gameCodeForImages)
+              .then(() => {
+                // Auto-rename after spec is created
+                return this.maybeAutoRenameProject(visitorId, projectId);
+              })
+              .then(renamed => {
+                if (renamed) {
+                  jobManager.notifySubscribers(jobId, {
+                    type: 'projectRenamed',
+                    project: renamed
+                  });
+                }
+              })
+              .catch(err => {
+                console.error('Spec creation error:', err.message);
+              });
           } else {
-            this.updateSpec(visitorId, projectId, userMessage).catch(err => {
-              console.error('Spec update error:', err.message);
-            });
+            this.updateSpec(visitorId, projectId, userMessage)
+              .then(() => {
+                // Auto-rename after spec is updated
+                return this.maybeAutoRenameProject(visitorId, projectId);
+              })
+              .then(renamed => {
+                if (renamed) {
+                  jobManager.notifySubscribers(jobId, {
+                    type: 'projectRenamed',
+                    project: renamed
+                  });
+                }
+              })
+              .catch(err => {
+                console.error('Spec update error:', err.message);
+              });
           }
 
           return { success: true };
@@ -1510,6 +1536,16 @@ ${skillInstructions}
           // Update specs asynchronously (don't wait) - pass userMessage for selective update
           this.updateSpec(visitorId, projectId, userMessage).catch(err => {
             console.error('Spec update error:', err.message);
+          });
+
+          // Auto-rename project if it has default name
+          this.maybeAutoRenameProject(visitorId, projectId).then(renamed => {
+            if (renamed) {
+              jobManager.notifySubscribers(jobId, {
+                type: 'projectRenamed',
+                project: renamed
+              });
+            }
           });
 
           resolve({ success: true });
@@ -2442,6 +2478,66 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
         resolve(['mechanics', 'progress']);
       }, 8000);
     });
+  }
+
+  // Extract game title from game.md content
+  extractGameTitle(gameSpecContent) {
+    if (!gameSpecContent) return null;
+
+    // Try to find "ゲーム名:" or "- ゲーム名:" pattern
+    const patterns = [
+      /ゲーム名[:：]\s*(.+)/,
+      /-\s*ゲーム名[:：]\s*(.+)/,
+      /##\s*(.+?)(?:\n|$)/,  // First heading as fallback
+    ];
+
+    for (const pattern of patterns) {
+      const match = gameSpecContent.match(pattern);
+      if (match && match[1]) {
+        const title = match[1].trim();
+        // Skip generic titles
+        if (title && !title.includes('[') && title !== '新しいゲーム') {
+          return title;
+        }
+      }
+    }
+    return null;
+  }
+
+  // Auto-rename project if it has default name and game.md has a title
+  async maybeAutoRenameProject(visitorId, projectId) {
+    try {
+      // Get current project info
+      const project = db.getProjectById(projectId);
+      if (!project) return null;
+
+      // Only auto-rename if project has default name
+      if (project.name !== '新しいゲーム') {
+        return null;
+      }
+
+      // Read game.md and extract title
+      const projectDir = userManager.getProjectDir(visitorId, projectId);
+      const gameSpecPath = path.join(projectDir, 'specs', 'game.md');
+
+      if (!fs.existsSync(gameSpecPath)) return null;
+
+      const gameSpec = fs.readFileSync(gameSpecPath, 'utf-8');
+      const title = this.extractGameTitle(gameSpec);
+
+      if (!title) return null;
+
+      // Rename project
+      const renamed = userManager.renameProject(visitorId, projectId, title);
+      if (renamed) {
+        console.log(`Auto-renamed project to: ${title}`);
+        return renamed;
+      }
+      return null;
+    } catch (err) {
+      console.error('Auto-rename error:', err.message);
+      return null;
+    }
   }
 }
 
