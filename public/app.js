@@ -58,7 +58,7 @@ class GameCreatorApp {
     this.newProjectButton = document.getElementById('newProjectButton');
     this.gamePreview = document.getElementById('gamePreview');
     this.statusIndicator = document.getElementById('statusIndicator');
-    // this.previewTitle removed - no longer in UI
+    this.projectTitle = document.getElementById('projectTitle');
     this.noProjectMessage = document.getElementById('noProjectMessage');
     this.versionsButton = document.getElementById('versionsButton');
     this.versionPanel = document.getElementById('versionPanel');
@@ -523,6 +523,7 @@ class GameCreatorApp {
     this.updateNavActive('create');
     this.renderProjectGrid();
     document.title = 'Game Creator - Projects';
+    this.updateProjectTitle(null);
   }
 
   showEditorView() {
@@ -613,6 +614,65 @@ class GameCreatorApp {
       projectId,
       name: newName
     }));
+  }
+
+  updateProjectTitle(name) {
+    if (!name) {
+      this.projectTitle.textContent = 'ゲームクリエイター';
+      this.projectTitle.classList.remove('editable');
+    } else {
+      this.projectTitle.textContent = name;
+      this.projectTitle.classList.add('editable');
+    }
+  }
+
+  startEditingProjectTitle() {
+    if (!this.currentProjectId || !this.currentProjectName) return;
+
+    const currentName = this.currentProjectName;
+    this.projectTitle.contentEditable = true;
+    this.projectTitle.classList.add('editing');
+    this.projectTitle.focus();
+
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(this.projectTitle);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const finishEditing = () => {
+      this.projectTitle.contentEditable = false;
+      this.projectTitle.classList.remove('editing');
+      const newName = this.projectTitle.textContent.trim();
+
+      if (newName && newName !== currentName) {
+        this.ws.send(JSON.stringify({
+          type: 'renameProject',
+          projectId: this.currentProjectId,
+          name: newName
+        }));
+      } else {
+        // Revert to original name if empty or unchanged
+        this.projectTitle.textContent = currentName;
+      }
+    };
+
+    const handleKeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.projectTitle.blur();
+      } else if (e.key === 'Escape') {
+        this.projectTitle.textContent = currentName;
+        this.projectTitle.blur();
+      }
+    };
+
+    this.projectTitle.addEventListener('blur', finishEditing, { once: true });
+    this.projectTitle.addEventListener('keydown', handleKeydown);
+    this.projectTitle.addEventListener('blur', () => {
+      this.projectTitle.removeEventListener('keydown', handleKeydown);
+    }, { once: true });
   }
 
   deleteProjectFromList(projectId) {
@@ -782,6 +842,9 @@ class GameCreatorApp {
     this.homeButton.addEventListener('click', () => {
       this.navigateTo('/', { view: 'list' });
     });
+
+    // Project title click to edit
+    this.projectTitle.addEventListener('click', () => this.startEditingProjectTitle());
 
     // Create project button in list view
     this.createProjectButton.addEventListener('click', () => this.createNewProject());
@@ -1268,6 +1331,7 @@ class GameCreatorApp {
         if (selectedProject) {
           document.title = `${selectedProject.name} - ゲームクリエイター`;
           this.currentProjectName = selectedProject.name;
+          this.updateProjectTitle(selectedProject.name);
         }
 
         // Show versions button and code/download buttons
@@ -1305,6 +1369,7 @@ class GameCreatorApp {
         if (this.currentProjectId === data.project.id) {
           document.title = `${data.project.name} - ゲームクリエイター`;
           this.currentProjectName = data.project.name;
+          this.updateProjectTitle(data.project.name);
         }
         break;
 
