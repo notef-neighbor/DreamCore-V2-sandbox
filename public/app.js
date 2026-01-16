@@ -1747,7 +1747,11 @@ class GameCreatorApp {
   }
 
   createNewProject() {
-    this.showNewGameModal();
+    // Skip modal and directly create project with default name
+    this.ws.send(JSON.stringify({
+      type: 'createProject',
+      name: '新しいゲーム'
+    }));
   }
 
   showNewGameModal() {
