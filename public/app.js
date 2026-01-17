@@ -2127,10 +2127,14 @@ class GameCreatorApp {
     // Delay slightly to ensure DOM is updated and keyboard state is stable
     requestAnimationFrame(() => {
       setTimeout(() => {
-        if (messageDiv && messageDiv.scrollIntoView) {
-          messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        } else {
-          this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+        // Simply scroll chat container to bottom
+        // This ensures the latest message is fully visible above streaming container
+        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+
+        // If streaming container is visible, add extra scroll for its height
+        if (this.streamingContainer && !this.streamingContainer.classList.contains('hidden')) {
+          const streamingHeight = this.streamingContainer.offsetHeight;
+          this.chatMessages.scrollTop += streamingHeight;
         }
       }, 100);
     });
@@ -2829,6 +2833,12 @@ class GameCreatorApp {
     this.streamingContainer.classList.remove('hidden');
     this.typewriterQueue = [];
     this.isTyping = false;
+
+    // Scroll to latest message after streaming container appears
+    const lastMessage = this.chatMessages.lastElementChild;
+    if (lastMessage) {
+      this.scrollToLatestMessage(lastMessage);
+    }
   }
 
   hideStreaming() {

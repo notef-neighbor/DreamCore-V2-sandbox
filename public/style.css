@@ -652,10 +652,19 @@ body::before {
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--s-16);
+  padding-bottom: var(--s-32);
   display: flex;
   flex-direction: column;
   gap: var(--s-12);
   position: relative;
+}
+
+/* Extra space at bottom for scroll visibility */
+.chat-messages::after {
+  content: '';
+  display: block;
+  height: var(--s-16);
+  flex-shrink: 0;
 }
 
 /* Message Bubbles */
