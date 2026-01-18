@@ -157,6 +157,12 @@ class GameCreatorApp {
     // Image generation state
     this.generatedImageData = null;
 
+    // Mobile plus menu elements
+    this.plusMenuButton = document.getElementById('plusMenuButton');
+    this.plusMenuPopup = document.getElementById('plusMenuPopup');
+    this.plusMenuAsset = document.getElementById('plusMenuAsset');
+    this.plusMenuImageGen = document.getElementById('plusMenuImageGen');
+
     // Debug toggles
     this.disableSkillsToggle = document.getElementById('disableSkillsToggle');
     this.useClaudeToggle = document.getElementById('useClaudeToggle');
@@ -249,6 +255,7 @@ class GameCreatorApp {
     this.setupEventListeners();
     this.setupAssetListeners();
     this.setupImageGenListeners();
+    this.setupPlusMenuListeners();
     this.setupStyleSelectListeners();
     this.setupRouting();
     this.setupErrorListeners();
@@ -408,6 +415,7 @@ class GameCreatorApp {
     this.setupEventListeners();
     this.setupAssetListeners();
     this.setupImageGenListeners();
+    this.setupPlusMenuListeners();
     this.setupStyleSelectListeners();
     this.setupRouting();
     this.setupErrorListeners();
@@ -3483,6 +3491,55 @@ class GameCreatorApp {
 
     // Download button
     this.downloadImageButton?.addEventListener('click', () => this.downloadGeneratedImage());
+  }
+
+  // ==================== Mobile Plus Menu ====================
+
+  setupPlusMenuListeners() {
+    if (!this.plusMenuButton || !this.plusMenuPopup) return;
+
+    // Toggle menu on button click
+    this.plusMenuButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.togglePlusMenu();
+    });
+
+    // Menu item: Asset
+    this.plusMenuAsset?.addEventListener('click', () => {
+      this.closePlusMenu();
+      this.openAssetModal();
+    });
+
+    // Menu item: Image Generation
+    this.plusMenuImageGen?.addEventListener('click', () => {
+      this.closePlusMenu();
+      this.openImageGenModal();
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (this.plusMenuPopup && !this.plusMenuPopup.classList.contains('hidden')) {
+        if (!this.plusMenuButton.contains(e.target) && !this.plusMenuPopup.contains(e.target)) {
+          this.closePlusMenu();
+        }
+      }
+    });
+  }
+
+  togglePlusMenu() {
+    if (!this.plusMenuPopup || !this.plusMenuButton) return;
+    const isHidden = this.plusMenuPopup.classList.contains('hidden');
+    if (isHidden) {
+      this.plusMenuPopup.classList.remove('hidden');
+      this.plusMenuButton.classList.add('active');
+    } else {
+      this.closePlusMenu();
+    }
+  }
+
+  closePlusMenu() {
+    this.plusMenuPopup?.classList.add('hidden');
+    this.plusMenuButton?.classList.remove('active');
   }
 
   openImageGenModal() {
