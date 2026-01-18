@@ -4374,6 +4374,13 @@ body::before {
 /* ============================================
    Notifications Page
    ============================================ */
+/* Enable scroll on notifications page */
+html:has(body[data-page="notifications"]),
+body[data-page="notifications"] {
+  overflow-y: auto;
+  height: auto;
+}
+
 .notifications-view {
   min-height: 100vh;
   min-height: 100dvh;
@@ -4381,7 +4388,6 @@ body::before {
     radial-gradient(ellipse 80% 50% at 20% -10%, rgba(255, 59, 48, 0.08), transparent),
     radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255, 59, 48, 0.06), transparent),
     linear-gradient(180deg, var(--white) 0%, var(--gray-100) 100%);
-  overflow-y: auto;
 }
 
 /* Notifications Header */
@@ -4465,6 +4471,7 @@ body::before {
 /* Notifications Content */
 .notifications-content {
   padding: var(--s-24);
+  padding-bottom: calc(80px + var(--s-24) + env(safe-area-inset-bottom));
   max-width: 640px;
   margin: 0 auto;
 }
@@ -4697,6 +4704,7 @@ body::before {
 
   .notifications-content {
     padding: var(--s-16);
+    padding-bottom: calc(80px + var(--s-16) + env(safe-area-inset-bottom));
   }
 
   .notification-item {
