@@ -1987,6 +1987,7 @@ class GameCreatorApp {
     // Focus event
     this.chatInput.addEventListener('focus', () => {
       console.log('[Keyboard] focus');
+      this.chatInput.classList.add('expanded');
       setTimeout(adjustForKeyboard, 100);
       setTimeout(adjustForKeyboard, 300);
       setTimeout(adjustForKeyboard, 500);
@@ -1995,6 +1996,10 @@ class GameCreatorApp {
     // Blur event
     this.chatInput.addEventListener('blur', () => {
       console.log('[Keyboard] blur');
+      // Only collapse if empty
+      if (!this.chatInput.value.trim()) {
+        this.chatInput.classList.remove('expanded');
+      }
       setTimeout(resetLayout, 100);
       setTimeout(resetLayout, 300);
     });
