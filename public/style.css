@@ -2735,8 +2735,100 @@ body::before {
 }
 
 @media (max-width: 768px) {
+  /* Full-screen modal on mobile */
+  .image-gen-modal {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .image-gen-modal .modal-header {
+    flex-shrink: 0;
+    padding: var(--s-12) var(--s-16);
+  }
+
+  .image-gen-modal .modal-header h3 {
+    font-size: 1rem;
+  }
+
   .image-gen-content {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-12);
+    padding: var(--s-12);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Preview area - compact square */
+  .image-gen-preview {
+    order: -1;
+    aspect-ratio: 1;
+    width: 50%;
+    max-width: 200px;
+    margin: 0 auto;
+    flex-shrink: 0;
+  }
+
+  .image-gen-form {
+    gap: var(--s-8);
+  }
+
+  .image-gen-form .form-label {
+    font-size: 0.75rem;
+  }
+
+  .image-gen-form textarea {
+    padding: var(--s-8);
+    font-size: 0.875rem;
+    min-height: 60px;
+  }
+
+  .image-gen-options {
+    gap: var(--s-8);
+  }
+
+  .option-label {
+    font-size: 0.625rem;
+  }
+
+  .option-group select {
+    padding: var(--s-8);
+    font-size: 0.8125rem;
+  }
+
+  .generate-btn {
+    padding: var(--s-10);
+    font-size: 0.875rem;
+  }
+
+  .image-gen-footer {
+    flex-shrink: 0;
+    padding: var(--s-8) var(--s-12);
+    gap: var(--s-8);
+  }
+
+  .image-gen-footer button {
+    padding: var(--s-8) var(--s-12);
+    font-size: 0.8125rem;
+    flex: 1;
+  }
+
+  /* When image is generated: full-screen image view */
+  .image-gen-modal.has-image .image-gen-preview {
+    width: 100%;
+    max-width: none;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .image-gen-modal.has-image .image-gen-form {
+    display: none;
   }
 }
 

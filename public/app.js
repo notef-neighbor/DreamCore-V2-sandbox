@@ -3566,6 +3566,8 @@ class GameCreatorApp {
     this.imagePlaceholder?.classList.remove('hidden');
     this.generatedImage?.classList.add('hidden');
     this.imageGenLoading?.classList.add('hidden');
+    // Remove has-image class for mobile layout
+    this.imageGenModal?.querySelector('.modal-content')?.classList.remove('has-image');
     if (this.insertImageButton) {
       this.insertImageButton.classList.add('hidden');
       this.insertImageButton.disabled = true;
@@ -3613,6 +3615,9 @@ class GameCreatorApp {
         this.generatedImage.classList.remove('hidden');
       }
       this.imageGenLoading?.classList.add('hidden');
+
+      // Add has-image class for mobile layout (show image prominently)
+      this.imageGenModal?.querySelector('.modal-content')?.classList.add('has-image');
 
       // Enable action buttons
       if (this.insertImageButton) {
