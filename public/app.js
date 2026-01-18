@@ -257,23 +257,23 @@ class GameCreatorApp {
   // ==================== Authentication ====================
 
   setupLoginListeners() {
-    this.loginForm.addEventListener('submit', (e) => {
+    this.loginForm?.addEventListener('submit', (e) => {
       e.preventDefault();
       this.login();
     });
 
     // iOS Safari workaround: listen for both click and touchend
-    this.loginButton.addEventListener('click', (e) => {
+    this.loginButton?.addEventListener('click', (e) => {
       e.preventDefault();
       this.login();
     });
 
-    this.loginButton.addEventListener('touchend', (e) => {
+    this.loginButton?.addEventListener('touchend', (e) => {
       e.preventDefault();
       this.login();
     });
 
-    this.logoutButton.addEventListener('click', () => {
+    this.logoutButton?.addEventListener('click', () => {
       this.logout();
     });
 
@@ -449,7 +449,7 @@ class GameCreatorApp {
       this.hideErrorPanel();
       // Hide status after 2 seconds
       setTimeout(() => {
-        this.gameStatus.classList.add('hidden');
+        this.gameStatus?.classList.add('hidden');
       }, 2000);
     } else {
       this.handleGameErrors(data.errors);
@@ -457,42 +457,51 @@ class GameCreatorApp {
   }
 
   showErrorPanel(errors) {
-    this.errorCount.textContent = errors.length;
-    this.errorList.innerHTML = errors.map(err => `
-      <div class="error-item">
-        <div class="error-item-type">${this.escapeHtml(err.type)}</div>
-        <div class="error-item-message">${this.escapeHtml(err.message)}</div>
-        ${err.file || err.line ? `
-          <div class="error-item-location">
-            ${err.file ? `File: ${err.file}` : ''}
-            ${err.line ? ` Line: ${err.line}` : ''}
-            ${err.column ? `:${err.column}` : ''}
-          </div>
-        ` : ''}
-      </div>
-    `).join('');
+    if (!this.errorPanel) return;
+    if (this.errorCount) this.errorCount.textContent = errors.length;
+    if (this.errorList) {
+      this.errorList.innerHTML = errors.map(err => `
+        <div class="error-item">
+          <div class="error-item-type">${this.escapeHtml(err.type)}</div>
+          <div class="error-item-message">${this.escapeHtml(err.message)}</div>
+          ${err.file || err.line ? `
+            <div class="error-item-location">
+              ${err.file ? `File: ${err.file}` : ''}
+              ${err.line ? ` Line: ${err.line}` : ''}
+              ${err.column ? `:${err.column}` : ''}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
 
     this.errorPanel.classList.remove('hidden');
-    this.autoFixButton.disabled = this.isProcessing;
+    if (this.autoFixButton) this.autoFixButton.disabled = this.isProcessing;
   }
 
   hideErrorPanel() {
-    this.errorPanel.classList.add('hidden');
+    this.errorPanel?.classList.add('hidden');
   }
 
   updateGameStatus(status, text) {
+    if (!this.gameStatus) return;
+
     this.gameStatus.classList.remove('hidden', 'success', 'error');
     this.gameStatus.classList.add(status);
 
-    if (status === 'success') {
-      this.gameStatusIcon.textContent = '✅';
-    } else if (status === 'error') {
-      this.gameStatusIcon.textContent = '❌';
-    } else {
-      this.gameStatusIcon.textContent = '⏳';
+    if (this.gameStatusIcon) {
+      if (status === 'success') {
+        this.gameStatusIcon.textContent = '✅';
+      } else if (status === 'error') {
+        this.gameStatusIcon.textContent = '❌';
+      } else {
+        this.gameStatusIcon.textContent = '⏳';
+      }
     }
 
-    this.gameStatusText.textContent = text;
+    if (this.gameStatusText) {
+      this.gameStatusText.textContent = text;
+    }
   }
 
   autoFixErrors() {
@@ -1889,15 +1898,15 @@ class GameCreatorApp {
 
   updatePreviewVisibility(hasProject) {
     if (hasProject) {
-      this.gamePreview.style.display = 'block';
-      this.noProjectMessage.classList.add('hidden');
+      if (this.gamePreview) this.gamePreview.style.display = 'block';
+      this.noProjectMessage?.classList.add('hidden');
     } else {
-      this.gamePreview.style.display = 'none';
-      this.noProjectMessage.classList.remove('hidden');
+      if (this.gamePreview) this.gamePreview.style.display = 'none';
+      this.noProjectMessage?.classList.remove('hidden');
       this.currentProjectName = null;
-      this.versionsButton.classList.add('hidden');
-      this.viewCodeButton.classList.add('hidden');
-      this.downloadButton.classList.add('hidden');
+      this.versionsButton?.classList.add('hidden');
+      this.viewCodeButton?.classList.add('hidden');
+      this.downloadButton?.classList.add('hidden');
       this.hideVersionPanel();
     }
   }
@@ -2008,6 +2017,7 @@ class GameCreatorApp {
   }
 
   sendMessage() {
+    if (!this.chatInput) return;
     const content = this.chatInput.value.trim();
     console.log('[sendMessage]', { content, isProcessing: this.isProcessing, currentProjectId: this.currentProjectId });
     if (!content || this.isProcessing || !this.currentProjectId) {
@@ -2058,6 +2068,7 @@ class GameCreatorApp {
   }
 
   addMessage(content, role, options = {}) {
+    if (!this.chatMessages) return;
     // Remove welcome message if present
     this.hideWelcomeMessage();
 
@@ -2185,10 +2196,12 @@ class GameCreatorApp {
   }
 
   scrollToLatestMessage(messageDiv) {
+    if (!this.chatMessages) return;
     // Use scrollIntoView for better mobile keyboard handling
     // Delay slightly to ensure DOM is updated and keyboard state is stable
     requestAnimationFrame(() => {
       setTimeout(() => {
+        if (!this.chatMessages) return;
         // Simply scroll chat container to bottom
         // This ensures the latest message is fully visible above streaming container
         this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
@@ -2249,14 +2262,16 @@ class GameCreatorApp {
     // Add click handlers for example chips
     welcomeDiv.querySelectorAll('.example-chip').forEach(chip => {
       chip.addEventListener('click', () => {
-        this.chatInput.value = chip.dataset.prompt;
-        this.chatInput.focus();
+        if (this.chatInput) {
+          this.chatInput.value = chip.dataset.prompt;
+          this.chatInput.focus();
+        }
         // Remove welcome message
         this.hideWelcomeMessage();
       });
     });
 
-    this.chatMessages.appendChild(welcomeDiv);
+    if (this.chatMessages) this.chatMessages.appendChild(welcomeDiv);
   }
 
   formatContent(content) {
@@ -2273,6 +2288,7 @@ class GameCreatorApp {
   }
 
   hideWelcomeMessage() {
+    if (!this.chatMessages) return;
     const welcome = this.chatMessages.querySelector('.welcome-message');
     if (welcome) {
       welcome.remove();
@@ -2643,6 +2659,7 @@ class GameCreatorApp {
   // For dimension selection (2Dで作成/3Dで作成), send immediately
   // For other suggestions, append to input
   applySuggestion(suggestion) {
+    if (!this.chatInput) return;
     console.log('[applySuggestion]', suggestion, 'isProcessing:', this.isProcessing);
     // Check if this is a dimension selection (should send immediately)
     if (suggestion === '2Dで作成' || suggestion === '3Dで作成') {
@@ -2650,7 +2667,7 @@ class GameCreatorApp {
       console.log('[applySuggestion] Dimension selection, sending immediately');
       // Force reset processing state for dimension selection
       this.isProcessing = false;
-      this.sendButton.disabled = false;
+      if (this.sendButton) this.sendButton.disabled = false;
       this.chatInput.value = suggestion;
       this.sendMessage();
       return;
@@ -2677,6 +2694,7 @@ class GameCreatorApp {
   }
 
   refreshPreview() {
+    if (!this.gamePreview) return;
     if (this.visitorId && this.currentProjectId) {
       // Show loading status
       this.updateGameStatus('loading', '読み込み中...');
@@ -2689,12 +2707,14 @@ class GameCreatorApp {
   }
 
   updateStatus(className, text) {
+    if (!this.statusIndicator) return;
     this.statusIndicator.className = `status-indicator ${className}`;
     this.statusIndicator.textContent = text;
   }
 
   // Version methods
   toggleVersionPanel() {
+    if (!this.versionPanel) return;
     if (this.versionPanel.classList.contains('hidden')) {
       this.showVersionPanel();
     } else {
@@ -2703,7 +2723,7 @@ class GameCreatorApp {
   }
 
   showVersionPanel() {
-    if (!this.currentProjectId) return;
+    if (!this.currentProjectId || !this.versionPanel) return;
 
     this.ws.send(JSON.stringify({
       type: 'getVersions',
@@ -2714,18 +2734,18 @@ class GameCreatorApp {
   }
 
   hideVersionPanel() {
-    this.versionPanel.classList.add('hidden');
+    this.versionPanel?.classList.add('hidden');
   }
 
   // Code viewer methods
   async showCodeViewer() {
-    if (!this.currentProjectId || !this.visitorId) return;
+    if (!this.currentProjectId || !this.visitorId || !this.codeViewerModal) return;
 
     try {
       const response = await fetch(`/api/projects/${this.currentProjectId}/code?visitorId=${this.visitorId}`);
       const data = await response.json();
 
-      if (data.code) {
+      if (data.code && this.codeViewerCode) {
         this.codeViewerCode.textContent = data.code;
         this.codeViewerModal.classList.remove('hidden');
       }
@@ -2735,10 +2755,11 @@ class GameCreatorApp {
   }
 
   hideCodeViewer() {
-    this.codeViewerModal.classList.add('hidden');
+    this.codeViewerModal?.classList.add('hidden');
   }
 
   async copyCode() {
+    if (!this.codeViewerCode) return;
     const code = this.codeViewerCode.textContent;
     let success = false;
 
@@ -2770,7 +2791,7 @@ class GameCreatorApp {
       }
     }
 
-    if (success) {
+    if (success && this.copyCodeButton) {
       this.copyCodeButton.classList.add('copied');
       this.copyCodeButton.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2779,6 +2800,7 @@ class GameCreatorApp {
         コピー完了
       `;
       setTimeout(() => {
+        if (!this.copyCodeButton) return;
         this.copyCodeButton.classList.remove('copied');
         this.copyCodeButton.innerHTML = `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2887,34 +2909,39 @@ class GameCreatorApp {
 
   // Streaming methods
   showStreaming() {
+    if (!this.streamingContainer) return;
     this.streamingText = '';
-    this.streamingOutput.innerHTML = '<span class="cursor"></span>';
-    this.streamingStatus.textContent = '生成中...';
-    this.streamingStatus.className = 'streaming-status';
-    this.streamingFile.textContent = 'index.html';
+    if (this.streamingOutput) this.streamingOutput.innerHTML = '<span class="cursor"></span>';
+    if (this.streamingStatus) {
+      this.streamingStatus.textContent = '生成中...';
+      this.streamingStatus.className = 'streaming-status';
+    }
+    if (this.streamingFile) this.streamingFile.textContent = 'index.html';
     this.streamingContainer.classList.remove('hidden');
     this.typewriterQueue = [];
     this.isTyping = false;
 
     // Scroll to latest message after streaming container appears
-    const lastMessage = this.chatMessages.lastElementChild;
+    const lastMessage = this.chatMessages?.lastElementChild;
     if (lastMessage) {
       this.scrollToLatestMessage(lastMessage);
     }
   }
 
   hideStreaming() {
-    this.streamingContainer.classList.add('hidden');
+    this.streamingContainer?.classList.add('hidden');
     this.typewriterQueue = [];
     this.isTyping = false;
   }
 
   completeStreaming() {
-    this.streamingStatus.textContent = '完了';
-    this.streamingStatus.className = 'streaming-status completed';
+    if (this.streamingStatus) {
+      this.streamingStatus.textContent = '完了';
+      this.streamingStatus.className = 'streaming-status completed';
+    }
 
     // Remove cursor
-    const cursor = this.streamingOutput.querySelector('.cursor');
+    const cursor = this.streamingOutput?.querySelector('.cursor');
     if (cursor) cursor.remove();
 
     // Hide after delay
@@ -2924,10 +2951,11 @@ class GameCreatorApp {
   }
 
   updateStreamingStatus(message) {
-    this.streamingStatus.textContent = message;
+    if (this.streamingStatus) this.streamingStatus.textContent = message;
   }
 
   updateStreamingFile(filename, status) {
+    if (!this.streamingFile) return;
     if (status === 'editing') {
       this.streamingFile.textContent = `editing ${filename}...`;
     } else if (status === 'completed') {
@@ -2976,10 +3004,11 @@ class GameCreatorApp {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    this.streamingOutput.innerHTML = escaped + '<span class="cursor"></span>';
-
-    // Auto-scroll to bottom
-    this.streamingOutput.scrollTop = this.streamingOutput.scrollHeight;
+    if (this.streamingOutput) {
+      this.streamingOutput.innerHTML = escaped + '<span class="cursor"></span>';
+      // Auto-scroll to bottom
+      this.streamingOutput.scrollTop = this.streamingOutput.scrollHeight;
+    }
 
     // Continue processing with slight delay for animation effect
     setTimeout(() => this.processTypewriterQueue(), 10);
@@ -2988,60 +3017,64 @@ class GameCreatorApp {
   // ==================== Asset Management ====================
 
   setupAssetListeners() {
+    if (!this.assetButton || !this.assetModal) return;
     // Open/close modal
     this.assetButton.addEventListener('click', () => this.openAssetModal());
-    this.closeAssetModal.addEventListener('click', () => this.closeAssetModalHandler());
+    this.closeAssetModal?.addEventListener('click', () => this.closeAssetModalHandler());
     this.assetModal.addEventListener('click', (e) => {
       if (e.target === this.assetModal) this.closeAssetModalHandler();
     });
 
     // Tab switching
-    this.assetTabs.forEach(tab => {
+    this.assetTabs?.forEach(tab => {
       tab.addEventListener('click', () => {
         this.assetTabs.forEach(t => t.classList.remove('active'));
-        this.assetTabContents.forEach(c => c.classList.remove('active'));
+        this.assetTabContents?.forEach(c => c.classList.remove('active'));
         tab.classList.add('active');
-        document.getElementById(tab.dataset.tab).classList.add('active');
+        document.getElementById(tab.dataset.tab)?.classList.add('active');
       });
     });
 
     // Search
-    this.assetSearch.addEventListener('input', () => {
+    this.assetSearch?.addEventListener('input', () => {
       this.searchAssets(this.assetSearch.value);
     });
 
     // Upload area
-    this.uploadArea.addEventListener('click', () => this.fileInput.click());
-    this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files));
+    this.uploadArea?.addEventListener('click', () => this.fileInput?.click());
+    this.fileInput?.addEventListener('change', (e) => this.handleFileSelect(e.target.files));
 
     // Drag and drop
-    this.uploadArea.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      this.uploadArea.classList.add('dragover');
-    });
-    this.uploadArea.addEventListener('dragleave', () => {
-      this.uploadArea.classList.remove('dragover');
-    });
-    this.uploadArea.addEventListener('drop', (e) => {
-      e.preventDefault();
-      this.uploadArea.classList.remove('dragover');
-      this.handleFileSelect(e.dataTransfer.files);
-    });
+    if (this.uploadArea) {
+      this.uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        this.uploadArea.classList.add('dragover');
+      });
+      this.uploadArea.addEventListener('dragleave', () => {
+        this.uploadArea.classList.remove('dragover');
+      });
+      this.uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        this.uploadArea.classList.remove('dragover');
+        this.handleFileSelect(e.dataTransfer.files);
+      });
+    }
 
     // Upload submit
-    this.uploadSubmit.addEventListener('click', () => this.uploadFiles());
+    this.uploadSubmit?.addEventListener('click', () => this.uploadFiles());
 
     // Insert asset
-    this.insertAssetButton.addEventListener('click', () => this.insertAssetToChat());
+    this.insertAssetButton?.addEventListener('click', () => this.insertAssetToChat());
   }
 
   openAssetModal() {
+    if (!this.assetModal) return;
     this.assetModal.classList.remove('hidden');
     this.loadAssets();
   }
 
   closeAssetModalHandler() {
-    this.assetModal.classList.add('hidden');
+    this.assetModal?.classList.add('hidden');
     this.selectedAsset = null;
     this.clearSelection();
   }
@@ -3391,10 +3424,11 @@ class GameCreatorApp {
     }
 
     this.closeAssetModalHandler();
-    this.chatInput.focus();
+    this.chatInput?.focus();
   }
 
   renderAttachedAssets() {
+    if (!this.attachedAssetsContainer) return;
     if (this.attachedAssetsList.length === 0) {
       this.attachedAssetsContainer.classList.add('hidden');
       this.attachedAssetsContainer.innerHTML = '';
@@ -3433,62 +3467,69 @@ class GameCreatorApp {
   // ==================== Image Generation ====================
 
   setupImageGenListeners() {
+    if (!this.imageGenButton || !this.imageGenModal) return;
     // Open/close modal
     this.imageGenButton.addEventListener('click', () => this.openImageGenModal());
-    this.closeImageGenModal.addEventListener('click', () => this.closeImageGenModalHandler());
+    this.closeImageGenModal?.addEventListener('click', () => this.closeImageGenModalHandler());
     this.imageGenModal.addEventListener('click', (e) => {
       if (e.target === this.imageGenModal) this.closeImageGenModalHandler();
     });
 
     // Generate button
-    this.generateImageButton.addEventListener('click', () => this.generateImage());
+    this.generateImageButton?.addEventListener('click', () => this.generateImage());
 
     // Insert button
-    this.insertImageButton.addEventListener('click', () => this.insertGeneratedImage());
+    this.insertImageButton?.addEventListener('click', () => this.insertGeneratedImage());
 
     // Download button
-    this.downloadImageButton.addEventListener('click', () => this.downloadGeneratedImage());
+    this.downloadImageButton?.addEventListener('click', () => this.downloadGeneratedImage());
   }
 
   openImageGenModal() {
+    if (!this.imageGenModal) return;
     this.imageGenModal.classList.remove('hidden');
-    this.imageGenPrompt.focus();
+    this.imageGenPrompt?.focus();
   }
 
   closeImageGenModalHandler() {
-    this.imageGenModal.classList.add('hidden');
+    this.imageGenModal?.classList.add('hidden');
     this.resetImageGenState();
   }
 
   resetImageGenState() {
-    this.imageGenPrompt.value = '';
-    this.imageGenStyle.value = '';
-    this.imageGenSize.value = '512x512';
+    if (this.imageGenPrompt) this.imageGenPrompt.value = '';
+    if (this.imageGenStyle) this.imageGenStyle.value = '';
+    if (this.imageGenSize) this.imageGenSize.value = '512x512';
     this.generatedImageData = null;
-    this.imagePlaceholder.classList.remove('hidden');
-    this.generatedImage.classList.add('hidden');
-    this.imageGenLoading.classList.add('hidden');
-    this.insertImageButton.classList.add('hidden');
-    this.insertImageButton.disabled = true;
-    this.downloadImageButton.classList.add('hidden');
-    this.downloadImageButton.disabled = true;
+    this.imagePlaceholder?.classList.remove('hidden');
+    this.generatedImage?.classList.add('hidden');
+    this.imageGenLoading?.classList.add('hidden');
+    if (this.insertImageButton) {
+      this.insertImageButton.classList.add('hidden');
+      this.insertImageButton.disabled = true;
+    }
+    if (this.downloadImageButton) {
+      this.downloadImageButton.classList.add('hidden');
+      this.downloadImageButton.disabled = true;
+    }
   }
 
   async generateImage() {
+    if (!this.imageGenPrompt) return;
     const prompt = this.imageGenPrompt.value.trim();
     if (!prompt) {
       alert('Please enter a description for the image.');
       return;
     }
 
-    const style = this.imageGenStyle.value;
-    const size = this.imageGenSize.value;
+    const style = this.imageGenStyle?.value || '';
+    const size = this.imageGenSize?.value || '512x512';
 
     // Show loading state
-    this.imagePlaceholder.classList.add('hidden');
-    this.generatedImage.classList.add('hidden');
-    this.imageGenLoading.classList.remove('hidden');
-    this.generateImageButton.disabled = true;
+    this.imagePlaceholder?.classList.add('hidden');
+    this.generatedImage?.classList.add('hidden');
+    this.imageGenLoading?.classList.remove('hidden');
+    if (this.generateImageButton) this.generateImageButton.disabled = true;
 
     try {
       const response = await fetch('/api/generate-image', {
@@ -3505,31 +3546,37 @@ class GameCreatorApp {
 
       // Display generated image
       this.generatedImageData = data.image;
-      this.generatedImage.src = data.image;
-      this.generatedImage.classList.remove('hidden');
-      this.imageGenLoading.classList.add('hidden');
+      if (this.generatedImage) {
+        this.generatedImage.src = data.image;
+        this.generatedImage.classList.remove('hidden');
+      }
+      this.imageGenLoading?.classList.add('hidden');
 
       // Enable action buttons
-      this.insertImageButton.classList.remove('hidden');
-      this.insertImageButton.disabled = false;
-      this.downloadImageButton.classList.remove('hidden');
-      this.downloadImageButton.disabled = false;
+      if (this.insertImageButton) {
+        this.insertImageButton.classList.remove('hidden');
+        this.insertImageButton.disabled = false;
+      }
+      if (this.downloadImageButton) {
+        this.downloadImageButton.classList.remove('hidden');
+        this.downloadImageButton.disabled = false;
+      }
 
     } catch (error) {
       console.error('Image generation error:', error);
-      this.imageGenLoading.classList.add('hidden');
-      this.imagePlaceholder.classList.remove('hidden');
+      this.imageGenLoading?.classList.add('hidden');
+      this.imagePlaceholder?.classList.remove('hidden');
       alert('Image generation failed: ' + error.message);
     } finally {
-      this.generateImageButton.disabled = false;
+      if (this.generateImageButton) this.generateImageButton.disabled = false;
     }
   }
 
   insertGeneratedImage() {
-    if (!this.generatedImageData) return;
+    if (!this.generatedImageData || !this.chatInput) return;
 
     // Insert image data reference into chat
-    const prompt = this.imageGenPrompt.value.trim();
+    const prompt = this.imageGenPrompt?.value.trim() || '';
     const imageRef = `[Generated Image: ${prompt}]\n画像データ: ${this.generatedImageData.substring(0, 100)}...`;
     this.chatInput.value += (this.chatInput.value ? '\n' : '') + imageRef;
 
