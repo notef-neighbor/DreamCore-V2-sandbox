@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゲームクリエイター - エディタ</title>
+  <link rel="stylesheet" href="/style.css">
+  <meta name="description" content="チャットで会話するだけで、オリジナルのゲームが作れます。">
+</head>
+<body data-page="editor">
+  <!-- Project Editor View -->
+  <div class="container" id="editorView">
+    <!-- Left: Chat Panel -->
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-header">
+        <button id="homeButton" class="home-btn" title="プロジェクト一覧へ戻る">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+        </button>
+        <h1 id="projectTitle" title="クリックで名前を変更">ゲームクリエイター</h1>
+        <div class="header-actions">
+          <button id="newProjectButton" title="新しいゲームを作る">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            新規
+          </button>
+          <span class="status-indicator" id="statusIndicator">接続中...</span>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <!-- Welcome message will be inserted here when empty -->
+      </div>
+
+      <!-- Streaming Output Display -->
+      <div class="streaming-container hidden" id="streamingContainer">
+        <div class="streaming-header">
+          <span class="streaming-status" id="streamingStatus">生成中...</span>
+          <span class="streaming-file" id="streamingFile"></span>
+        </div>
+        <div class="streaming-output" id="streamingOutput"></div>
+      </div>
+
+      <!-- Debug Options (Hidden by default via CSS) -->
+      <div class="debug-options">
+        <label class="toggle-switch">
+          <input type="checkbox" id="disableSkillsToggle">
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">スキル無効</span>
+        </label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="useClaudeToggle">
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Claude CLI使用</span>
+        </label>
+      </div>
+
+      <div class="chat-input-container">
+        <div id="attachedAssets" class="attached-assets hidden"></div>
+        <textarea
+          id="chatInput"
+          placeholder="どんなゲームを作りたいですか？自由に話しかけてください"
+          rows="2"
+          disabled
+        ></textarea>
+        <div class="input-buttons">
+          <button id="sendButton" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+            送信
+          </button>
+          <button id="stopButton" class="hidden">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="6" width="12" height="12"></rect>
+            </svg>
+            停止
+          </button>
+        </div>
+      </div>
+      <div class="input-extras">
+        <button id="assetButton" title="素材を追加">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          素材
+        </button>
+        <button id="imageGenButton" title="AIで画像を作成">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          画像生成
+        </button>
+      </div>
+    </div>
+
+    <!-- Asset Library Modal -->
+    <div class="modal hidden" id="assetModal">
+      <div class="modal-content asset-modal">
+        <div class="modal-header">
+          <h3>素材ライブラリ</h3>
+          <button class="modal-close" id="closeAssetModal">&times;</button>
+        </div>
+        <div class="asset-tabs">
+          <button class="asset-tab active" data-tab="my-assets">マイ素材</button>
+          <button class="asset-tab" data-tab="public-assets">みんなの素材</button>
+          <button class="asset-tab" data-tab="upload">アップロード</button>
+        </div>
+        <div class="asset-content">
+          <!-- My Assets Tab -->
+          <div class="asset-tab-content active" id="my-assets">
+            <div class="asset-search">
+              <input type="text" id="assetSearch" placeholder="素材を検索...">
+            </div>
+            <div class="asset-grid" id="myAssetGrid">
+              <!-- Assets will be loaded here -->
+            </div>
+          </div>
+          <!-- Public Assets Tab -->
+          <div class="asset-tab-content" id="public-assets">
+            <div class="asset-grid" id="publicAssetGrid">
+              <!-- Public assets will be loaded here -->
+            </div>
+          </div>
+          <!-- Upload Tab -->
+          <div class="asset-tab-content" id="upload">
+            <div class="upload-area" id="uploadArea">
+              <input type="file" id="fileInput" accept="image/*,audio/*,.json" multiple hidden>
+              <div class="upload-prompt">
+                <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p>ファイルをドラッグ＆ドロップ</p>
+                <p>またはクリックして選択</p>
+                <p class="upload-hint">画像・音声・JSON（10MBまで）</p>
+              </div>
+            </div>
+            <div class="upload-form hidden" id="uploadForm">
+              <input type="text" id="assetTags" placeholder="タグ（カンマ区切り）">
+              <input type="text" id="assetDescription" placeholder="説明（任意）">
+              <button id="uploadSubmit">アップロード</button>
+            </div>
+            <div class="upload-preview" id="uploadPreview"></div>
+          </div>
+        </div>
+        <div class="asset-footer">
+          <span id="selectedAssetInfo"></span>
+          <button id="insertAssetButton" class="hidden">チャットに挿入</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Generation Modal -->
+    <div class="modal hidden" id="imageGenModal">
+      <div class="modal-content image-gen-modal">
+        <div class="modal-header">
+          <h3>AIで画像を作成</h3>
+          <button class="modal-close" id="closeImageGenModal">&times;</button>
+        </div>
+        <div class="image-gen-content">
+          <div class="image-gen-form">
+            <label class="form-label">どんな画像を作りますか？</label>
+            <textarea id="imageGenPrompt" placeholder="例：かわいい猫のキャラクター、宇宙船、ファンタジーの森..." rows="3"></textarea>
+            <div class="image-gen-options">
+              <div class="option-group">
+                <label class="option-label">スタイル</label>
+                <select id="imageGenStyle">
+                  <option value="">おまかせ</option>
+                  <option value="pixel">ピクセルアート</option>
+                  <option value="anime">アニメ風</option>
+                  <option value="kawaii">かわいい系</option>
+                  <option value="realistic">リアル調</option>
+                  <option value="watercolor">水彩画風</option>
+                  <option value="flat">フラットデザイン</option>
+                </select>
+              </div>
+              <div class="option-group">
+                <label class="option-label">サイズ</label>
+                <select id="imageGenSize">
+                  <option value="512x512">正方形</option>
+                  <option value="768x512">横長</option>
+                  <option value="512x768">縦長</option>
+                  <option value="1024x1024">大きめ</option>
+                </select>
+              </div>
+            </div>
+            <button id="generateImageButton" class="generate-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              画像を生成
+            </button>
+          </div>
+          <div class="image-gen-preview">
+            <div class="image-placeholder" id="imagePlaceholder">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>生成された画像がここに表示されます</span>
+            </div>
+            <img id="generatedImage" class="hidden" alt="生成された画像">
+            <div class="image-gen-loading hidden" id="imageGenLoading">
+              <div class="spinner"></div>
+              <span>画像を作成しています...</span>
+            </div>
+          </div>
+        </div>
+        <div class="image-gen-footer">
+          <button id="insertImageButton" class="hidden" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            チャットに挿入
+          </button>
+          <button id="downloadImageButton" class="hidden" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Game Preview -->
+    <div class="preview-panel" id="previewPanel">
+      <div class="preview-header">
+        <button id="backToChatButton" class="back-to-chat-btn" title="チャットに戻る">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          チャット
+        </button>
+        <div class="preview-actions">
+          <button id="viewCodeButton" class="icon-only-btn hidden" title="HTMLを見る">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+          </button>
+          <button id="downloadButton" class="icon-only-btn hidden" title="ダウンロード">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+          <button id="versionsButton" class="icon-only-btn hidden" title="履歴を見る">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </button>
+          <button id="refreshButton" title="再読み込み">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Version Panel -->
+      <div class="version-panel hidden" id="versionPanel">
+        <div class="version-header">
+          <span>変更履歴</span>
+          <button id="closeVersionsButton">&times;</button>
+        </div>
+        <div class="version-list" id="versionList">
+          <!-- Versions will be inserted here -->
+        </div>
+      </div>
+      <div class="preview-container">
+        <iframe id="gamePreview" sandbox="allow-scripts allow-same-origin"></iframe>
+        <div class="no-project-message" id="noProjectMessage">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          <p>プロジェクトを選んで<br>ゲームを作り始めましょう</p>
+        </div>
+
+        <!-- Error Panel -->
+        <div class="error-panel hidden" id="errorPanel">
+          <div class="error-panel-header">
+            <span class="error-panel-title">
+              <svg class="error-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <span id="errorCount">0</span>件のエラー
+            </span>
+            <div class="error-panel-actions">
+              <button id="autoFixButton" class="auto-fix-btn" title="AIで自動修正">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                自動修正
+              </button>
+              <button id="closeErrorPanel" class="close-btn" title="閉じる">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="error-panel-content" id="errorList">
+            <!-- Errors will be listed here -->
+          </div>
+        </div>
+
+        <!-- Game Status Overlay -->
+        <div class="game-status hidden" id="gameStatus">
+          <span class="game-status-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </span>
+          <span class="game-status-text" id="gameStatusText">読み込み中...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Viewer Modal -->
+  <div class="code-viewer-modal hidden" id="codeViewerModal">
+    <div class="code-viewer-content">
+      <div class="code-viewer-header">
+        <h3>HTML コード</h3>
+        <div class="code-viewer-actions">
+          <button id="copyCodeButton" class="code-action-btn" title="コピー">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            コピー
+          </button>
+          <button id="closeCodeViewer" class="code-close-btn">&times;</button>
+        </div>
+      </div>
+      <pre class="code-viewer-pre"><code id="codeViewerCode"></code></pre>
+    </div>
+  </div>
+
+  <!-- Version Restore Modal -->
+  <div class="restore-modal hidden" id="restoreModal">
+    <div class="restore-modal-content">
+      <div class="restore-modal-header">
+        <div class="restore-modal-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <h2>バージョンを復元</h2>
+      </div>
+      <div class="restore-modal-body">
+        <p id="restoreModalMessage">このバージョンに戻しますか？</p>
+        <p class="restore-modal-hint">現在のバージョンにもいつでも戻れます</p>
+      </div>
+      <div class="restore-modal-actions">
+        <button id="cancelRestore" class="restore-modal-cancel">キャンセル</button>
+        <button id="confirmRestore" class="restore-modal-confirm">復元する</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1240,25 +1240,26 @@ app.get('/notifications', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'notifications.html'));
 });
 
-// ==================== SPA Routing ====================
+// ==================== Page Routes ====================
 
-// Handle SPA routes - serve index.html for all non-API, non-asset routes
-app.get('*', (req, res, next) => {
-  // Skip API routes
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  // Skip game files
-  if (req.path.startsWith('/game/')) {
-    return next();
-  }
-  // Skip static files (with extensions)
-  if (path.extname(req.path) && req.path !== '/') {
-    return next();
-  }
-
-  // Serve index.html for SPA routes
+// Login page (root)
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
+// Discover page
+app.get('/discover', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'discover.html'));
+});
+
+// Create page (project list)
+app.get('/create', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'create.html'));
+});
+
+// Editor page (project detail)
+app.get('/project/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'editor.html'));
 });
 
 // ==================== Server Start ====================

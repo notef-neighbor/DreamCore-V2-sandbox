@@ -1,7 +1,7 @@
 class GameCreatorApp {
   constructor() {
     this.ws = null;
-    this.visitorId = null;
+    this.visitorId = localStorage.getItem('visitorId');
     this.currentProjectId = null;
     this.currentProjectName = null;
     this.projects = [];
@@ -10,9 +10,9 @@ class GameCreatorApp {
     this.jobPollInterval = null;
 
     // Authentication state
-    this.sessionId = null;
+    this.sessionId = localStorage.getItem('sessionId');
     this.currentUser = null;
-    this.isAuthenticated = false;
+    this.isAuthenticated = !!this.visitorId;
 
     // Current view state
     this.currentView = 'list'; // 'list', 'editor', 'discover', 'zapping'
@@ -192,11 +192,66 @@ class GameCreatorApp {
   }
 
   init() {
-    // Setup login form listeners first
-    this.setupLoginListeners();
+    // Detect which page we're on
+    this.currentPage = document.body.dataset.page || 'unknown';
 
-    // Check if we have a valid session
-    this.checkSession();
+    // Check authentication for protected pages
+    const protectedPages = ['discover', 'create', 'editor', 'mypage', 'notifications'];
+    if (protectedPages.includes(this.currentPage)) {
+      if (!this.visitorId) {
+        // Not logged in, redirect to login
+        window.location.href = '/';
+        return;
+      }
+      // Initialize the app for this page
+      this.initPage();
+    }
+  }
+
+  initPage() {
+    // Show user display name if element exists
+    if (this.currentUser && this.userDisplayName) {
+      this.userDisplayName.textContent = this.currentUser.displayName || this.currentUser.username;
+    } else if (this.userDisplayName) {
+      const username = localStorage.getItem('loginUsername');
+      if (username) {
+        this.userDisplayName.textContent = username;
+      }
+    }
+
+    // Initialize based on current page
+    this.connectWebSocket();
+    this.setupBottomNavListeners();
+
+    switch (this.currentPage) {
+      case 'discover':
+        this.initDiscoverPage();
+        break;
+      case 'create':
+        this.initCreatePage();
+        break;
+      case 'editor':
+        this.initEditorPage();
+        break;
+    }
+  }
+
+  initDiscoverPage() {
+    this.loadPublicGames();
+    this.setupZappingListeners();
+  }
+
+  initCreatePage() {
+    this.setupEventListeners();
+  }
+
+  initEditorPage() {
+    this.setupEventListeners();
+    this.setupAssetListeners();
+    this.setupImageGenListeners();
+    this.setupStyleSelectListeners();
+    this.setupRouting();
+    this.setupErrorListeners();
   }
 
   // ==================== Authentication ====================
@@ -371,11 +426,11 @@ class GameCreatorApp {
     });
 
     // Error panel controls
-    this.closeErrorPanel.addEventListener('click', () => {
+    this.closeErrorPanel?.addEventListener('click', () => {
       this.hideErrorPanel();
     });
 
-    this.autoFixButton.addEventListener('click', () => {
+    this.autoFixButton?.addEventListener('click', () => {
       this.autoFixErrors();
     });
   }
@@ -565,9 +620,9 @@ class GameCreatorApp {
 
   showListView() {
     this.currentView = 'list';
-    this.projectListView.classList.remove('hidden');
-    this.projectListView.classList.add('with-nav');
-    this.editorView.classList.add('hidden');
+    this.projectListView?.classList.remove('hidden');
+    this.projectListView?.classList.add('with-nav');
+    this.editorView?.classList.add('hidden');
     this.discoverView?.classList.add('hidden');
     this.zappingMode?.classList.add('hidden');
     this.showBottomNav();
@@ -579,8 +634,8 @@ class GameCreatorApp {
 
   showEditorView() {
     this.currentView = 'editor';
-    this.projectListView.classList.add('hidden');
-    this.editorView.classList.remove('hidden');
+    this.projectListView?.classList.add('hidden');
+    this.editorView?.classList.remove('hidden');
     this.discoverView?.classList.add('hidden');
     this.zappingMode?.classList.add('hidden');
     this.hideBottomNav();
@@ -594,6 +649,8 @@ class GameCreatorApp {
   }
 
   renderProjectGrid() {
+    if (!this.projectGrid) return;
+
     if (this.projects.length === 0) {
       this.projectGrid.innerHTML = `
         <div class="project-empty">
@@ -632,7 +689,7 @@ class GameCreatorApp {
     this.projectGrid.querySelectorAll('.project-card').forEach(card => {
       card.addEventListener('click', () => {
         const projectId = card.dataset.id;
-        this.navigateTo(`/project/${projectId}`, { view: 'editor', projectId });
+        window.location.href = `/project/${projectId}`;
       });
     });
   }
@@ -668,6 +725,8 @@ class GameCreatorApp {
   }
 
   updateProjectTitle(name, animate = false) {
+    if (!this.projectTitle) return;
+
     if (!name) {
       this.projectTitle.textContent = 'ゲームクリエイター';
       this.projectTitle.classList.remove('editable');
@@ -763,9 +822,13 @@ class GameCreatorApp {
     this.ws.onopen = () => {
       console.log(`[${this.sessionId}] WebSocket connected`);
       this.reconnectAttempts = 0; // Reset on successful connection
-      this.updateStatus('connected', '接続中');
-      this.listStatusIndicator.className = 'status-indicator connected';
-      this.listStatusIndicator.textContent = '接続中';
+      if (this.statusIndicator) {
+        this.updateStatus('connected', '接続中');
+      }
+      if (this.listStatusIndicator) {
+        this.listStatusIndicator.className = 'status-indicator connected';
+        this.listStatusIndicator.textContent = '接続中';
+      }
       this.ws.send(JSON.stringify({
         type: 'init',
         visitorId: this.visitorId,
@@ -780,11 +843,15 @@ class GameCreatorApp {
 
     this.ws.onclose = (event) => {
       console.log(`[${this.sessionId}] WebSocket closed: code=${event.code}, reason=${event.reason}`);
-      this.updateStatus('', '再接続中...');
-      this.listStatusIndicator.className = 'status-indicator';
-      this.listStatusIndicator.textContent = '再接続中...';
-      this.sendButton.disabled = true;
-      this.chatInput.disabled = true;
+      if (this.statusIndicator) {
+        this.updateStatus('', '再接続中...');
+      }
+      if (this.listStatusIndicator) {
+        this.listStatusIndicator.className = 'status-indicator';
+        this.listStatusIndicator.textContent = '再接続中...';
+      }
+      if (this.sendButton) this.sendButton.disabled = true;
+      if (this.chatInput) this.chatInput.disabled = true;
       // Exponential backoff: 1s, 1.5s, 2.25s, ... max 10s
       const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts || 0), 10000);
       this.reconnectAttempts = (this.reconnectAttempts || 0) + 1;
@@ -794,7 +861,9 @@ class GameCreatorApp {
 
     this.ws.onerror = (error) => {
       console.error(`[${this.sessionId}] WebSocket error:`, error);
-      this.updateStatus('', 'エラー');
+      if (this.statusIndicator) {
+        this.updateStatus('', 'エラー');
+      }
     };
 
     // Auto-reconnect when page becomes visible (important for mobile)
@@ -925,18 +994,19 @@ class GameCreatorApp {
   }
 
   setupEventListeners() {
-    this.sendButton.addEventListener('click', () => this.sendMessage());
+    // Editor page elements
+    this.sendButton?.addEventListener('click', () => this.sendMessage());
 
     // Track IME composition state
-    this.chatInput.addEventListener('compositionstart', () => {
+    this.chatInput?.addEventListener('compositionstart', () => {
       this.isComposing = true;
     });
 
-    this.chatInput.addEventListener('compositionend', () => {
+    this.chatInput?.addEventListener('compositionend', () => {
       this.isComposing = false;
     });
 
-    this.chatInput.addEventListener('keydown', (e) => {
+    this.chatInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !this.isComposing) {
         e.preventDefault();
         this.sendMessage();
@@ -944,51 +1014,53 @@ class GameCreatorApp {
     });
 
     // Mobile keyboard visibility handling (iOS/Android)
-    this.setupMobileKeyboardHandling();
+    if (this.chatInput) {
+      this.setupMobileKeyboardHandling();
+    }
 
-    this.refreshButton.addEventListener('click', () => this.refreshPreview());
-    this.newProjectButton.addEventListener('click', () => this.createNewProject());
-    this.stopButton.addEventListener('click', () => this.stopGeneration());
-    this.versionsButton.addEventListener('click', () => this.toggleVersionPanel());
-    this.closeVersionsButton.addEventListener('click', () => this.hideVersionPanel());
+    this.refreshButton?.addEventListener('click', () => this.refreshPreview());
+    this.newProjectButton?.addEventListener('click', () => this.createNewProject());
+    this.stopButton?.addEventListener('click', () => this.stopGeneration());
+    this.versionsButton?.addEventListener('click', () => this.toggleVersionPanel());
+    this.closeVersionsButton?.addEventListener('click', () => this.hideVersionPanel());
 
     // Code viewer buttons
-    this.viewCodeButton.addEventListener('click', () => this.showCodeViewer());
-    this.downloadButton.addEventListener('click', () => this.downloadProject());
-    this.copyCodeButton.addEventListener('click', () => this.copyCode());
-    this.closeCodeViewer.addEventListener('click', () => this.hideCodeViewer());
-    this.codeViewerModal.addEventListener('click', (e) => {
+    this.viewCodeButton?.addEventListener('click', () => this.showCodeViewer());
+    this.downloadButton?.addEventListener('click', () => this.downloadProject());
+    this.copyCodeButton?.addEventListener('click', () => this.copyCode());
+    this.closeCodeViewer?.addEventListener('click', () => this.hideCodeViewer());
+    this.codeViewerModal?.addEventListener('click', (e) => {
       if (e.target === this.codeViewerModal) this.hideCodeViewer();
     });
 
     // Home button - go back to project list
-    this.homeButton.addEventListener('click', () => {
-      this.navigateTo('/', { view: 'list' });
+    this.homeButton?.addEventListener('click', () => {
+      window.location.href = '/create';
     });
 
     // Project title click to edit
-    this.projectTitle.addEventListener('click', () => this.startEditingProjectTitle());
+    this.projectTitle?.addEventListener('click', () => this.startEditingProjectTitle());
 
     // Create project button in list view
-    this.createProjectButton.addEventListener('click', () => this.createNewProject());
+    this.createProjectButton?.addEventListener('click', () => this.createNewProject());
 
     // Scroll detection for create button animation
-    this.projectListView.addEventListener('scroll', () => {
+    this.projectListView?.addEventListener('scroll', () => {
       const scrollTop = this.projectListView.scrollTop;
       if (scrollTop > 50) {
-        this.createProjectButton.classList.add('scrolled');
+        this.createProjectButton?.classList.add('scrolled');
       } else {
-        this.createProjectButton.classList.remove('scrolled');
+        this.createProjectButton?.classList.remove('scrolled');
       }
     });
 
     // New game modal
-    this.cancelNewGame.addEventListener('click', () => this.hideNewGameModal());
-    this.confirmNewGame.addEventListener('click', () => this.confirmCreateProject());
-    this.newGameModal.addEventListener('click', (e) => {
+    this.cancelNewGame?.addEventListener('click', () => this.hideNewGameModal());
+    this.confirmNewGame?.addEventListener('click', () => this.confirmCreateProject());
+    this.newGameModal?.addEventListener('click', (e) => {
       if (e.target === this.newGameModal) this.hideNewGameModal();
     });
-    this.newGameName.addEventListener('keydown', (e) => {
+    this.newGameName?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         this.confirmCreateProject();
@@ -998,20 +1070,14 @@ class GameCreatorApp {
     });
 
     // Restore modal
-    this.cancelRestore.addEventListener('click', () => this.hideRestoreModal());
-    this.confirmRestoreBtn.addEventListener('click', () => this.confirmRestore());
-    this.restoreModal.addEventListener('click', (e) => {
+    this.cancelRestore?.addEventListener('click', () => this.hideRestoreModal());
+    this.confirmRestoreBtn?.addEventListener('click', () => this.confirmRestore());
+    this.restoreModal?.addEventListener('click', (e) => {
       if (e.target === this.restoreModal) this.hideRestoreModal();
     });
 
     // Mobile tab switching
     this.setupMobileTabListeners();
-
-    // Bottom navigation
-    this.setupBottomNavListeners();
-
-    // Zapping mode
-    this.setupZappingListeners();
   }
 
   // ==================== Bottom Navigation ====================
@@ -1031,30 +1097,19 @@ class GameCreatorApp {
   }
 
   switchTab(tab) {
-    // Update active state
-    this.navItems.forEach(item => {
-      item.classList.toggle('active', item.dataset.tab === tab);
-    });
-
-    this.currentTab = tab;
-
-    // Hide all views first
-    this.projectListView.classList.add('hidden');
-    this.discoverView.classList.add('hidden');
-    this.editorView.classList.add('hidden');
-
+    // Navigate to the appropriate page
     switch (tab) {
       case 'discover':
-        this.showDiscoverView();
+        window.location.href = '/discover';
         break;
       case 'create':
-        this.showCreateView();
+        window.location.href = '/create';
         break;
       case 'notifications':
         window.location.href = '/notifications';
         break;
       case 'profile':
-        this.showProfileView();
+        window.location.href = '/mypage';
         break;
     }
   }
@@ -1099,12 +1154,12 @@ class GameCreatorApp {
 
     if (this.publicGames.length === 0) {
       this.discoverGrid.classList.add('hidden');
-      this.discoverEmpty.classList.remove('hidden');
+      this.discoverEmpty?.classList.remove('hidden');
       return;
     }
 
     this.discoverGrid.classList.remove('hidden');
-    this.discoverEmpty.classList.add('hidden');
+    this.discoverEmpty?.classList.add('hidden');
 
     this.discoverGrid.innerHTML = this.publicGames.map((game, index) => `
       <div class="discover-card" data-game-index="${index}" data-game-id="${game.id}">
@@ -1357,71 +1412,76 @@ class GameCreatorApp {
           this.silentPingTimeout = null;
         }
         console.log('[Reconnect] Pong received, connection verified');
-        this.updateStatus('connected', '接続中');
-        this.listStatusIndicator.className = 'status-indicator connected';
-        this.listStatusIndicator.textContent = '接続中';
+        if (this.statusIndicator) {
+          this.updateStatus('connected', '接続中');
+        }
+        if (this.listStatusIndicator) {
+          this.listStatusIndicator.className = 'status-indicator connected';
+          this.listStatusIndicator.textContent = '接続中';
+        }
         break;
 
       case 'init':
         this.visitorId = data.visitorId;
         localStorage.setItem('gameCreatorVisitorId', this.visitorId);
         this.projects = data.projects || [];
-        this.updateProjectList();
 
         // Reset streaming state on fresh connection
-        this.hideStreaming();
+        if (this.streamingContainer) {
+          this.hideStreaming();
+        }
         this.isProcessing = false;
         this.currentJobId = null;
-        this.stopButton.classList.add('hidden');
+        this.stopButton?.classList.add('hidden');
 
         // Update status indicators
-        this.listStatusIndicator.className = 'status-indicator connected';
-        this.listStatusIndicator.textContent = '接続中';
+        if (this.listStatusIndicator) {
+          this.listStatusIndicator.className = 'status-indicator connected';
+          this.listStatusIndicator.textContent = '接続中';
+        }
 
-        // Handle initial route
-        const route = this.parseRoute();
-        if (route.view === 'editor' && route.projectId) {
-          // URL specifies a project - try to open it
-          const project = this.projects.find(p => p.id === route.projectId);
-          if (project) {
-            this.showEditorView();
-            this.selectProject(route.projectId, false);
-          } else {
-            // Project not found - redirect to list
-            this.navigateTo('/', { view: 'list' });
+        // Handle based on current page
+        if (this.currentPage === 'create') {
+          // Render project grid on create page
+          this.renderProjectGrid();
+        } else if (this.currentPage === 'editor') {
+          // Get project ID from URL and select it
+          const pathParts = window.location.pathname.split('/');
+          const projectId = pathParts[pathParts.length - 1];
+          if (projectId) {
+            const project = this.projects.find(p => p.id === projectId);
+            if (project) {
+              this.selectProject(projectId, false);
+            } else {
+              // Project not found - redirect to create page
+              window.location.href = '/create';
+            }
           }
-        } else if (route.view === 'new') {
-          this.showListView();
-          this.createNewProject();
-        } else {
-          // Default to list view
-          this.showListView();
         }
         break;
 
       case 'projectCreated':
         this.projects = data.projects;
-        this.updateProjectList();
-        // Navigate to the new project with URL update
-        // navigateTo -> handleRouteChange -> selectProject is called internally
-        this.navigateTo(`/project/${data.project.id}`, { view: 'editor', projectId: data.project.id });
-        this.addMessage(`「${data.project.name}」を作成しました！`, 'system');
+        // Navigate to the new project's editor page
+        window.location.href = `/project/${data.project.id}`;
         break;
 
       case 'projectSelected':
         this.currentProjectId = data.projectId;
         localStorage.setItem('gameCreatorLastProjectId', this.currentProjectId);
-        this.chatInput.disabled = false;
-        this.sendButton.disabled = false;
+        if (this.chatInput) this.chatInput.disabled = false;
+        if (this.sendButton) this.sendButton.disabled = false;
 
         // Reset streaming state (in case of reconnect with stale UI)
-        this.hideStreaming();
+        if (this.streamingContainer) {
+          this.hideStreaming();
+        }
         this.isProcessing = false;
         this.currentJobId = null;
-        this.stopButton.classList.add('hidden');
+        this.stopButton?.classList.add('hidden');
 
         // Clear and reload history
-        this.chatMessages.innerHTML = '';
+        if (this.chatMessages) this.chatMessages.innerHTML = '';
 
         // Get versions with edits from server response
         const versions = data.versions || [];
@@ -1467,8 +1527,10 @@ class GameCreatorApp {
           this.showWelcomeMessage();
         }
 
-        this.refreshPreview();
-        this.updatePreviewVisibility(true);
+        if (this.gamePreview) {
+          this.refreshPreview();
+          this.updatePreviewVisibility(true);
+        }
 
         // Update preview title and page title
         const selectedProject = this.projects.find(p => p.id === this.currentProjectId);
@@ -1479,9 +1541,9 @@ class GameCreatorApp {
         }
 
         // Show versions button and code/download buttons
-        this.versionsButton.classList.remove('hidden');
-        this.viewCodeButton.classList.remove('hidden');
-        this.downloadButton.classList.remove('hidden');
+        this.versionsButton?.classList.remove('hidden');
+        this.viewCodeButton?.classList.remove('hidden');
+        this.downloadButton?.classList.remove('hidden');
 
         // Check for active job (recovering from disconnect)
         if (data.activeJob && ['pending', 'processing'].includes(data.activeJob.status)) {
@@ -1495,10 +1557,10 @@ class GameCreatorApp {
         this.renderProjectGrid();
         if (!this.currentProjectId || this.currentProjectId === data.projectId) {
           this.currentProjectId = null;
-          this.chatMessages.innerHTML = '';
-          this.chatInput.disabled = true;
-          this.sendButton.disabled = true;
-          this.updatePreviewVisibility(false);
+          if (this.chatMessages) this.chatMessages.innerHTML = '';
+          if (this.chatInput) this.chatInput.disabled = true;
+          if (this.sendButton) this.sendButton.disabled = true;
+          if (this.gamePreview) this.updatePreviewVisibility(false);
           // Navigate back to list if deleted current project
           if (this.currentView === 'editor') {
             this.navigateTo('/', { view: 'list' });
