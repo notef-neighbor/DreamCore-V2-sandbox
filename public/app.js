@@ -3349,6 +3349,73 @@ class GameCreatorApp {
     }
   }
 
+  async compressImage(file, maxSize = 300 * 1024, maxDimension = 2048) {
+    return new Promise((resolve) => {
+      // Skip non-image files
+      if (!file.type.startsWith('image/')) {
+        resolve(file);
+        return;
+      }
+
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+
+        // Calculate new dimensions
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress with decreasing quality until under maxSize
+        const compress = (quality) => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob.size <= maxSize || quality <= 0.1) {
+                // Create new file with compressed data
+                const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                  type: 'image/jpeg',
+                  lastModified: Date.now()
+                });
+                console.log(`Compressed ${file.name}: ${(file.size / 1024).toFixed(1)}KB → ${(blob.size / 1024).toFixed(1)}KB`);
+                resolve(compressedFile);
+              } else {
+                // Try lower quality
+                compress(quality - 0.1);
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+
+        compress(0.9);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file); // Return original on error
+      };
+
+      img.src = url;
+    });
+  }
+
   async uploadFiles() {
     if (this.pendingUploads.length === 0 || !this.visitorId) return;
 
@@ -3356,8 +3423,11 @@ class GameCreatorApp {
     const description = this.assetDescription.value;
 
     for (const file of this.pendingUploads) {
+      // Compress image before upload
+      const processedFile = await this.compressImage(file);
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', processedFile);
       formData.append('visitorId', this.visitorId);
       if (tags) formData.append('tags', tags);
       if (description) formData.append('description', description);
