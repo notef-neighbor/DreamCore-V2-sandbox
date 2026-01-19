@@ -269,7 +269,7 @@ app.post('/api/generate-image', async (req, res) => {
 // Upload asset
 app.post('/api/assets/upload', upload.single('file'), (req, res) => {
   try {
-    const { visitorId } = req.body;
+    const { visitorId, projectId } = req.body;
     if (!visitorId) {
       return res.status(400).json({ error: 'visitorId required' });
     }
@@ -294,6 +294,11 @@ app.post('/api/assets/upload', upload.single('file'), (req, res) => {
       req.body.tags || null,
       req.body.description || null
     );
+
+    // Link asset to current project if projectId provided
+    if (projectId) {
+      db.linkAssetToProject(projectId, asset.id, 'image');
+    }
 
     res.json({
       success: true,
