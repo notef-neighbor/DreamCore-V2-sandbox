@@ -269,7 +269,7 @@ app.post('/api/generate-image', async (req, res) => {
 // Upload asset
 app.post('/api/assets/upload', upload.single('file'), (req, res) => {
   try {
-    const { visitorId, projectId } = req.body;
+    const { visitorId, projectId, originalName } = req.body;
     if (!visitorId) {
       return res.status(400).json({ error: 'visitorId required' });
     }
@@ -283,10 +283,13 @@ app.post('/api/assets/upload', upload.single('file'), (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Use originalName from body if provided (preserves UTF-8 encoding)
+    const displayName = originalName || req.file.originalname;
+
     const asset = db.createAsset(
       user.id,
       req.file.filename,
-      req.file.originalname,
+      displayName,
       req.file.path,
       req.file.mimetype,
       req.file.size,

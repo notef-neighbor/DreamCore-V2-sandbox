@@ -3429,6 +3429,7 @@ class GameCreatorApp {
       const formData = new FormData();
       formData.append('file', processedFile);
       formData.append('visitorId', this.visitorId);
+      formData.append('originalName', file.name); // Send original filename separately to preserve encoding
       if (this.currentProjectId) formData.append('projectId', this.currentProjectId);
       if (tags) formData.append('tags', tags);
       if (description) formData.append('description', description);
