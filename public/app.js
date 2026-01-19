@@ -3350,10 +3350,20 @@ class GameCreatorApp {
   }
 
   async compressImage(file, maxSize = 300 * 1024, maxDimension = 2048) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       // Skip non-image files
       if (!file.type.startsWith('image/')) {
         resolve(file);
+        return;
+      }
+
+      // GIF/WebP: preserve animation but enforce size limit
+      if (file.type === 'image/gif' || file.type === 'image/webp') {
+        if (file.size > maxSize) {
+          reject(new Error(`${file.type.split('/')[1].toUpperCase()} file too large: ${(file.size / 1024).toFixed(0)}KB (max ${maxSize / 1024}KB)`));
+        } else {
+          resolve(file);
+        }
         return;
       }
 
@@ -3424,7 +3434,13 @@ class GameCreatorApp {
 
     for (const file of this.pendingUploads) {
       // Compress image before upload
-      const processedFile = await this.compressImage(file);
+      let processedFile;
+      try {
+        processedFile = await this.compressImage(file);
+      } catch (error) {
+        alert(`${file.name}: ${error.message}`);
+        continue;
+      }
 
       const formData = new FormData();
       formData.append('file', processedFile);
