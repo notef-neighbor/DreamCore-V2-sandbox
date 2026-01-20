@@ -1373,11 +1373,54 @@ app.get('/api/projects/:projectId/publish-draft', (req, res) => {
 });
 
 // Save publish draft
-app.put('/api/projects/:projectId/publish-draft', (req, res) => {
+app.put('/api/projects/:projectId/publish-draft', async (req, res) => {
   const { projectId } = req.params;
   const draftData = req.body;
-  db.savePublishDraft(projectId, draftData);
-  res.json({ success: true });
+
+  try {
+    // Save to database
+    db.savePublishDraft(projectId, draftData);
+
+    // Also save to project directory as PUBLISH.json and commit to Git
+    const project = db.getProjectById(projectId);
+    if (project) {
+      const user = db.getUserById(project.user_id);
+      if (user) {
+        const projectDir = userManager.getProjectDir(user.visitor_id, projectId);
+        const publishPath = path.join(projectDir, 'PUBLISH.json');
+
+        // Save publish data as JSON
+        const publishData = {
+          title: draftData.title || '',
+          description: draftData.description || '',
+          howToPlay: draftData.howToPlay || '',
+          tags: draftData.tags || [],
+          visibility: draftData.visibility || 'public',
+          remix: draftData.remix || 'allowed',
+          thumbnailUrl: draftData.thumbnailUrl || null,
+          updatedAt: new Date().toISOString()
+        };
+        fs.writeFileSync(publishPath, JSON.stringify(publishData, null, 2), 'utf-8');
+
+        // Commit to Git (non-blocking)
+        const { exec } = require('child_process');
+        exec('git add PUBLISH.json && git commit -m "Update publish info" --allow-empty', {
+          cwd: projectDir
+        }, (err) => {
+          if (err) {
+            console.log('[Publish] Git commit skipped or failed:', err.message);
+          } else {
+            console.log('[Publish] Committed PUBLISH.json');
+          }
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving publish draft:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Generate title, description, tags using Claude CLI (Sonnet)
@@ -1594,6 +1637,18 @@ ${limitedAssetPaths.length > 0 ? '- 参照画像のキャラクター・オブ�
 
       nanoBanana.on('close', (code) => {
         if (code === 0 && fs.existsSync(outputPath)) {
+          // Commit thumbnail to Git (non-blocking)
+          const { exec } = require('child_process');
+          exec('git add thumbnail.png && git commit -m "Update thumbnail" --allow-empty', {
+            cwd: projectDir
+          }, (err) => {
+            if (err) {
+              console.log('[Thumbnail] Git commit skipped or failed:', err.message);
+            } else {
+              console.log('[Thumbnail] Committed thumbnail.png');
+            }
+          });
+
           // Return URL to the generated thumbnail
           const thumbnailUrl = `/api/projects/${projectId}/thumbnail?t=${Date.now()}`;
           res.json({ success: true, thumbnailUrl, prompt: imagePrompt });
