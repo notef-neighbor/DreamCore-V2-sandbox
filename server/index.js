@@ -51,8 +51,8 @@ const upload = multer({
   }
 });
 
-// JSON body parser
-app.use(express.json());
+// JSON body parser with increased limit for base64 images
+app.use(express.json({ limit: '50mb' }));
 
 // Serve static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -266,7 +266,7 @@ app.post('/api/generate-image', async (req, res) => {
 
 // ==================== Background Removal API ====================
 
-// Remove background using Replicate API (851-labs/background-remover)
+// Remove background using Replicate API (BRIA RMBG 2.0)
 app.post('/api/assets/remove-background', async (req, res) => {
   try {
     const { image, visitorId } = req.body;
@@ -284,9 +284,13 @@ app.post('/api/assets/remove-background', async (req, res) => {
       return res.status(503).json({ error: 'Background removal service not configured' });
     }
 
-    console.log('Background removal request received');
+    console.log('Background removal request received (BRIA RMBG 2.0)');
 
-    // Create prediction
+    // BRIA RMBG 2.0 - High accuracy background removal, trained on licensed data
+    // Outperforms BiRefNet (90% vs 85%) and Adobe Photoshop (90% vs 46%)
+    const MODEL_VERSION = '4ed060b3587b7c3912353dd7d59000c883a6e1c5c9181ed7415c2624c2e8e392';
+
+    // Create prediction with BRIA RMBG 2.0 parameters
     const createResponse = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
@@ -295,23 +299,40 @@ app.post('/api/assets/remove-background', async (req, res) => {
         'Prefer': 'wait'
       },
       body: JSON.stringify({
-        version: 'a029dff38972b5fda4ec5d75e66c30d9a69e696f9c5d5b7a30654f66c77d4e30',
+        version: MODEL_VERSION,
         input: {
-          image: image
+          image: image,
+          preserve_alpha: true
         }
       })
     });
 
     if (!createResponse.ok) {
-      const error = await createResponse.text();
-      console.error('Replicate API error:', error);
-      throw new Error('Background removal service error');
+      const errorText = await createResponse.text();
+      console.error('Replicate API error:', createResponse.status, errorText);
+
+      // Parse error for better message
+      let errorMessage = 'Background removal service error';
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.detail) errorMessage = errorJson.detail;
+        else if (errorJson.error) errorMessage = errorJson.error;
+      } catch (e) {
+        // Use generic message
+      }
+      throw new Error(errorMessage);
     }
 
     let prediction = await createResponse.json();
+    console.log('Prediction created:', prediction.id, 'status:', prediction.status);
 
-    // Poll for completion if not using "wait" mode
+    // Poll for completion if not using "wait" mode or still processing
+    let pollCount = 0;
+    const maxPolls = 60; // 60 seconds timeout
     while (prediction.status === 'starting' || prediction.status === 'processing') {
+      if (pollCount++ > maxPolls) {
+        throw new Error('Background removal timed out');
+      }
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const pollResponse = await fetch(prediction.urls.get, {
@@ -320,24 +341,36 @@ app.post('/api/assets/remove-background', async (req, res) => {
         }
       });
       prediction = await pollResponse.json();
+      console.log('Poll', pollCount, '- status:', prediction.status);
     }
 
     if (prediction.status === 'failed') {
+      console.error('Prediction failed:', prediction.error);
       throw new Error(prediction.error || 'Background removal failed');
+    }
+
+    if (prediction.status === 'canceled') {
+      throw new Error('Background removal was canceled');
     }
 
     // Get the output image URL and fetch it as base64
     const outputUrl = prediction.output;
     if (!outputUrl) {
+      console.error('No output URL in prediction:', prediction);
       throw new Error('No output from background removal');
     }
 
+    console.log('Fetching result image from:', outputUrl);
+
     // Fetch the result image and convert to base64
     const imageResponse = await fetch(outputUrl);
+    if (!imageResponse.ok) {
+      throw new Error('Failed to fetch result image');
+    }
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = `data:image/png;base64,${Buffer.from(imageBuffer).toString('base64')}`;
 
-    console.log('Background removal completed');
+    console.log('Background removal completed successfully');
     res.json({ success: true, image: base64Image });
 
   } catch (error) {

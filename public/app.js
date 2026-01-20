@@ -4044,7 +4044,7 @@ class GameCreatorApp {
       this.selectTool(null);
     } catch (error) {
       console.error('Background removal failed:', error);
-      alert('背景削除に失敗しました: ' + error.message);
+      alert('エラーが起きました。もう一度お試しください。');
     } finally {
       processing?.classList.add('hidden');
       if (applyBtn) applyBtn.disabled = false;
@@ -4662,8 +4662,27 @@ class ImageEditor {
   }
 
   async removeBackground(visitorId) {
-    // Get current image as base64
-    const dataUrl = this.currentImage.toDataURL('image/png');
+    // Compress image if too large (max 2048px on longest side)
+    const MAX_SIZE = 2048;
+    let imageToSend = this.currentImage;
+
+    if (this.width > MAX_SIZE || this.height > MAX_SIZE) {
+      const scale = MAX_SIZE / Math.max(this.width, this.height);
+      const newWidth = Math.round(this.width * scale);
+      const newHeight = Math.round(this.height * scale);
+
+      const compressed = document.createElement('canvas');
+      compressed.width = newWidth;
+      compressed.height = newHeight;
+      const ctx = compressed.getContext('2d');
+      ctx.drawImage(this.currentImage, 0, 0, newWidth, newHeight);
+      imageToSend = compressed;
+
+      console.log(`Image compressed: ${this.width}x${this.height} -> ${newWidth}x${newHeight}`);
+    }
+
+    // Get image as base64
+    const dataUrl = imageToSend.toDataURL('image/png');
 
     const response = await fetch('/api/assets/remove-background', {
       method: 'POST',
