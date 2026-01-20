@@ -98,6 +98,13 @@ class GameCreatorApp {
     this.confirmRestoreBtn = document.getElementById('confirmRestore');
     this.pendingRestoreVersionId = null;
 
+    // Delete confirmation modal elements
+    this.deleteConfirmModal = document.getElementById('deleteConfirmModal');
+    this.deleteConfirmTitle = document.getElementById('deleteConfirmTitle');
+    this.deleteConfirmMessage = document.getElementById('deleteConfirmMessage');
+    this.cancelDelete = document.getElementById('cancelDelete');
+    this.confirmDeleteBtn = document.getElementById('confirmDelete');
+
     // Error state
     this.currentErrors = [];
 
@@ -1098,6 +1105,13 @@ class GameCreatorApp {
     this.confirmRestoreBtn?.addEventListener('click', () => this.confirmRestore());
     this.restoreModal?.addEventListener('click', (e) => {
       if (e.target === this.restoreModal) this.hideRestoreModal();
+    });
+
+    // Delete confirmation modal
+    this.cancelDelete?.addEventListener('click', () => this.hideDeleteConfirmModal());
+    this.confirmDeleteBtn?.addEventListener('click', () => this.confirmDeleteAssets());
+    this.deleteConfirmModal?.addEventListener('click', (e) => {
+      if (e.target === this.deleteConfirmModal) this.hideDeleteConfirmModal();
     });
 
     // Mobile tab switching
@@ -3360,20 +3374,15 @@ class GameCreatorApp {
         this.editAssetButton?.classList.add('hidden');
       }
 
-      // Show publish/delete only for owned assets
+      // Show delete only for owned assets
       if (asset.isOwner) {
-        // Update publish button icon based on state
-        const publishIcon = asset.isPublic
-          ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
-          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
-        this.publishAssetButton.innerHTML = publishIcon;
-        this.publishAssetButton.title = asset.isPublic ? '非公開にする' : '公開する';
-        this.publishAssetButton?.classList.remove('hidden');
         this.deleteAssetButton?.classList.remove('hidden');
       } else {
-        this.publishAssetButton?.classList.add('hidden');
         this.deleteAssetButton?.classList.add('hidden');
       }
+
+      // Publish button (hidden for now, kept for future use)
+      this.publishAssetButton?.classList.add('hidden');
 
       // Keep selectedAsset for backward compatibility (edit)
       this.selectedAsset = asset;
@@ -3629,15 +3638,37 @@ class GameCreatorApp {
     }
   }
 
-  async deleteSelectedAssets() {
+  deleteSelectedAssets() {
     const assets = this.selectedAssets || [];
     if (assets.length === 0) return;
 
+    // Show confirmation modal
+    this.showDeleteConfirmModal(assets);
+  }
+
+  showDeleteConfirmModal(assets) {
+    this.pendingDeleteAssets = assets;
+
+    const title = assets.length === 1 ? 'アセットを削除' : `${assets.length}件のアセットを削除`;
     const message = assets.length === 1
-      ? 'このアセットを削除しますか？'
+      ? `「${assets[0].name}」を削除しますか？`
       : `${assets.length}件のアセットを削除しますか？`;
 
-    if (!confirm(message)) return;
+    this.deleteConfirmTitle.textContent = title;
+    this.deleteConfirmMessage.textContent = message;
+    this.deleteConfirmModal.classList.remove('hidden');
+  }
+
+  hideDeleteConfirmModal() {
+    this.deleteConfirmModal.classList.add('hidden');
+    this.pendingDeleteAssets = null;
+  }
+
+  async confirmDeleteAssets() {
+    const assets = this.pendingDeleteAssets;
+    if (!assets || assets.length === 0) return;
+
+    this.hideDeleteConfirmModal();
 
     try {
       for (const asset of assets) {
