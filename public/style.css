@@ -3833,14 +3833,12 @@ body::before {
   /* Footer */
   .image-editor-footer {
     flex-shrink: 0;
-    padding: var(--s-12) var(--s-16);
-    padding-bottom: calc(var(--s-12) + env(safe-area-inset-bottom));
+    padding: var(--s-16);
+    padding-bottom: calc(var(--s-16) + env(safe-area-inset-bottom));
     background: var(--white);
     border-top: 1px solid var(--gray-200);
     display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: var(--s-8);
+    gap: var(--s-12);
     transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
@@ -3851,18 +3849,38 @@ body::before {
     transform: translateY(100%);
   }
 
-  /* Toolbar history buttons on mobile */
-  .history-btn {
-    width: 36px;
-    height: 36px;
+  /* Footer buttons - outline style to differentiate from tool panel */
+  .image-editor-footer .secondary-btn {
+    flex: 1;
+    padding: var(--s-14);
+    background: transparent;
+    border: 1.5px solid var(--gray-300);
+    border-radius: 12px;
+    color: var(--gray-600);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    min-height: 48px;
   }
 
-  .secondary-btn {
-    padding: var(--s-10) var(--s-16);
+  .image-editor-footer .secondary-btn:active {
     background: var(--gray-100);
-    color: var(--gray-700);
-    border-radius: 8px;
-    font-size: 0.875rem;
+    border-color: var(--gray-400);
+  }
+
+  .image-editor-footer .primary-btn {
+    flex: 1.5;
+    padding: var(--s-14);
+    background: transparent;
+    border: 1.5px solid var(--red);
+    border-radius: 12px;
+    color: var(--red);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    min-height: 48px;
+  }
+
+  .image-editor-footer .primary-btn:active {
+    background: var(--red-light);
   }
 
   .secondary-btn:hover {
