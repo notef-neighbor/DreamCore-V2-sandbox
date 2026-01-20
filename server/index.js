@@ -1473,7 +1473,7 @@ ${gameCode ? `ゲームコード（抜粋）:\n${gameCode.slice(0, 3000)}\n` : '
     const { spawn } = require('child_process');
     const claude = spawn('claude', [
       '--print',
-      '--model', 'sonnet',
+      '--model', 'haiku',
       '--dangerously-skip-permissions'
     ], {
       cwd: process.cwd(),
