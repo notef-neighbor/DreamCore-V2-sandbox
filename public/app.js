@@ -4092,6 +4092,9 @@ class GameCreatorApp {
       this.closeImageEditor();
       await this.loadAssets();
 
+      // Clear selection after save
+      this.clearSelection();
+
       // Show success
       console.log('Image saved:', result.asset);
     } catch (error) {
