@@ -455,8 +455,8 @@ body[data-page="publish"] {
 }
 
 /* ============================================
-   Inline Field Loading (Kashiwa Sato × Nintendo)
-   - Ultra-minimal, clean, purposeful
+   Inline Field Loading (Nintendo Style)
+   - Playful, bouncy, friendly
    ============================================ */
 
 /* Input wrapper base */
@@ -464,41 +464,59 @@ body[data-page="publish"] {
   position: relative;
 }
 
-/* Animated overlay - breathing effect */
+/* Clean white overlay */
 .input-with-generate.generating::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--red-light);
-  border: 2px solid var(--red);
+  background: var(--white);
   border-radius: var(--r-12);
   z-index: 10;
-  animation: overlayBreathe 2s ease-in-out infinite;
+  animation: overlayPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-@keyframes overlayBreathe {
-  0%, 100% {
-    background: var(--red-light);
-    opacity: 0.9;
-  }
-  50% {
-    background: #ffe5e3;
-    opacity: 1;
-  }
+@keyframes overlayPopIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 0.96; transform: scale(1); }
 }
 
-/* Simple text label */
+/* Nintendo-style bouncing dots */
 .input-with-generate.generating::after {
-  content: '生成中';
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  color: var(--red);
+  width: 48px;
+  height: 12px;
   z-index: 11;
+  background:
+    radial-gradient(circle at 6px 6px, var(--red) 5px, transparent 5px),
+    radial-gradient(circle at 24px 6px, var(--red) 5px, transparent 5px),
+    radial-gradient(circle at 42px 6px, var(--red) 5px, transparent 5px);
+  background-size: 48px 12px;
+  animation: nintendoDots 1.2s ease-in-out infinite;
+}
+
+@keyframes nintendoDots {
+  0%, 100% {
+    background:
+      radial-gradient(circle at 6px 6px, var(--red) 5px, transparent 5px),
+      radial-gradient(circle at 24px 6px, rgba(255,59,47,0.3) 5px, transparent 5px),
+      radial-gradient(circle at 42px 6px, rgba(255,59,47,0.3) 5px, transparent 5px);
+  }
+  33% {
+    background:
+      radial-gradient(circle at 6px 6px, rgba(255,59,47,0.3) 5px, transparent 5px),
+      radial-gradient(circle at 24px 6px, var(--red) 5px, transparent 5px),
+      radial-gradient(circle at 42px 6px, rgba(255,59,47,0.3) 5px, transparent 5px);
+  }
+  66% {
+    background:
+      radial-gradient(circle at 6px 6px, rgba(255,59,47,0.3) 5px, transparent 5px),
+      radial-gradient(circle at 24px 6px, rgba(255,59,47,0.3) 5px, transparent 5px),
+      radial-gradient(circle at 42px 6px, var(--red) 5px, transparent 5px);
+  }
 }
 
 /* Generate button - fade out cleanly */
@@ -519,24 +537,27 @@ body[data-page="publish"] {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--red-light);
-  border: 2px solid var(--red);
+  background: var(--white);
   border-radius: var(--r-8);
   z-index: 10;
-  animation: overlayBreathe 2s ease-in-out infinite;
+  animation: overlayPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .tags-container.generating::after {
-  content: '生成中';
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  color: var(--red);
+  width: 36px;
+  height: 10px;
   z-index: 11;
+  background:
+    radial-gradient(circle at 5px 5px, var(--red) 4px, transparent 4px),
+    radial-gradient(circle at 18px 5px, var(--red) 4px, transparent 4px),
+    radial-gradient(circle at 31px 5px, var(--red) 4px, transparent 4px);
+  background-size: 36px 10px;
+  animation: nintendoDots 1.2s ease-in-out infinite;
 }
 
 /* Thumbnail generating state */
@@ -548,42 +569,36 @@ body[data-page="publish"] {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--red-light);
-  border: 2px solid var(--red);
+  background: var(--white);
   border-radius: var(--r-16);
   z-index: 10;
-  animation: overlayBreathe 2s ease-in-out infinite;
+  animation: overlayPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .thumbnail-preview.generating::after {
-  content: '生成中';
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  color: var(--red);
+  width: 60px;
+  height: 14px;
   z-index: 11;
+  background:
+    radial-gradient(circle at 7px 7px, var(--red) 6px, transparent 6px),
+    radial-gradient(circle at 30px 7px, var(--red) 6px, transparent 6px),
+    radial-gradient(circle at 53px 7px, var(--red) 6px, transparent 6px);
+  background-size: 60px 14px;
+  animation: nintendoDots 1.2s ease-in-out infinite;
 }
 
 .thumbnail-preview.generating .thumbnail-placeholder {
   opacity: 0;
 }
 
-/* Form group label - red text indicator */
-.form-group.generating > label::after {
-  content: ' 生成中';
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--red);
-  animation: labelBlink 1s ease-in-out infinite;
-}
-
-@keyframes labelBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+/* Form group label - hidden during generation (dots speak for themselves) */
+.form-group.generating > label {
+  color: var(--gray-400);
 }
 
 /* Mobile Responsive */
