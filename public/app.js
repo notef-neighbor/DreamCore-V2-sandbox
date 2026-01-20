@@ -3759,6 +3759,7 @@ class GameCreatorApp {
     this.currentTool = null;
     this.cropper = null;
     this.cropAspectRatio = NaN;
+    this.cropCircle = false;
 
     // Tool buttons
     document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -3774,24 +3775,43 @@ class GameCreatorApp {
         const ratio = btn.dataset.ratio;
         if (ratio === 'free') {
           this.cropAspectRatio = NaN;
+          this.cropCircle = false;
+        } else if (ratio === 'circle') {
+          this.cropAspectRatio = 1;
+          this.cropCircle = true;
         } else {
           const [w, h] = ratio.split(':').map(Number);
           this.cropAspectRatio = w / h;
+          this.cropCircle = false;
         }
 
         // Update Cropper.js if active
         if (this.cropper) {
           this.cropper.setAspectRatio(this.cropAspectRatio);
         }
+
+        // Toggle circle mode visual indicator
+        const cropperWrapper = document.getElementById('cropperWrapper');
+        if (cropperWrapper) {
+          cropperWrapper.classList.toggle('circle-mode', this.cropCircle);
+        }
       });
     });
 
-    // Rotate buttons
-    document.querySelectorAll('.rotate-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const angle = parseInt(btn.dataset.angle);
-        this.imageEditor.rotate(angle);
-      });
+    // Rotate button (90° clockwise)
+    document.getElementById('rotateRight')?.addEventListener('click', () => {
+      this.imageEditor.rotate(90);
+      this.updateUndoButton();
+    });
+
+    // Flip buttons
+    document.getElementById('flipHorizontal')?.addEventListener('click', () => {
+      this.imageEditor.flipHorizontal();
+      this.updateUndoButton();
+    });
+    document.getElementById('flipVertical')?.addEventListener('click', () => {
+      this.imageEditor.flipVertical();
+      this.updateUndoButton();
     });
 
     // Resize inputs
@@ -3901,6 +3921,7 @@ class GameCreatorApp {
 
     canvasWrapper.classList.add('hidden');
     cropperWrapper.classList.remove('hidden');
+    cropperWrapper.classList.toggle('circle-mode', this.cropCircle);
 
     // Set image source
     cropperImage.src = dataUrl;
@@ -3934,6 +3955,7 @@ class GameCreatorApp {
     const canvasWrapper = this.editorCanvas.parentElement;
 
     cropperWrapper?.classList.add('hidden');
+    cropperWrapper?.classList.remove('circle-mode');
     canvasWrapper?.classList.remove('hidden');
   }
 
@@ -3944,10 +3966,34 @@ class GameCreatorApp {
     const croppedCanvas = this.cropper.getCroppedCanvas();
     if (!croppedCanvas) return;
 
+    // Apply circular mask if needed
+    let finalCanvas = croppedCanvas;
+    if (this.cropCircle) {
+      const circleCanvas = document.createElement('canvas');
+      const size = Math.min(croppedCanvas.width, croppedCanvas.height);
+      circleCanvas.width = size;
+      circleCanvas.height = size;
+      const ctx = circleCanvas.getContext('2d');
+
+      // Create circular clipping path
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+
+      // Draw cropped image centered
+      const offsetX = (croppedCanvas.width - size) / 2;
+      const offsetY = (croppedCanvas.height - size) / 2;
+      ctx.drawImage(croppedCanvas, -offsetX, -offsetY);
+
+      finalCanvas = circleCanvas;
+    }
+
     // Apply cropped image to ImageEditor
     const img = new Image();
     img.onload = () => {
       this.imageEditor.loadImageFromElement(img);
+      this.imageEditor.hasTransparency = this.cropCircle; // Circle crop creates transparency
       this.updateUndoButton();
 
       // Update resize inputs
@@ -3958,7 +4004,7 @@ class GameCreatorApp {
         resizeHeight.value = this.imageEditor.height;
       }
     };
-    img.src = croppedCanvas.toDataURL('image/png');
+    img.src = finalCanvas.toDataURL('image/png');
 
     this.selectTool(null);
   }
@@ -4572,6 +4618,38 @@ class ImageEditor {
     this.width = newW;
     this.height = newH;
     this.aspectRatio = newW / newH;
+    this.render();
+  }
+
+  flipHorizontal() {
+    this.saveHistory();
+
+    const flipped = document.createElement('canvas');
+    flipped.width = this.width;
+    flipped.height = this.height;
+    const ctx = flipped.getContext('2d');
+
+    ctx.translate(this.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(this.currentImage, 0, 0);
+
+    this.currentImage = flipped;
+    this.render();
+  }
+
+  flipVertical() {
+    this.saveHistory();
+
+    const flipped = document.createElement('canvas');
+    flipped.width = this.width;
+    flipped.height = this.height;
+    const ctx = flipped.getContext('2d');
+
+    ctx.translate(0, this.height);
+    ctx.scale(1, -1);
+    ctx.drawImage(this.currentImage, 0, 0);
+
+    this.currentImage = flipped;
     this.render();
   }
 

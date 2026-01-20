@@ -2964,6 +2964,12 @@ body::before {
   max-height: 100%;
 }
 
+/* Circle crop mode indicator */
+.cropper-container-wrapper.circle-mode .cropper-view-box,
+.cropper-container-wrapper.circle-mode .cropper-face {
+  border-radius: 50%;
+}
+
 .crop-overlay {
   position: absolute;
   top: 0;
@@ -3084,30 +3090,47 @@ body::before {
 
 .editor-toolbar {
   display: flex;
-  gap: var(--s-8);
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
+  gap: var(--s-8);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--gray-300);
+  flex-shrink: 0;
 }
 
 .tool-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s-4);
-  padding: var(--s-12) var(--s-16);
+  gap: 2px;
+  padding: var(--s-8) var(--s-12);
   background: var(--gray-100);
   border: 2px solid transparent;
-  border-radius: var(--r-12);
+  border-radius: var(--r-8);
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 80px;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tool-btn:disabled:hover {
+  background: var(--gray-100);
 }
 
 .tool-btn:hover {
   background: var(--gray-200);
 }
 
-.tool-btn.active {
+.tool-btn[data-tool].active {
   background: var(--red-light);
   border-color: var(--red);
   color: var(--red);
@@ -3149,16 +3172,21 @@ body::before {
   display: flex;
   gap: var(--s-8);
   margin-bottom: var(--s-12);
+  flex-wrap: wrap;
 }
 
 .ratio-btn {
-  padding: var(--s-8) var(--s-12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--s-8);
   background: var(--white);
   border: 2px solid var(--gray-200);
   border-radius: var(--r-8);
-  font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 52px;
 }
 
 .ratio-btn:hover {
@@ -3166,9 +3194,65 @@ body::before {
 }
 
 .ratio-btn.active {
-  background: var(--red);
+  background: var(--red-light);
   border-color: var(--red);
-  color: var(--white);
+}
+
+.ratio-btn.active .ratio-shape {
+  border-color: var(--red);
+}
+
+.ratio-btn.active .ratio-label {
+  color: var(--red);
+}
+
+.ratio-shape {
+  border: 2px solid var(--gray-400);
+  background: transparent;
+}
+
+.ratio-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+
+/* Ratio shape variants */
+.ratio-free {
+  width: 24px;
+  height: 18px;
+  border-style: dashed;
+  border-radius: 2px;
+}
+
+.ratio-1-1 {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+}
+
+.ratio-4-3 {
+  width: 24px;
+  height: 18px;
+  border-radius: 2px;
+}
+
+.ratio-16-9 {
+  width: 28px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+.ratio-9-16 {
+  width: 14px;
+  height: 24px;
+  border-radius: 2px;
+}
+
+.ratio-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
 }
 
 .crop-info {
@@ -3298,32 +3382,30 @@ body::before {
   padding: var(--s-16) var(--s-24);
   border-top: 1px solid var(--gray-200);
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-}
-
-.footer-left, .footer-right {
-  display: flex;
-  gap: var(--s-8);
+  gap: var(--s-12);
 }
 
 .secondary-btn {
   padding: var(--s-12) var(--s-20);
-  background: var(--gray-100);
-  border: none;
+  background: var(--white);
+  border: 1.5px solid var(--gray-300);
   border-radius: var(--r-8);
   color: var(--gray-700);
   font-weight: 600;
+  font-size: 0.9375rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .secondary-btn:hover {
-  background: var(--gray-200);
+  background: var(--gray-100);
+  border-color: var(--gray-400);
 }
 
 .secondary-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -3334,6 +3416,7 @@ body::before {
   border-radius: var(--r-8);
   color: var(--white);
   font-weight: 600;
+  font-size: 0.9375rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -3424,10 +3507,10 @@ body::before {
     flex-shrink: 0;
     display: flex;
     gap: 0;
-    justify-content: stretch;
+    justify-content: flex-start;
     background: var(--white);
     border-top: 1px solid var(--gray-200);
-    padding: var(--s-8) 0;
+    padding: var(--s-8) var(--s-12);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -3439,15 +3522,19 @@ body::before {
 
   /* Tool buttons */
   .tool-btn {
-    flex: 1;
-    min-width: 72px;
-    padding: var(--s-12) var(--s-8);
+    flex: 0 0 auto;
+    min-width: 56px;
+    padding: var(--s-8) var(--s-8);
     background: transparent;
     border: none;
     border-radius: 0;
     color: var(--gray-500);
     transition: all 0.15s ease;
     position: relative;
+  }
+
+  .tool-btn:disabled {
+    opacity: 0.35;
   }
 
   .tool-btn::after {
@@ -3468,12 +3555,12 @@ body::before {
     color: var(--gray-700);
   }
 
-  .tool-btn.active {
+  .tool-btn[data-tool].active {
     color: var(--red);
     background: transparent;
   }
 
-  .tool-btn.active::after {
+  .tool-btn[data-tool].active::after {
     width: 24px;
   }
 
@@ -3558,24 +3645,28 @@ body::before {
   }
 
   .ratio-btn {
-    padding: var(--s-10) var(--s-16);
-    background: var(--gray-100);
-    border: 1px solid var(--gray-200);
-    border-radius: 20px;
-    color: var(--gray-700);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    padding: var(--s-8);
+    background: var(--gray-50);
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--r-8);
+    min-width: 48px;
   }
 
   .ratio-btn:hover {
-    background: var(--gray-200);
+    background: var(--gray-100);
   }
 
   .ratio-btn.active {
-    background: var(--red);
+    background: var(--red-light);
     border-color: var(--red);
-    color: var(--white);
+  }
+
+  .ratio-shape {
+    border-width: 1.5px;
+  }
+
+  .ratio-label {
+    font-size: 0.625rem;
   }
 
   .crop-info {
@@ -3696,14 +3787,20 @@ body::before {
     background: var(--white);
     border-top: 1px solid var(--gray-200);
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
+    gap: var(--s-8);
   }
 
-  .footer-left,
-  .footer-right {
-    display: flex;
-    gap: var(--s-8);
+  /* Toolbar history buttons on mobile */
+  .toolbar-divider {
+    height: 32px;
+    margin: 0 var(--s-4);
+  }
+
+  .history-btn {
+    width: 36px;
+    height: 36px;
   }
 
   .secondary-btn {

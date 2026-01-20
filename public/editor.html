@@ -238,12 +238,28 @@
               </svg>
               <span>リサイズ</span>
             </button>
-            <button class="tool-btn" data-tool="rotate" title="回転">
+            <button class="tool-btn" id="rotateRight" title="90°回転">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                 <path d="M21 3v5h-5"/>
               </svg>
               <span>回転</span>
+            </button>
+            <button class="tool-btn" id="flipHorizontal" title="左右反転">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 3v18"/>
+                <path d="M16 7l4 5-4 5"/>
+                <path d="M8 7l-4 5 4 5"/>
+              </svg>
+              <span>左右</span>
+            </button>
+            <button class="tool-btn" id="flipVertical" title="上下反転">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12h18"/>
+                <path d="M7 8l5-4 5 4"/>
+                <path d="M7 16l5 4 5-4"/>
+              </svg>
+              <span>上下</span>
             </button>
             <button class="tool-btn" data-tool="remove-bg" title="背景削除">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -253,15 +269,50 @@
               </svg>
               <span>背景削除</span>
             </button>
+            <div class="toolbar-divider"></div>
+            <button id="editorUndo" class="tool-btn" disabled title="元に戻す">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 7v6h6"/>
+                <path d="M3 13a9 9 0 1 0 3-7.7L3 7"/>
+              </svg>
+              <span>戻す</span>
+            </button>
+            <button id="editorReset" class="tool-btn" title="リセット">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              <span>リセット</span>
+            </button>
           </div>
           <div class="tool-panels">
             <div class="tool-panel hidden" id="cropPanel">
               <div class="panel-title">クロップ設定</div>
               <div class="preset-ratios">
-                <button class="ratio-btn active" data-ratio="free">フリー</button>
-                <button class="ratio-btn" data-ratio="1:1">1:1</button>
-                <button class="ratio-btn" data-ratio="4:3">4:3</button>
-                <button class="ratio-btn" data-ratio="16:9">16:9</button>
+                <button class="ratio-btn active" data-ratio="free">
+                  <span class="ratio-shape ratio-free"></span>
+                  <span class="ratio-label">フリー</span>
+                </button>
+                <button class="ratio-btn" data-ratio="1:1">
+                  <span class="ratio-shape ratio-1-1"></span>
+                  <span class="ratio-label">1:1</span>
+                </button>
+                <button class="ratio-btn" data-ratio="4:3">
+                  <span class="ratio-shape ratio-4-3"></span>
+                  <span class="ratio-label">4:3</span>
+                </button>
+                <button class="ratio-btn" data-ratio="16:9">
+                  <span class="ratio-shape ratio-16-9"></span>
+                  <span class="ratio-label">16:9</span>
+                </button>
+                <button class="ratio-btn" data-ratio="9:16">
+                  <span class="ratio-shape ratio-9-16"></span>
+                  <span class="ratio-label">9:16</span>
+                </button>
+                <button class="ratio-btn" data-ratio="circle">
+                  <span class="ratio-shape ratio-circle"></span>
+                  <span class="ratio-label">円形</span>
+                </button>
               </div>
               <div class="crop-info">
                 <span id="cropSizeInfo">ハンドルをドラッグして調整</span>
@@ -288,14 +339,6 @@
               </label>
               <button id="applyResize" class="apply-btn">適用</button>
             </div>
-            <div class="tool-panel hidden" id="rotatePanel">
-              <div class="panel-title">回転設定</div>
-              <div class="rotate-buttons">
-                <button class="rotate-btn" data-angle="-90">↶ 90°左</button>
-                <button class="rotate-btn" data-angle="90">↷ 90°右</button>
-                <button class="rotate-btn" data-angle="180">180°</button>
-              </div>
-            </div>
             <div class="tool-panel hidden" id="removeBgPanel">
               <div class="panel-title">背景削除</div>
               <p class="panel-desc">AIが自動で背景を検出して透明にします</p>
@@ -308,14 +351,8 @@
           </div>
         </div>
         <div class="image-editor-footer">
-          <div class="footer-left">
-            <button id="editorUndo" class="secondary-btn" disabled>元に戻す</button>
-            <button id="editorReset" class="secondary-btn">リセット</button>
-          </div>
-          <div class="footer-right">
-            <button id="cancelEdit" class="secondary-btn">キャンセル</button>
-            <button id="saveEditedImage" class="primary-btn">保存</button>
-          </div>
+          <button id="cancelEdit" class="secondary-btn">キャンセル</button>
+          <button id="saveEditedImage" class="primary-btn">保存</button>
         </div>
       </div>
     </div>
