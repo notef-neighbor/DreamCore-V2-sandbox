@@ -2605,8 +2605,28 @@ body::before {
 }
 
 .asset-item.selected {
-  border-color: var(--red);
-  box-shadow: 0 0 0 2px var(--red-light);
+  border: 3px solid var(--red);
+  box-shadow: 0 0 0 4px var(--red-light), 0 4px 12px rgba(255, 75, 75, 0.3);
+  transform: scale(1.02);
+  z-index: 1;
+}
+
+.asset-item.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  background: var(--red);
+  border-radius: 50%;
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .asset-thumb {
@@ -2734,13 +2754,13 @@ body::before {
 }
 
 .asset-footer button {
-  padding: var(--s-10) var(--s-16);
+  padding: var(--s-12) var(--s-24);
   background: var(--red);
   border: none;
-  border-radius: var(--r-8);
+  border-radius: var(--r-12);
   color: var(--white);
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
