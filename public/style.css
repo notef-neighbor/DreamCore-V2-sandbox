@@ -3616,13 +3616,13 @@ body::before {
     left: 0;
     right: 0;
     background: var(--white);
-    border-radius: 20px 20px 0 0;
-    padding: var(--s-24);
-    padding-bottom: calc(var(--s-24) + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    padding: var(--s-16);
+    padding-bottom: calc(var(--s-16) + env(safe-area-inset-bottom));
     transform: translateY(100%);
     transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
     pointer-events: auto;
-    max-height: 50vh;
+    max-height: 40vh;
     overflow-y: auto;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
   }
@@ -3635,44 +3635,51 @@ body::before {
   .tool-panel::before {
     content: '';
     position: absolute;
-    top: 8px;
+    top: 6px;
     left: 50%;
     transform: translateX(-50%);
-    width: 36px;
-    height: 4px;
+    width: 32px;
+    height: 3px;
     background: var(--gray-300);
     border-radius: 2px;
   }
 
   .panel-title {
     color: var(--gray-800);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    margin-bottom: var(--s-16);
+    margin-bottom: var(--s-12);
     text-align: center;
-    padding-top: var(--s-8);
+    padding-top: var(--s-4);
   }
 
   .panel-desc {
     color: var(--gray-500);
     text-align: center;
+    font-size: 0.8125rem;
+    margin-bottom: var(--s-12);
   }
 
-  /* Ratio buttons - pill style */
+  /* Ratio buttons - 6 columns grid */
   .preset-ratios {
-    display: flex;
-    gap: var(--s-8);
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-bottom: var(--s-16);
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--s-6);
+    margin-bottom: var(--s-12);
   }
 
   .ratio-btn {
-    padding: var(--s-8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: var(--s-8) var(--s-4);
     background: var(--gray-50);
     border: 1.5px solid var(--gray-200);
     border-radius: var(--r-8);
-    min-width: 48px;
+    min-width: 0;
+    min-height: 52px;
   }
 
   .ratio-btn:hover {
@@ -3686,6 +3693,11 @@ body::before {
 
   .ratio-shape {
     border-width: 1.5px;
+    transform: scale(0.85);
+  }
+
+  .ratio-label {
+    font-size: 0.5625rem;
   }
 
   .ratio-label {
@@ -3701,34 +3713,34 @@ body::before {
   /* Resize inputs */
   .resize-inputs {
     display: flex;
-    gap: var(--s-12);
+    gap: var(--s-10);
     justify-content: center;
-    margin-bottom: var(--s-16);
+    margin-bottom: var(--s-12);
   }
 
   .input-group {
     display: flex;
     align-items: center;
-    gap: var(--s-8);
+    gap: var(--s-6);
     background: var(--gray-100);
-    border-radius: 12px;
-    padding: var(--s-8) var(--s-12);
+    border-radius: 10px;
+    padding: var(--s-6) var(--s-10);
   }
 
   .input-group label {
     color: var(--gray-500);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     min-width: auto;
   }
 
   .input-group input {
-    width: 60px;
-    padding: var(--s-6);
+    width: 50px;
+    padding: var(--s-4);
     background: transparent;
     border: none;
     border-bottom: 1px solid var(--gray-300);
     color: var(--gray-800);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     text-align: center;
   }
 
@@ -3739,16 +3751,20 @@ body::before {
 
   .input-group span {
     color: var(--gray-400);
+    font-size: 0.6875rem;
   }
 
   .checkbox-label {
     color: var(--gray-600);
     justify-content: center;
-    margin-bottom: var(--s-16);
+    margin-bottom: var(--s-8);
+    font-size: 0.8125rem;
   }
 
   .checkbox-label input {
     accent-color: var(--red);
+    width: 16px;
+    height: 16px;
   }
 
   /* Rotate buttons */
@@ -3776,23 +3792,23 @@ body::before {
     transform: scale(0.98);
   }
 
-  /* Panel actions */
+  /* Panel actions - compact */
   .panel-actions {
     display: flex;
-    gap: var(--s-12);
-    margin-top: var(--s-20);
+    gap: var(--s-10);
+    margin-top: var(--s-12);
   }
 
   .panel-cancel-btn {
     flex: 1;
-    padding: var(--s-16);
+    padding: var(--s-12);
     background: var(--gray-100);
     border: none;
-    border-radius: 12px;
+    border-radius: 10px;
     color: var(--gray-700);
-    font-size: 1rem;
+    font-size: 0.9375rem;
     font-weight: 600;
-    min-height: 52px;
+    min-height: 46px;
     transition: background 0.15s ease;
   }
 
@@ -3805,12 +3821,12 @@ body::before {
     background: var(--red);
     color: var(--white);
     border: none;
-    border-radius: 12px;
-    padding: var(--s-16);
-    font-size: 1rem;
+    border-radius: 10px;
+    padding: var(--s-12);
+    font-size: 0.9375rem;
     font-weight: 600;
     margin-top: 0;
-    min-height: 52px;
+    min-height: 46px;
     transition: opacity 0.15s ease;
   }
 
@@ -3818,6 +3834,13 @@ body::before {
     opacity: 0.85;
     transform: none;
     box-shadow: none;
+  }
+
+  .crop-info {
+    font-size: 0.75rem;
+    text-align: center;
+    color: var(--gray-500);
+    margin-bottom: 0;
   }
 
   /* Processing indicator */
