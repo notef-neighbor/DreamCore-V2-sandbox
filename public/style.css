@@ -3971,11 +3971,29 @@ body::before {
     transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
-  /* Hide footer when tool panel is open */
-  .image-editor-modal.tool-active .image-editor-footer {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(100%);
+  /* Hide footer and toolbar when tool panel is open */
+  .image-editor-modal.tool-active .image-editor-footer,
+  .image-editor-modal.tool-active .editor-toolbar {
+    display: none;
+  }
+
+  /* Tool panel becomes part of normal flow when active */
+  .image-editor-modal.tool-active .tool-panels {
+    position: relative;
+    z-index: auto;
+  }
+
+  .image-editor-modal.tool-active .tool-panel:not(.hidden) {
+    position: relative;
+    transform: none;
+    border-radius: 0;
+    max-height: none;
+  }
+
+  /* Canvas area takes remaining space */
+  .image-editor-modal.tool-active .editor-canvas-area {
+    flex: 1;
+    min-height: 200px;
   }
 
   /* Footer buttons - outline style to differentiate from tool panel */
