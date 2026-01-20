@@ -391,27 +391,58 @@ body::before {
   gap: 4px;
 }
 
-/* Animated Slider - Living, Breathing Element */
+/* Animated Slider - Glassmorphism Water/Slime */
 .filter-slider {
   position: absolute;
   top: 4px;
   bottom: 4px;
   left: 4px;
   width: calc((100% - 8px - 8px) / 3);
-  background: var(--white);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(220, 240, 255, 0.85) 50%,
+    rgba(200, 230, 255, 0.9) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: var(--r-12);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 4px 16px rgba(100, 180, 255, 0.2),
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05);
   z-index: 0;
   pointer-events: none;
   transition:
     transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-    width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-radius 0.3s ease;
   transform: translateX(calc(var(--slider-index) * (100% + 4px)));
 }
 
-/* Stretch effect when moving */
+/* Water ripple highlight */
+.filter-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 10%;
+  right: 10%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+/* Stretch effect when moving - more blobby */
 .filter-slider.stretching {
-  width: calc((100% - 8px - 8px) / 3 + 12px);
+  width: calc((100% - 8px - 8px) / 3 + 16px);
+  border-radius: var(--r-16);
 }
 
 .filter-tab {
@@ -429,7 +460,7 @@ body::before {
   border: none;
   border-radius: var(--r-12);
   cursor: pointer;
-  transition: color 0.3s ease;
+  transition: color 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 1;
   position: relative;
 }
@@ -438,8 +469,11 @@ body::before {
   color: var(--gray-600);
 }
 
+/* Refraction effect - content appears larger through the glass */
 .filter-tab.active {
   color: var(--gray-900);
+  transform: scale(1.08);
+  text-shadow: 0 0 1px rgba(0, 100, 200, 0.1);
 }
 
 .filter-count {
@@ -450,8 +484,13 @@ body::before {
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Extra magnification for numbers - like looking through water */
 .filter-tab.active .filter-count {
-  transform: scale(1.1);
+  transform: scale(1.12);
+}
+
+.filter-tab:active {
+  transform: scale(0.95);
 }
 
 .filter-tab:active .filter-count {
