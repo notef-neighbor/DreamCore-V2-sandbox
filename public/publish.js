@@ -10,6 +10,7 @@ class PublishPage {
     this.publishData = {
       title: '',
       description: '',
+      howToPlay: '',
       tags: [],
       visibility: 'public',
       remix: 'allowed',
@@ -59,12 +60,15 @@ class PublishPage {
     this.titleCount = document.getElementById('titleCount');
     this.descriptionInput = document.getElementById('gameDescription');
     this.descriptionCount = document.getElementById('descriptionCount');
+    this.howToPlayInput = document.getElementById('gameHowToPlay');
+    this.howToPlayCount = document.getElementById('howToPlayCount');
     this.tagsContainer = document.getElementById('tagsContainer');
     this.tagInput = document.getElementById('tagInput');
 
     // Generate buttons
     this.regenerateTitleBtn = document.getElementById('regenerateTitle');
     this.regenerateDescriptionBtn = document.getElementById('regenerateDescription');
+    this.regenerateHowToPlayBtn = document.getElementById('regenerateHowToPlay');
     this.regenerateTagsBtn = document.getElementById('regenerateTags');
 
     // Radio groups
@@ -99,6 +103,13 @@ class PublishPage {
       this.scheduleAutoSave();
     });
 
+    // How to play input
+    this.howToPlayInput.addEventListener('input', () => {
+      this.publishData.howToPlay = this.howToPlayInput.value;
+      this.howToPlayCount.textContent = this.howToPlayInput.value.length;
+      this.scheduleAutoSave();
+    });
+
     // Tag input
     this.tagInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -126,6 +137,7 @@ class PublishPage {
     // Generate buttons
     this.regenerateTitleBtn.addEventListener('click', () => this.regenerateTitle());
     this.regenerateDescriptionBtn.addEventListener('click', () => this.regenerateDescription());
+    this.regenerateHowToPlayBtn.addEventListener('click', () => this.regenerateHowToPlay());
     this.regenerateTagsBtn.addEventListener('click', () => this.regenerateTags());
     this.regenerateThumbnailBtn.addEventListener('click', () => this.regenerateThumbnail());
     this.uploadThumbnailBtn.addEventListener('click', () => this.uploadThumbnail());
@@ -188,6 +200,7 @@ class PublishPage {
         const result = await response.json();
         this.publishData.title = result.title || this.projectData.name || '';
         this.publishData.description = result.description || '';
+        this.publishData.howToPlay = result.howToPlay || '';
         this.publishData.tags = result.tags || [];
         this.updateUI();
       } else {
@@ -251,6 +264,10 @@ class PublishPage {
     // Description
     this.descriptionInput.value = this.publishData.description;
     this.descriptionCount.textContent = this.publishData.description.length;
+
+    // How to play
+    this.howToPlayInput.value = this.publishData.howToPlay || '';
+    this.howToPlayCount.textContent = (this.publishData.howToPlay || '').length;
 
     // Tags
     this.renderTags();
@@ -361,6 +378,7 @@ class PublishPage {
         const result = await response.json();
         this.publishData.title = result.title || this.publishData.title;
         this.publishData.description = result.description || this.publishData.description;
+        this.publishData.howToPlay = result.howToPlay || this.publishData.howToPlay;
         this.publishData.tags = result.tags || this.publishData.tags;
         this.updateUI();
         this.scheduleAutoSave();
@@ -383,6 +401,10 @@ class PublishPage {
   }
 
   async regenerateTags() {
+    await this.regenerateAll();
+  }
+
+  async regenerateHowToPlay() {
     await this.regenerateAll();
   }
 

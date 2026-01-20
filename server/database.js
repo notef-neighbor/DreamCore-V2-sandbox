@@ -593,11 +593,12 @@ const cleanupExpiredSessions = () => {
 const publishDraftQueries = {
   findByProjectId: db.prepare('SELECT * FROM publish_drafts WHERE project_id = ?'),
   upsert: db.prepare(`
-    INSERT INTO publish_drafts (project_id, title, description, tags, visibility, remix, thumbnail_url, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO publish_drafts (project_id, title, description, how_to_play, tags, visibility, remix, thumbnail_url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(project_id) DO UPDATE SET
       title = excluded.title,
       description = excluded.description,
+      how_to_play = excluded.how_to_play,
       tags = excluded.tags,
       visibility = excluded.visibility,
       remix = excluded.remix,
@@ -612,6 +613,7 @@ const getPublishDraft = (projectId) => {
   if (!draft) return null;
   return {
     ...draft,
+    howToPlay: draft.how_to_play || '',
     tags: draft.tags ? JSON.parse(draft.tags) : []
   };
 };
@@ -622,6 +624,7 @@ const savePublishDraft = (projectId, data) => {
     projectId,
     data.title || '',
     data.description || '',
+    data.howToPlay || '',
     tags || '[]',
     data.visibility || 'public',
     data.remix || 'allowed',

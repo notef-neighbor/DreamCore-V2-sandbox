@@ -105,6 +105,20 @@
           </div>
         </div>
 
+        <!-- How to Play -->
+        <div class="form-group">
+          <label for="gameHowToPlay">ルールと操作方法</label>
+          <div class="input-with-generate">
+            <textarea id="gameHowToPlay" placeholder="ゲームのルールと操作方法" rows="4" maxlength="1000"></textarea>
+            <button id="regenerateHowToPlay" class="generate-btn" title="AIで再生成">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <span class="char-count"><span id="howToPlayCount">0</span>/1000</span>
+        </div>
+
         <!-- Visibility -->
         <div class="form-group">
           <label>公開範囲</label>

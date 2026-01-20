@@ -1410,7 +1410,7 @@ app.post('/api/projects/:projectId/generate-publish-info', async (req, res) => {
       specContent = fs.readFileSync(specPath, 'utf-8');
     }
 
-    const prompt = `以下のゲームプロジェクトの情報から、公開用のタイトル、概要、タグを生成してください。
+    const prompt = `以下のゲームプロジェクトの情報から、公開用のタイトル、概要、ルールと操作方法、タグを生成してください。
 
 プロジェクト名: ${project.name}
 
@@ -1420,7 +1420,8 @@ ${gameCode ? `ゲームコード（抜粋）:\n${gameCode.slice(0, 3000)}\n` : '
 以下のJSON形式で回答してください（JSONのみ、他のテキストは不要）:
 {
   "title": "魅力的なゲームタイトル（50文字以内）",
-  "description": "ゲームの概要説明（200文字程度、遊び方や特徴を含む）",
+  "description": "ゲームの概要説明（200文字程度、特徴や魅力を含む）",
+  "howToPlay": "ルールと操作方法（300文字程度、具体的な操作方法とゲームのルールを説明）",
   "tags": ["タグ1", "タグ2", "タグ3"]
 }
 
