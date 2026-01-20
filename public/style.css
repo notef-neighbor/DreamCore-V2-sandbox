@@ -2976,6 +2976,112 @@ body::before {
   border-radius: 50%;
 }
 
+/* Cropper.js overrides - Product style (red accent, clean) */
+.cropper-view-box {
+  outline: 2px solid #e53935;
+  outline-offset: -2px;
+}
+
+.cropper-line {
+  background-color: #e53935;
+  opacity: 0.6;
+}
+
+/* All handles - red */
+.cropper-point {
+  background-color: #e53935 !important;
+  opacity: 1 !important;
+  border-radius: 0 !important;
+}
+
+/* Corner handles - L-shaped thick lines */
+.cropper-point.point-nw {
+  width: 20px !important;
+  height: 4px !important;
+  border-left: 4px solid #e53935 !important;
+  border-top: 4px solid #e53935 !important;
+  background: transparent !important;
+  box-sizing: border-box;
+}
+.cropper-point.point-nw::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 20px;
+  background: #e53935;
+}
+
+.cropper-point.point-ne {
+  width: 20px !important;
+  height: 4px !important;
+  border-right: 4px solid #e53935 !important;
+  border-top: 4px solid #e53935 !important;
+  background: transparent !important;
+  box-sizing: border-box;
+}
+.cropper-point.point-ne::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 20px;
+  background: #e53935;
+}
+
+.cropper-point.point-sw {
+  width: 20px !important;
+  height: 4px !important;
+  border-left: 4px solid #e53935 !important;
+  border-bottom: 4px solid #e53935 !important;
+  background: transparent !important;
+  box-sizing: border-box;
+}
+.cropper-point.point-sw::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  height: 20px;
+  background: #e53935;
+}
+
+.cropper-point.point-se {
+  width: 20px !important;
+  height: 4px !important;
+  border-right: 4px solid #e53935 !important;
+  border-bottom: 4px solid #e53935 !important;
+  background: transparent !important;
+  box-sizing: border-box;
+}
+.cropper-point.point-se::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 4px;
+  height: 20px;
+  background: #e53935;
+}
+
+/* Edge handles - bars */
+.cropper-point.point-n,
+.cropper-point.point-s {
+  width: 40px !important;
+  height: 4px !important;
+  margin-left: -20px !important;
+}
+
+.cropper-point.point-e,
+.cropper-point.point-w {
+  width: 4px !important;
+  height: 40px !important;
+  margin-top: -20px !important;
+}
+
 .crop-overlay {
   position: absolute;
   top: 0;
@@ -3961,6 +4067,53 @@ body::before {
   /* Make selection box border thicker on mobile */
   .crop-selection-box {
     border-width: 3px;
+  }
+
+  /* Cropper.js mobile overrides - larger touch targets */
+  .cropper-view-box {
+    outline: 3px solid #e53935;
+    outline-offset: -3px;
+  }
+
+  .cropper-line {
+    background-color: #e53935;
+  }
+
+  /* Corner handles - larger L-shapes for touch */
+  .cropper-point.point-nw,
+  .cropper-point.point-ne,
+  .cropper-point.point-sw,
+  .cropper-point.point-se {
+    width: 28px !important;
+    height: 6px !important;
+    border-width: 6px !important;
+  }
+  .cropper-point.point-nw::after,
+  .cropper-point.point-ne::after,
+  .cropper-point.point-sw::after,
+  .cropper-point.point-se::after {
+    width: 6px;
+    height: 28px;
+  }
+
+  /* Edge handles - larger bars for touch */
+  .cropper-point.point-n,
+  .cropper-point.point-s {
+    width: 56px !important;
+    height: 6px !important;
+    margin-left: -28px !important;
+  }
+
+  .cropper-point.point-e,
+  .cropper-point.point-w {
+    width: 6px !important;
+    height: 56px !important;
+    margin-top: -28px !important;
+  }
+
+  /* Add padding to canvas area so crop handles aren't at edge */
+  .editor-canvas-area {
+    padding: var(--s-16);
   }
 }
 
