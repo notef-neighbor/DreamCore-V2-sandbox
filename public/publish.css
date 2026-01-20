@@ -464,12 +464,13 @@ body[data-page="publish"] {
   position: relative;
 }
 
-/* Clean overlay */
+/* Clean overlay with subtle red tint */
 .input-with-generate.generating::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--white);
+  background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,241,240,0.95) 100%);
+  border: 2px solid var(--red);
   border-radius: var(--r-12);
   z-index: 10;
   opacity: 0;
@@ -477,26 +478,30 @@ body[data-page="publish"] {
 }
 
 @keyframes overlayFadeIn {
-  to { opacity: 0.92; }
+  to { opacity: 1; }
 }
 
-/* Minimal loading indicator - three dots */
+/* Loading indicator - pill badge */
 .input-with-generate.generating::after {
-  content: '・・・';
+  content: '生成中';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 1.25rem;
-  letter-spacing: 0.25em;
-  color: var(--red);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--white);
+  background: var(--red);
+  padding: var(--s-8) var(--s-16);
+  border-radius: var(--r-full);
   z-index: 11;
-  animation: dotsWave 1.4s ease-in-out infinite;
+  animation: badgePulse 1.6s ease-in-out infinite;
 }
 
-@keyframes dotsWave {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+@keyframes badgePulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.85; }
 }
 
 /* Generate button - fade out cleanly */
@@ -518,7 +523,8 @@ body[data-page="publish"] {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--white);
+  background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,241,240,0.95) 100%);
+  border: 2px solid var(--red);
   border-radius: var(--r-8);
   z-index: 10;
   opacity: 0;
@@ -526,16 +532,20 @@ body[data-page="publish"] {
 }
 
 .tags-container.generating::after {
-  content: '・・・';
+  content: '生成中';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 1rem;
-  letter-spacing: 0.25em;
-  color: var(--red);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--white);
+  background: var(--red);
+  padding: var(--s-4) var(--s-12);
+  border-radius: var(--r-full);
   z-index: 11;
-  animation: dotsWave 1.4s ease-in-out infinite;
+  animation: badgePulse 1.6s ease-in-out infinite;
 }
 
 /* Thumbnail generating state */
@@ -547,7 +557,8 @@ body[data-page="publish"] {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--white);
+  background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,241,240,0.95) 100%);
+  border: 2px solid var(--red);
   border-radius: var(--r-16);
   z-index: 10;
   opacity: 0;
@@ -555,28 +566,38 @@ body[data-page="publish"] {
 }
 
 .thumbnail-preview.generating::after {
-  content: '・・・';
+  content: '生成中';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 1.5rem;
-  letter-spacing: 0.25em;
-  color: var(--red);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--white);
+  background: var(--red);
+  padding: var(--s-8) var(--s-16);
+  border-radius: var(--r-full);
   z-index: 11;
-  animation: dotsWave 1.4s ease-in-out infinite;
+  animation: badgePulse 1.6s ease-in-out infinite;
 }
 
 .thumbnail-preview.generating .thumbnail-placeholder {
   opacity: 0;
 }
 
-/* Form group label - simple text indicator */
+/* Form group label - red text indicator */
 .form-group.generating > label::after {
-  content: ' — 生成中';
+  content: ' 生成中';
   font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--gray-400);
+  font-weight: 600;
+  color: var(--red);
+  animation: labelBlink 1s ease-in-out infinite;
+}
+
+@keyframes labelBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* Mobile Responsive */
