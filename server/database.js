@@ -614,7 +614,8 @@ const getPublishDraft = (projectId) => {
   return {
     ...draft,
     howToPlay: draft.how_to_play || '',
-    tags: draft.tags ? JSON.parse(draft.tags) : []
+    tags: draft.tags ? JSON.parse(draft.tags) : [],
+    thumbnailUrl: draft.thumbnail_url || null
   };
 };
 
