@@ -4,7 +4,7 @@
 
 class NotificationsApp {
   constructor() {
-    this.sessionId = localStorage.getItem('gameCreatorSessionId');
+    this.sessionId = localStorage.getItem('sessionId');
     this.currentUser = null;
     this.visitorId = null;
     this.notifications = [];
