@@ -136,6 +136,7 @@ const initSchema = () => {
       project_id TEXT PRIMARY KEY,
       title TEXT,
       description TEXT,
+      how_to_play TEXT,
       tags TEXT,
       visibility TEXT DEFAULT 'public',
       remix TEXT DEFAULT 'allowed',
