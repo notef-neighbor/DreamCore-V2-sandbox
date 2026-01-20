@@ -49,3 +49,8 @@ google-cloud-cli-*.tar.gz
 game_classification_report.*
 analyze_classification.js
 .venv/
+
+# AI Agent caches
+.codex/
+.cursor/
+.claude/

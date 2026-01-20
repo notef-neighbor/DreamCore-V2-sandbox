@@ -3308,13 +3308,10 @@ class GameCreatorApp {
   }
 
   selectAsset(item) {
-    // Clear previous selection
-    this.assetModal.querySelectorAll('.asset-item.selected').forEach(i => {
-      i.classList.remove('selected');
-    });
+    // Initialize selectedAssets array if not exists
+    if (!this.selectedAssets) this.selectedAssets = [];
 
-    item.classList.add('selected');
-    this.selectedAsset = {
+    const asset = {
       id: item.dataset.id,
       url: item.dataset.url,
       name: item.dataset.name,
@@ -3322,15 +3319,52 @@ class GameCreatorApp {
       projectId: item.dataset.projectid || ''
     };
 
-    this.selectedAssetInfo.textContent = this.selectedAsset.name;
-    this.selectedAssetInfo.title = this.selectedAsset.name; // Full name on hover
-    this.insertAssetButton.classList.remove('hidden');
-
-    // Show edit button only for images
-    if (this.selectedAsset.mimeType?.startsWith('image/')) {
-      this.editAssetButton?.classList.remove('hidden');
+    // Toggle selection
+    const existingIndex = this.selectedAssets.findIndex(a => a.id === asset.id);
+    if (existingIndex >= 0) {
+      // Deselect
+      this.selectedAssets.splice(existingIndex, 1);
+      item.classList.remove('selected');
     } else {
+      // Select
+      this.selectedAssets.push(asset);
+      item.classList.add('selected');
+    }
+
+    this.updateAssetFooter();
+  }
+
+  updateAssetFooter() {
+    const count = this.selectedAssets?.length || 0;
+
+    if (count === 0) {
+      this.selectedAssetInfo.textContent = '';
+      this.selectedAssetInfo.title = '';
+      this.insertAssetButton.classList.add('hidden');
       this.editAssetButton?.classList.add('hidden');
+    } else if (count === 1) {
+      const asset = this.selectedAssets[0];
+      this.selectedAssetInfo.textContent = asset.name;
+      this.selectedAssetInfo.title = asset.name;
+      this.insertAssetButton.textContent = '挿入';
+      this.insertAssetButton.classList.remove('hidden');
+
+      // Show edit button only for single image
+      if (asset.mimeType?.startsWith('image/')) {
+        this.editAssetButton?.classList.remove('hidden');
+      } else {
+        this.editAssetButton?.classList.add('hidden');
+      }
+      // Keep selectedAsset for backward compatibility (edit)
+      this.selectedAsset = asset;
+    } else {
+      this.selectedAssetInfo.textContent = `${count}件選択中`;
+      this.selectedAssetInfo.title = this.selectedAssets.map(a => a.name).join('\n');
+      this.insertAssetButton.textContent = `挿入 (${count})`;
+      this.insertAssetButton.classList.remove('hidden');
+      // Hide edit button for multiple selection
+      this.editAssetButton?.classList.add('hidden');
+      this.selectedAsset = null;
     }
   }
 
@@ -3338,9 +3372,9 @@ class GameCreatorApp {
     this.assetModal.querySelectorAll('.asset-item.selected').forEach(i => {
       i.classList.remove('selected');
     });
-    this.selectedAssetInfo.textContent = '';
-    this.insertAssetButton.classList.add('hidden');
-    this.editAssetButton?.classList.add('hidden');
+    this.selectedAssets = [];
+    this.selectedAsset = null;
+    this.updateAssetFooter();
   }
 
   handleFileSelect(files) {
@@ -3534,16 +3568,28 @@ class GameCreatorApp {
   }
 
   insertAssetToChat() {
-    if (!this.selectedAsset) return;
+    // Handle multiple selected assets
+    const assetsToInsert = this.selectedAssets?.length > 0
+      ? this.selectedAssets
+      : (this.selectedAsset ? [this.selectedAsset] : []);
 
-    // Check if already attached
-    const alreadyAttached = this.attachedAssetsList.some(a => a.id === this.selectedAsset.id);
-    if (!alreadyAttached) {
-      this.attachedAssetsList.push({
-        id: this.selectedAsset.id,
-        name: this.selectedAsset.name,
-        url: `/api/assets/${this.selectedAsset.id}`
-      });
+    if (assetsToInsert.length === 0) return;
+
+    let addedCount = 0;
+    for (const asset of assetsToInsert) {
+      // Check if already attached
+      const alreadyAttached = this.attachedAssetsList.some(a => a.id === asset.id);
+      if (!alreadyAttached) {
+        this.attachedAssetsList.push({
+          id: asset.id,
+          name: asset.name,
+          url: `/api/assets/${asset.id}`
+        });
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
       this.renderAttachedAssets();
     }
 
