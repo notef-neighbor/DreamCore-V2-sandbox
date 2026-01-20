@@ -851,6 +851,7 @@ body::before {
 }
 
 .status-indicator {
+  display: none;
   font-size: 0.75rem;
   font-weight: 500;
   padding: var(--s-4) var(--s-12);
@@ -2712,6 +2713,34 @@ body::before {
 
 .new-game-confirm:active {
   transform: scale(0.98);
+}
+
+/* Delete Modal Specific */
+.new-game-icon.delete-icon {
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.delete-message {
+  font-size: 1rem;
+  color: var(--gray-900);
+  margin: 0;
+  text-align: center;
+}
+
+.delete-warning {
+  font-size: 0.8125rem;
+  color: var(--gray-400);
+  margin: var(--s-8) 0 0;
+  text-align: center;
+}
+
+.delete-confirm {
+  background: var(--red);
+}
+
+.delete-confirm:hover {
+  background: #E5352B;
 }
 
 /* ===== Asset Modal ===== */

@@ -802,14 +802,50 @@ class GameCreatorApp {
     const project = this.projects.find(p => p.id === projectId);
     if (!project) return;
 
-    const newName = prompt('Enter new project name:', project.name);
-    if (newName === null || newName === project.name) return;
+    const modal = document.getElementById('renameModal');
+    const input = document.getElementById('renameInput');
+    const confirmBtn = document.getElementById('confirmRename');
+    const cancelBtn = document.getElementById('cancelRename');
 
-    this.ws.send(JSON.stringify({
-      type: 'renameProject',
-      projectId,
-      name: newName
-    }));
+    if (!modal || !input) return;
+
+    // Set current name
+    input.value = project.name;
+    modal.classList.remove('hidden');
+    input.focus();
+    input.select();
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      confirmBtn.removeEventListener('click', handleConfirm);
+      cancelBtn.removeEventListener('click', closeModal);
+      input.removeEventListener('keydown', handleKeydown);
+    };
+
+    const handleConfirm = () => {
+      const newName = input.value.trim();
+      if (newName && newName !== project.name) {
+        this.ws.send(JSON.stringify({
+          type: 'renameProject',
+          projectId,
+          name: newName
+        }));
+      }
+      closeModal();
+    };
+
+    const handleKeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleConfirm();
+      } else if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+
+    confirmBtn.addEventListener('click', handleConfirm);
+    cancelBtn.addEventListener('click', closeModal);
+    input.addEventListener('keydown', handleKeydown);
   }
 
   updateProjectTitle(name, animate = false) {
@@ -890,12 +926,35 @@ class GameCreatorApp {
     const project = this.projects.find(p => p.id === projectId);
     if (!project) return;
 
-    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
+    const modal = document.getElementById('deleteModal');
+    const projectNameEl = document.getElementById('deleteProjectName');
+    const confirmBtn = document.getElementById('confirmDelete');
+    const cancelBtn = document.getElementById('cancelDelete');
 
-    this.ws.send(JSON.stringify({
-      type: 'deleteProject',
-      projectId
-    }));
+    if (!modal) return;
+
+    // Set project name
+    if (projectNameEl) {
+      projectNameEl.textContent = project.name;
+    }
+    modal.classList.remove('hidden');
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      confirmBtn.removeEventListener('click', handleConfirm);
+      cancelBtn.removeEventListener('click', closeModal);
+    };
+
+    const handleConfirm = () => {
+      this.ws.send(JSON.stringify({
+        type: 'deleteProject',
+        projectId
+      }));
+      closeModal();
+    };
+
+    confirmBtn.addEventListener('click', handleConfirm);
+    cancelBtn.addEventListener('click', closeModal);
   }
 
   connectWebSocket() {
