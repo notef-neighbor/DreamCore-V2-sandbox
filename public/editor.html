@@ -269,7 +269,6 @@
               </svg>
               <span>背景削除</span>
             </button>
-            <div class="toolbar-divider"></div>
             <button id="editorUndo" class="tool-btn" disabled title="元に戻す">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 7v6h6"/>
@@ -317,7 +316,10 @@
               <div class="crop-info">
                 <span id="cropSizeInfo">ハンドルをドラッグして調整</span>
               </div>
-              <button id="applyCrop" class="apply-btn">適用</button>
+              <div class="panel-actions">
+                <button class="panel-cancel-btn" data-cancel-tool>キャンセル</button>
+                <button id="applyCrop" class="apply-btn">適用</button>
+              </div>
             </div>
             <div class="tool-panel hidden" id="resizePanel">
               <div class="panel-title">リサイズ設定</div>
@@ -337,12 +339,18 @@
                 <input type="checkbox" id="keepAspect" checked>
                 縦横比を維持
               </label>
-              <button id="applyResize" class="apply-btn">適用</button>
+              <div class="panel-actions">
+                <button class="panel-cancel-btn" data-cancel-tool>キャンセル</button>
+                <button id="applyResize" class="apply-btn">適用</button>
+              </div>
             </div>
             <div class="tool-panel hidden" id="removeBgPanel">
               <div class="panel-title">背景削除</div>
               <p class="panel-desc">AIが自動で背景を検出して透明にします</p>
-              <button id="applyRemoveBg" class="apply-btn">背景を削除</button>
+              <div class="panel-actions">
+                <button class="panel-cancel-btn" data-cancel-tool>キャンセル</button>
+                <button id="applyRemoveBg" class="apply-btn">背景を削除</button>
+              </div>
               <div class="processing-indicator hidden" id="bgProcessing">
                 <div class="spinner"></div>
                 <span>処理中...</span>

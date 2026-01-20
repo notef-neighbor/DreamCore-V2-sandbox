@@ -3848,6 +3848,11 @@ class GameCreatorApp {
     document.getElementById('cancelEdit')?.addEventListener('click', () => this.closeImageEditor());
     document.getElementById('saveEditedImage')?.addEventListener('click', () => this.saveEditedImage());
     document.getElementById('closeImageEditor')?.addEventListener('click', () => this.closeImageEditor());
+
+    // Panel cancel buttons
+    document.querySelectorAll('[data-cancel-tool]').forEach(btn => {
+      btn.addEventListener('click', () => this.selectTool(null));
+    });
   }
 
   openImageEditor() {
@@ -3896,6 +3901,10 @@ class GameCreatorApp {
     document.querySelectorAll('.tool-panel').forEach(panel => {
       panel.classList.add('hidden');
     });
+
+    // Toggle tool-active class on modal for mobile footer visibility
+    const modal = document.querySelector('.image-editor-modal');
+    modal?.classList.toggle('tool-active', !!tool);
 
     if (tool) {
       const panel = document.getElementById(`${tool === 'remove-bg' ? 'removeBg' : tool}Panel`);

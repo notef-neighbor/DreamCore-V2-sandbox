@@ -2436,12 +2436,16 @@ body::before {
 /* ===== Asset Modal ===== */
 .asset-modal {
   max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
 }
 
 .asset-tabs {
   display: flex;
   border-bottom: 1px solid var(--gray-200);
   padding: 0 var(--s-24);
+  flex-shrink: 0;
 }
 
 .asset-tab {
@@ -2467,7 +2471,8 @@ body::before {
 
 .asset-content {
   padding: var(--s-24);
-  max-height: 400px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -2736,6 +2741,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: var(--s-16);
+  flex-shrink: 0;
 }
 
 .asset-selected-name {
@@ -3095,13 +3101,6 @@ body::before {
   gap: var(--s-8);
 }
 
-.toolbar-divider {
-  width: 1px;
-  height: 40px;
-  background: var(--gray-300);
-  flex-shrink: 0;
-}
-
 .tool-btn {
   display: flex;
   flex-direction: column;
@@ -3339,8 +3338,31 @@ body::before {
   transform: scale(0.98);
 }
 
+.panel-actions {
+  display: flex;
+  gap: var(--s-12);
+  margin-top: var(--s-16);
+}
+
+.panel-cancel-btn {
+  flex: 1;
+  padding: var(--s-12);
+  background: var(--white);
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--r-8);
+  color: var(--gray-600);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.panel-cancel-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+}
+
 .apply-btn {
-  width: 100%;
+  flex: 2;
   padding: var(--s-12);
   background: var(--red);
   border: none;
@@ -3594,8 +3616,9 @@ body::before {
     left: 0;
     right: 0;
     background: var(--white);
-    border-radius: 16px 16px 0 0;
-    padding: var(--s-20) var(--s-16) calc(var(--s-16) + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    padding: var(--s-24);
+    padding-bottom: calc(var(--s-24) + env(safe-area-inset-bottom));
     transform: translateY(100%);
     transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
     pointer-events: auto;
@@ -3753,20 +3776,48 @@ body::before {
     transform: scale(0.98);
   }
 
-  /* Apply button */
-  .apply-btn {
-    background: var(--red);
-    color: var(--white);
-    border-radius: 12px;
-    padding: var(--s-14) var(--s-24);
-    font-size: 0.9375rem;
-    margin-top: var(--s-8);
+  /* Panel actions */
+  .panel-actions {
+    display: flex;
+    gap: var(--s-12);
+    margin-top: var(--s-20);
   }
 
-  .apply-btn:hover {
+  .panel-cancel-btn {
+    flex: 1;
+    padding: var(--s-16);
+    background: var(--gray-100);
+    border: none;
+    border-radius: 12px;
+    color: var(--gray-700);
+    font-size: 1rem;
+    font-weight: 600;
+    min-height: 52px;
+    transition: background 0.15s ease;
+  }
+
+  .panel-cancel-btn:active {
+    background: var(--gray-200);
+  }
+
+  .apply-btn {
+    flex: 1.5;
+    background: var(--red);
+    color: var(--white);
+    border: none;
+    border-radius: 12px;
+    padding: var(--s-16);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 0;
+    min-height: 52px;
+    transition: opacity 0.15s ease;
+  }
+
+  .apply-btn:active {
+    opacity: 0.85;
     transform: none;
     box-shadow: none;
-    opacity: 0.9;
   }
 
   /* Processing indicator */
@@ -3790,14 +3841,17 @@ body::before {
     justify-content: flex-end;
     align-items: center;
     gap: var(--s-8);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  /* Hide footer when tool panel is open */
+  .image-editor-modal.tool-active .image-editor-footer {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(100%);
   }
 
   /* Toolbar history buttons on mobile */
-  .toolbar-divider {
-    height: 32px;
-    margin: 0 var(--s-4);
-  }
-
   .history-btn {
     width: 36px;
     height: 36px;
