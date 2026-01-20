@@ -2788,29 +2788,110 @@ body::before {
 
 .crop-overlay.active {
   pointer-events: auto;
-  cursor: crosshair;
 }
 
-.crop-selection {
+/* Dark overlay outside selection */
+.crop-dark-overlay {
   position: absolute;
-  border: 2px dashed var(--red);
-  background: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
 }
 
+.crop-dark {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.crop-dark-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.crop-dark-middle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+}
+
+.crop-dark-left {
+  height: 100%;
+}
+
+.crop-dark-right {
+  height: 100%;
+  margin-left: auto;
+}
+
+.crop-dark-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+/* Selection box */
+.crop-selection-box {
+  position: absolute;
+  border: 2px solid var(--white);
+  box-sizing: border-box;
+}
+
+/* Grid lines (rule of thirds) */
+.crop-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.crop-grid-line {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.crop-grid-v1 { left: 33.33%; top: 0; bottom: 0; width: 1px; }
+.crop-grid-v2 { left: 66.66%; top: 0; bottom: 0; width: 1px; }
+.crop-grid-h1 { top: 33.33%; left: 0; right: 0; height: 1px; }
+.crop-grid-h2 { top: 66.66%; left: 0; right: 0; height: 1px; }
+
+/* Corner handles - Instagram/X style L-shaped */
 .crop-handle {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  background: var(--white);
-  border: 2px solid var(--red);
-  border-radius: 2px;
+  width: 24px;
+  height: 24px;
+  pointer-events: auto;
 }
 
-.crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
-.crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
-.crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
-.crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+.crop-handle::before,
+.crop-handle::after {
+  content: '';
+  position: absolute;
+  background: var(--white);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.crop-handle-nw { top: -3px; left: -3px; cursor: nw-resize; }
+.crop-handle-nw::before { top: 0; left: 0; width: 24px; height: 4px; }
+.crop-handle-nw::after { top: 0; left: 0; width: 4px; height: 24px; }
+
+.crop-handle-ne { top: -3px; right: -3px; cursor: ne-resize; }
+.crop-handle-ne::before { top: 0; right: 0; width: 24px; height: 4px; }
+.crop-handle-ne::after { top: 0; right: 0; width: 4px; height: 24px; }
+
+.crop-handle-sw { bottom: -3px; left: -3px; cursor: sw-resize; }
+.crop-handle-sw::before { bottom: 0; left: 0; width: 24px; height: 4px; }
+.crop-handle-sw::after { bottom: 0; left: 0; width: 4px; height: 24px; }
+
+.crop-handle-se { bottom: -3px; right: -3px; cursor: se-resize; }
+.crop-handle-se::before { bottom: 0; right: 0; width: 24px; height: 4px; }
+.crop-handle-se::after { bottom: 0; right: 0; width: 4px; height: 24px; }
 
 .editor-toolbar {
   display: flex;

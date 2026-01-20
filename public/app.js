@@ -4395,6 +4395,7 @@ class ImageEditor {
 }
 
 // ==================== CropSelection Class ====================
+// Instagram/X style crop UI - shows selection from start with draggable handles
 
 class CropSelection {
   constructor(canvas, overlay, editor) {
@@ -4403,11 +4404,14 @@ class CropSelection {
     this.editor = editor;
     this.rect = null;
     this.aspectRatio = null;
-    this.isDragging = false;
-    this.startX = 0;
-    this.startY = 0;
     this.enabled = false;
 
+    // Drag state
+    this.dragMode = null; // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
+    this.dragStart = { x: 0, y: 0 };
+    this.rectStart = null;
+
+    // Bind event handlers
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
@@ -4418,20 +4422,32 @@ class CropSelection {
 
   enable() {
     this.enabled = true;
-    this.rect = null;
-    this.overlay.innerHTML = '';
 
-    // Use overlay for events since it's on top of canvas
+    // Initialize with full canvas selection
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    this.rect = { x: 0, y: 0, width: w, height: h };
+
+    // Apply aspect ratio if set
+    if (this.aspectRatio) {
+      this.applyAspectRatio();
+    }
+
+    this.drawOverlay();
+    this.updateCropInfo();
+
+    // Add event listeners
     this.overlay.addEventListener('mousedown', this.handleMouseDown);
     document.addEventListener('mousemove', this.handleMouseMove);
     document.addEventListener('mouseup', this.handleMouseUp);
-    this.overlay.addEventListener('touchstart', this.handleTouchStart);
-    document.addEventListener('touchmove', this.handleTouchMove);
+    this.overlay.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+    document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
     document.addEventListener('touchend', this.handleTouchEnd);
   }
 
   disable() {
     this.enabled = false;
+    this.dragMode = null;
     this.overlay.removeEventListener('mousedown', this.handleMouseDown);
     document.removeEventListener('mousemove', this.handleMouseMove);
     document.removeEventListener('mouseup', this.handleMouseUp);
@@ -4448,12 +4464,49 @@ class CropSelection {
       const [w, h] = ratio.split(':').map(Number);
       this.aspectRatio = w / h;
     }
+
+    // Re-apply aspect ratio to current selection
+    if (this.enabled && this.rect) {
+      this.applyAspectRatio();
+      this.drawOverlay();
+      this.updateCropInfo();
+    }
+  }
+
+  applyAspectRatio() {
+    if (!this.aspectRatio || !this.rect) return;
+
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+    const currentRatio = this.rect.width / this.rect.height;
+
+    let newW = this.rect.width;
+    let newH = this.rect.height;
+
+    if (currentRatio > this.aspectRatio) {
+      // Too wide, reduce width
+      newW = this.rect.height * this.aspectRatio;
+    } else {
+      // Too tall, reduce height
+      newH = this.rect.width / this.aspectRatio;
+    }
+
+    // Center the new rect within the old rect
+    const offsetX = (this.rect.width - newW) / 2;
+    const offsetY = (this.rect.height - newH) / 2;
+
+    this.rect.x += offsetX;
+    this.rect.y += offsetY;
+    this.rect.width = newW;
+    this.rect.height = newH;
+
+    // Ensure within bounds
+    this.clampRect();
   }
 
   getRect() {
     if (!this.rect) return null;
 
-    // Convert display coordinates to actual image coordinates
     const scale = this.editor.displayScale;
     return {
       x: Math.round(this.rect.x / scale),
@@ -4464,17 +4517,51 @@ class CropSelection {
   }
 
   getMousePos(e) {
-    // Use overlay rect since events come from overlay
     const rect = this.overlay.getBoundingClientRect();
     return {
-      x: Math.max(0, Math.min(e.clientX - rect.left, rect.width)),
-      y: Math.max(0, Math.min(e.clientY - rect.top, rect.height))
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
   }
 
   getTouchPos(e) {
     const touch = e.touches[0] || e.changedTouches[0];
     return this.getMousePos(touch);
+  }
+
+  getHandleAtPos(pos) {
+    if (!this.rect) return null;
+
+    const { x, y, width, height } = this.rect;
+    const handleSize = 20; // Hit area size
+    const hs = handleSize / 2;
+
+    // Check corners first (they have priority)
+    if (this.isNear(pos, x, y, hs)) return 'nw';
+    if (this.isNear(pos, x + width, y, hs)) return 'ne';
+    if (this.isNear(pos, x, y + height, hs)) return 'sw';
+    if (this.isNear(pos, x + width, y + height, hs)) return 'se';
+
+    // Check edges
+    if (pos.x >= x - hs && pos.x <= x + width + hs) {
+      if (Math.abs(pos.y - y) < hs) return 'n';
+      if (Math.abs(pos.y - (y + height)) < hs) return 's';
+    }
+    if (pos.y >= y - hs && pos.y <= y + height + hs) {
+      if (Math.abs(pos.x - x) < hs) return 'w';
+      if (Math.abs(pos.x - (x + width)) < hs) return 'e';
+    }
+
+    // Check if inside selection (for move)
+    if (pos.x >= x && pos.x <= x + width && pos.y >= y && pos.y <= y + height) {
+      return 'move';
+    }
+
+    return null;
+  }
+
+  isNear(pos, x, y, threshold) {
+    return Math.abs(pos.x - x) < threshold && Math.abs(pos.y - y) < threshold;
   }
 
   handleMouseDown(e) {
@@ -4492,82 +4579,166 @@ class CropSelection {
   }
 
   startDrag(pos) {
-    this.isDragging = true;
-    this.startX = pos.x;
-    this.startY = pos.y;
-    this.rect = { x: pos.x, y: pos.y, width: 0, height: 0 };
+    this.dragMode = this.getHandleAtPos(pos);
+    if (!this.dragMode) return;
+
+    this.dragStart = pos;
+    this.rectStart = { ...this.rect };
   }
 
   handleMouseMove(e) {
-    if (!this.isDragging) return;
+    if (!this.enabled) return;
+
     const pos = this.getMousePos(e);
-    this.updateDrag(pos);
+
+    if (this.dragMode) {
+      e.preventDefault();
+      this.updateDrag(pos);
+    } else {
+      // Update cursor based on hover
+      const handle = this.getHandleAtPos(pos);
+      this.updateCursor(handle);
+    }
   }
 
   handleTouchMove(e) {
-    if (!this.isDragging) return;
+    if (!this.enabled || !this.dragMode) return;
     e.preventDefault();
     const pos = this.getTouchPos(e);
     this.updateDrag(pos);
   }
 
+  updateCursor(handle) {
+    const cursors = {
+      'nw': 'nw-resize', 'ne': 'ne-resize', 'sw': 'sw-resize', 'se': 'se-resize',
+      'n': 'n-resize', 's': 's-resize', 'e': 'e-resize', 'w': 'w-resize',
+      'move': 'move'
+    };
+    this.overlay.style.cursor = cursors[handle] || 'default';
+  }
+
   updateDrag(pos) {
-    let width = pos.x - this.startX;
-    let height = pos.y - this.startY;
+    if (!this.dragMode || !this.rectStart) return;
 
-    // Handle negative dimensions (dragging up/left)
-    let x = this.startX;
-    let y = this.startY;
+    const dx = pos.x - this.dragStart.x;
+    const dy = pos.y - this.dragStart.y;
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+    const minSize = 20;
 
-    if (width < 0) {
-      x = pos.x;
-      width = -width;
-    }
-    if (height < 0) {
-      y = pos.y;
-      height = -height;
-    }
+    if (this.dragMode === 'move') {
+      // Move the selection
+      this.rect.x = this.rectStart.x + dx;
+      this.rect.y = this.rectStart.y + dy;
+    } else {
+      // Resize from handles
+      let { x, y, width, height } = this.rectStart;
 
-    // Apply aspect ratio constraint
-    if (this.aspectRatio) {
-      const currentRatio = width / height;
-      if (currentRatio > this.aspectRatio) {
-        width = height * this.aspectRatio;
-      } else {
-        height = width / this.aspectRatio;
+      // Adjust based on which handle is being dragged
+      if (this.dragMode.includes('w')) {
+        const newX = x + dx;
+        const newWidth = width - dx;
+        if (newWidth >= minSize && newX >= 0) {
+          x = newX;
+          width = newWidth;
+        }
       }
+      if (this.dragMode.includes('e')) {
+        width = Math.max(minSize, width + dx);
+      }
+      if (this.dragMode.includes('n')) {
+        const newY = y + dy;
+        const newHeight = height - dy;
+        if (newHeight >= minSize && newY >= 0) {
+          y = newY;
+          height = newHeight;
+        }
+      }
+      if (this.dragMode.includes('s')) {
+        height = Math.max(minSize, height + dy);
+      }
+
+      // Apply aspect ratio constraint for corner handles
+      if (this.aspectRatio && (this.dragMode.length === 2)) {
+        const currentRatio = width / height;
+        if (currentRatio > this.aspectRatio) {
+          width = height * this.aspectRatio;
+        } else {
+          height = width / this.aspectRatio;
+        }
+      }
+
+      this.rect = { x, y, width, height };
     }
 
-    // Clamp to canvas bounds
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    if (x + width > this.canvas.width) width = this.canvas.width - x;
-    if (y + height > this.canvas.height) height = this.canvas.height - y;
-
-    this.rect = { x, y, width, height };
+    this.clampRect();
     this.drawOverlay();
     this.updateCropInfo();
   }
 
+  clampRect() {
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+
+    // Clamp position
+    if (this.rect.x < 0) this.rect.x = 0;
+    if (this.rect.y < 0) this.rect.y = 0;
+
+    // Clamp size
+    if (this.rect.x + this.rect.width > canvasW) {
+      if (this.dragMode === 'move') {
+        this.rect.x = canvasW - this.rect.width;
+      } else {
+        this.rect.width = canvasW - this.rect.x;
+      }
+    }
+    if (this.rect.y + this.rect.height > canvasH) {
+      if (this.dragMode === 'move') {
+        this.rect.y = canvasH - this.rect.height;
+      } else {
+        this.rect.height = canvasH - this.rect.y;
+      }
+    }
+  }
+
   handleMouseUp() {
-    this.isDragging = false;
+    this.dragMode = null;
+    this.rectStart = null;
   }
 
   handleTouchEnd() {
-    this.isDragging = false;
+    this.dragMode = null;
+    this.rectStart = null;
   }
 
   drawOverlay() {
     if (!this.rect) return;
 
     const { x, y, width, height } = this.rect;
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
 
+    // Create overlay with dark areas outside selection and grid inside
     this.overlay.innerHTML = `
-      <div class="crop-selection" style="left:${x}px;top:${y}px;width:${width}px;height:${height}px;">
-        <div class="crop-handle nw"></div>
-        <div class="crop-handle ne"></div>
-        <div class="crop-handle sw"></div>
-        <div class="crop-handle se"></div>
+      <div class="crop-dark-overlay">
+        <div class="crop-dark crop-dark-top" style="height:${y}px;"></div>
+        <div class="crop-dark-middle" style="top:${y}px;height:${height}px;">
+          <div class="crop-dark crop-dark-left" style="width:${x}px;"></div>
+          <div class="crop-dark crop-dark-right" style="width:${canvasW - x - width}px;"></div>
+        </div>
+        <div class="crop-dark crop-dark-bottom" style="height:${canvasH - y - height}px;"></div>
+      </div>
+      <div class="crop-selection-box" style="left:${x}px;top:${y}px;width:${width}px;height:${height}px;">
+        <div class="crop-grid">
+          <div class="crop-grid-line crop-grid-v1"></div>
+          <div class="crop-grid-line crop-grid-v2"></div>
+          <div class="crop-grid-line crop-grid-h1"></div>
+          <div class="crop-grid-line crop-grid-h2"></div>
+        </div>
+        <div class="crop-handle crop-handle-nw"></div>
+        <div class="crop-handle crop-handle-ne"></div>
+        <div class="crop-handle crop-handle-sw"></div>
+        <div class="crop-handle crop-handle-se"></div>
       </div>
     `;
   }
