@@ -1493,17 +1493,50 @@ app.post('/api/projects/:projectId/generate-thumbnail', async (req, res) => {
       specContent = fs.readFileSync(specPath, 'utf-8');
     }
 
+    // Get project assets with descriptions
+    const projectAssets = db.getProjectAssets(projectId);
+    const assetDescriptions = [];
+    const assetPaths = [];
+
+    for (const asset of projectAssets) {
+      if (asset.is_deleted) continue;
+      if (!asset.mime_type || !asset.mime_type.startsWith('image/')) continue;
+
+      // Build asset description from tags and description
+      const assetInfo = [];
+      if (asset.original_name) assetInfo.push(`ファイル名: ${asset.original_name}`);
+      if (asset.tags) assetInfo.push(`種類: ${asset.tags}`);
+      if (asset.description) assetInfo.push(`説明: ${asset.description}`);
+
+      if (assetInfo.length > 0) {
+        assetDescriptions.push(assetInfo.join(', '));
+      }
+
+      // Add asset path for reference
+      if (asset.storage_path && fs.existsSync(asset.storage_path)) {
+        assetPaths.push(asset.storage_path);
+      }
+    }
+
+    // Limit to 5 reference images (Gemini limitation)
+    const limitedAssetPaths = assetPaths.slice(0, 5);
+
+    // Build prompt with asset information
+    const assetSection = assetDescriptions.length > 0
+      ? `\nゲームで使用している画像アセット:\n${assetDescriptions.slice(0, 10).map((d, i) => `${i + 1}. ${d}`).join('\n')}\n`
+      : '';
+
     // First, use Claude to generate a good image prompt
     const promptGeneratorPrompt = `以下のゲーム情報から、サムネイル画像生成用のプロンプトを作成してください。
 
 タイトル: ${title || project.name}
-${specContent ? `仕様書:\n${specContent.slice(0, 2000)}\n` : ''}
-
+${specContent ? `仕様書:\n${specContent.slice(0, 2000)}\n` : ''}${assetSection}
 要件:
 - ゲームの世界観やキャラクターを表現する魅力的なイラスト
 - 縦長（9:16）のサムネイルに適したレイアウト
 - ゲームアプリのアイコンやストア画像として使える品質
 - 明るく目を引くデザイン
+${limitedAssetPaths.length > 0 ? '- 参照画像のスタイルやキャラクターを取り入れる' : ''}
 
 英語のプロンプトを1行で出力してください（プロンプトのみ、他のテキストは不要）:`;
 
@@ -1530,17 +1563,26 @@ ${specContent ? `仕様書:\n${specContent.slice(0, 2000)}\n` : ''}
     claudePrompt.on('close', async (code) => {
       imagePrompt = imagePrompt.trim().replace(/^["']|["']$/g, '');
       console.log('[Thumbnail] Image prompt:', imagePrompt);
+      console.log('[Thumbnail] Reference images:', limitedAssetPaths.length);
 
       // Step 2: Generate image with Nano Banana
       const outputPath = path.join(projectDir, 'thumbnail.png');
       const nanoBananaScript = path.join(process.env.HOME, '.claude/skills/nanobanana/generate.py');
 
-      const nanoBanana = spawn('python3', [
+      // Build command args with reference images
+      const nanoBananaArgs = [
         nanoBananaScript,
         imagePrompt,
         '-a', '9:16',
         '-o', outputPath
-      ], {
+      ];
+
+      // Add reference images if available
+      if (limitedAssetPaths.length > 0) {
+        nanoBananaArgs.push('--refs', ...limitedAssetPaths);
+      }
+
+      const nanoBanana = spawn('python3', nanoBananaArgs, {
         cwd: process.cwd(),
         env: { ...process.env }
       });
