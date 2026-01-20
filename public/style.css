@@ -2460,15 +2460,11 @@ body::before {
 }
 
 /* ===== Asset Modal ===== */
-#assetModal {
-  align-items: flex-start;
-  padding-top: 7.5vh;
-}
-
 .asset-modal {
   max-width: 800px;
   display: flex;
   flex-direction: column;
+  height: 85vh;
   max-height: 85vh;
 }
 
