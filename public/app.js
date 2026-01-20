@@ -59,6 +59,7 @@ class GameCreatorApp {
     this.refreshButton = document.getElementById('refreshButton');
     this.newProjectButton = document.getElementById('newProjectButton');
     this.playGameButton = document.getElementById('playGameButton');
+    this.publishButton = document.getElementById('publishButton');
     this.gamePreview = document.getElementById('gamePreview');
     this.statusIndicator = document.getElementById('statusIndicator');
     this.projectTitle = document.getElementById('projectTitle');
@@ -1060,6 +1061,7 @@ class GameCreatorApp {
     this.refreshButton?.addEventListener('click', () => this.refreshPreview());
     this.newProjectButton?.addEventListener('click', () => this.createNewProject());
     this.playGameButton?.addEventListener('click', () => this.showPreviewPanel());
+    this.publishButton?.addEventListener('click', () => this.goToPublishPage());
     this.stopButton?.addEventListener('click', () => this.stopGeneration());
     this.versionsButton?.addEventListener('click', () => this.toggleVersionPanel());
     this.closeVersionsButton?.addEventListener('click', () => this.hideVersionPanel());
@@ -1443,6 +1445,14 @@ class GameCreatorApp {
     chatPanel.classList.add('mobile-hidden');
     previewPanel.classList.add('mobile-active');
     this.refreshPreview();
+  }
+
+  goToPublishPage() {
+    if (!this.currentProjectId) {
+      alert('プロジェクトを選択してください');
+      return;
+    }
+    window.location.href = `/publish.html?id=${this.currentProjectId}`;
   }
 
   handleMessage(data) {

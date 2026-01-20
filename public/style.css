@@ -645,6 +645,33 @@ body::before {
   height: 16px;
 }
 
+/* Publish Button - Secondary style */
+#publishButton {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: var(--s-12) var(--s-16);
+  background: var(--white);
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--r-full);
+  color: var(--gray-900);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease-out);
+}
+
+#publishButton:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+  transform: scale(1.05);
+}
+
+#publishButton svg {
+  width: 16px;
+  height: 16px;
+}
+
 .status-indicator {
   font-size: 0.75rem;
   font-weight: 500;

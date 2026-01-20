@@ -1354,6 +1354,251 @@ app.get('/api/projects', (req, res) => {
   res.json({ projects });
 });
 
+// Get single project by ID
+app.get('/api/projects/:projectId', (req, res) => {
+  const project = db.getProjectById(req.params.projectId);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+  res.json(project);
+});
+
+// ==================== Publish API ====================
+
+// Get publish draft
+app.get('/api/projects/:projectId/publish-draft', (req, res) => {
+  const { projectId } = req.params;
+  const draft = db.getPublishDraft(projectId);
+  res.json(draft || null);
+});
+
+// Save publish draft
+app.put('/api/projects/:projectId/publish-draft', (req, res) => {
+  const { projectId } = req.params;
+  const draftData = req.body;
+  db.savePublishDraft(projectId, draftData);
+  res.json({ success: true });
+});
+
+// Generate title, description, tags using Claude CLI (Sonnet)
+app.post('/api/projects/:projectId/generate-publish-info', async (req, res) => {
+  const { projectId } = req.params;
+  const { visitorId } = req.body;
+
+  if (!visitorId) {
+    return res.status(400).json({ error: 'visitorId required' });
+  }
+
+  try {
+    const project = db.getProjectById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Get project code
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const indexPath = path.join(projectDir, 'index.html');
+    let gameCode = '';
+    if (fs.existsSync(indexPath)) {
+      gameCode = fs.readFileSync(indexPath, 'utf-8');
+    }
+
+    // Get spec.md if exists
+    const specPath = path.join(projectDir, 'spec.md');
+    let specContent = '';
+    if (fs.existsSync(specPath)) {
+      specContent = fs.readFileSync(specPath, 'utf-8');
+    }
+
+    const prompt = `以下のゲームプロジェクトの情報から、公開用のタイトル、概要、タグを生成してください。
+
+プロジェクト名: ${project.name}
+
+${specContent ? `仕様書:\n${specContent}\n` : ''}
+${gameCode ? `ゲームコード（抜粋）:\n${gameCode.slice(0, 3000)}\n` : ''}
+
+以下のJSON形式で回答してください（JSONのみ、他のテキストは不要）:
+{
+  "title": "魅力的なゲームタイトル（50文字以内）",
+  "description": "ゲームの概要説明（200文字程度、遊び方や特徴を含む）",
+  "tags": ["タグ1", "タグ2", "タグ3"]
+}
+
+タグは3〜5個、それぞれ10文字以内で。`;
+
+    const { spawn } = require('child_process');
+    const claude = spawn('claude', [
+      '--print',
+      '--model', 'sonnet',
+      '--dangerously-skip-permissions'
+    ], {
+      cwd: process.cwd(),
+      env: { ...process.env }
+    });
+
+    claude.stdin.write(prompt);
+    claude.stdin.end();
+
+    let output = '';
+    claude.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    claude.on('close', (code) => {
+      try {
+        // Extract JSON from response
+        const jsonMatch = output.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const result = JSON.parse(jsonMatch[0]);
+          res.json(result);
+        } else {
+          res.status(500).json({ error: 'Failed to parse AI response', raw: output });
+        }
+      } catch (e) {
+        res.status(500).json({ error: 'Failed to parse JSON', raw: output });
+      }
+    });
+
+    claude.on('error', (err) => {
+      res.status(500).json({ error: err.message });
+    });
+
+  } catch (error) {
+    console.error('Error generating publish info:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generate thumbnail using Nano Banana
+app.post('/api/projects/:projectId/generate-thumbnail', async (req, res) => {
+  const { projectId } = req.params;
+  const { visitorId, title } = req.body;
+
+  if (!visitorId) {
+    return res.status(400).json({ error: 'visitorId required' });
+  }
+
+  try {
+    const project = db.getProjectById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Get spec.md if exists
+    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const specPath = path.join(projectDir, 'spec.md');
+    let specContent = '';
+    if (fs.existsSync(specPath)) {
+      specContent = fs.readFileSync(specPath, 'utf-8');
+    }
+
+    // First, use Claude to generate a good image prompt
+    const promptGeneratorPrompt = `以下のゲーム情報から、サムネイル画像生成用のプロンプトを作成してください。
+
+タイトル: ${title || project.name}
+${specContent ? `仕様書:\n${specContent.slice(0, 2000)}\n` : ''}
+
+要件:
+- ゲームの世界観やキャラクターを表現する魅力的なイラスト
+- 縦長（9:16）のサムネイルに適したレイアウト
+- ゲームアプリのアイコンやストア画像として使える品質
+- 明るく目を引くデザイン
+
+英語のプロンプトを1行で出力してください（プロンプトのみ、他のテキストは不要）:`;
+
+    const { spawn } = require('child_process');
+
+    // Step 1: Generate image prompt with Claude
+    const claudePrompt = spawn('claude', [
+      '--print',
+      '--model', 'sonnet',
+      '--dangerously-skip-permissions'
+    ], {
+      cwd: process.cwd(),
+      env: { ...process.env }
+    });
+
+    claudePrompt.stdin.write(promptGeneratorPrompt);
+    claudePrompt.stdin.end();
+
+    let imagePrompt = '';
+    claudePrompt.stdout.on('data', (data) => {
+      imagePrompt += data.toString();
+    });
+
+    claudePrompt.on('close', async (code) => {
+      imagePrompt = imagePrompt.trim().replace(/^["']|["']$/g, '');
+      console.log('[Thumbnail] Image prompt:', imagePrompt);
+
+      // Step 2: Generate image with Nano Banana
+      const outputPath = path.join(projectDir, 'thumbnail.png');
+      const nanoBananaScript = path.join(process.env.HOME, '.claude/skills/nanobanana/generate.py');
+
+      const nanoBanana = spawn('python3', [
+        nanoBananaScript,
+        imagePrompt,
+        '-a', '9:16',
+        '-o', outputPath
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env }
+      });
+
+      let nbOutput = '';
+      nanoBanana.stdout.on('data', (data) => {
+        nbOutput += data.toString();
+        console.log('[NanoBanana]', data.toString());
+      });
+      nanoBanana.stderr.on('data', (data) => {
+        console.error('[NanoBanana Error]', data.toString());
+      });
+
+      nanoBanana.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputPath)) {
+          // Return URL to the generated thumbnail
+          const thumbnailUrl = `/api/projects/${projectId}/thumbnail?t=${Date.now()}`;
+          res.json({ success: true, thumbnailUrl, prompt: imagePrompt });
+        } else {
+          res.status(500).json({ error: 'Failed to generate thumbnail', output: nbOutput });
+        }
+      });
+
+      nanoBanana.on('error', (err) => {
+        res.status(500).json({ error: err.message });
+      });
+    });
+
+    claudePrompt.on('error', (err) => {
+      res.status(500).json({ error: err.message });
+    });
+
+  } catch (error) {
+    console.error('Error generating thumbnail:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get thumbnail image
+app.get('/api/projects/:projectId/thumbnail', (req, res) => {
+  const { projectId } = req.params;
+  const { visitorId } = req.query;
+
+  // Find project to get visitor ID
+  const project = db.getProjectById(projectId);
+  if (!project) {
+    return res.status(404).send('Project not found');
+  }
+
+  const projectDir = userManager.getProjectDir(project.visitor_id, projectId);
+  const thumbnailPath = path.join(projectDir, 'thumbnail.png');
+
+  if (fs.existsSync(thumbnailPath)) {
+    res.sendFile(thumbnailPath);
+  } else {
+    res.status(404).send('Thumbnail not found');
+  }
+});
+
 // ==================== My Page Route ====================
 
 app.get('/mypage', (req, res) => {

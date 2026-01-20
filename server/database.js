@@ -131,6 +131,19 @@ const initSchema = () => {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    -- Publish drafts table
+    CREATE TABLE IF NOT EXISTS publish_drafts (
+      project_id TEXT PRIMARY KEY,
+      title TEXT,
+      description TEXT,
+      tags TEXT,
+      visibility TEXT DEFAULT 'public',
+      remix TEXT DEFAULT 'allowed',
+      thumbnail_url TEXT,
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
     -- Indexes for performance (excluding assets indexes that depend on migrated columns)
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
     CREATE INDEX IF NOT EXISTS idx_projects_is_public ON projects(is_public);
@@ -575,6 +588,51 @@ const cleanupExpiredSessions = () => {
   sessionQueries.deleteExpired.run();
 };
 
+// ==================== Publish Draft Operations ====================
+
+const publishDraftQueries = {
+  findByProjectId: db.prepare('SELECT * FROM publish_drafts WHERE project_id = ?'),
+  upsert: db.prepare(`
+    INSERT INTO publish_drafts (project_id, title, description, tags, visibility, remix, thumbnail_url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(project_id) DO UPDATE SET
+      title = excluded.title,
+      description = excluded.description,
+      tags = excluded.tags,
+      visibility = excluded.visibility,
+      remix = excluded.remix,
+      thumbnail_url = excluded.thumbnail_url,
+      updated_at = datetime('now')
+  `),
+  delete: db.prepare('DELETE FROM publish_drafts WHERE project_id = ?'),
+};
+
+const getPublishDraft = (projectId) => {
+  const draft = publishDraftQueries.findByProjectId.get(projectId);
+  if (!draft) return null;
+  return {
+    ...draft,
+    tags: draft.tags ? JSON.parse(draft.tags) : []
+  };
+};
+
+const savePublishDraft = (projectId, data) => {
+  const tags = Array.isArray(data.tags) ? JSON.stringify(data.tags) : data.tags;
+  publishDraftQueries.upsert.run(
+    projectId,
+    data.title || '',
+    data.description || '',
+    tags || '[]',
+    data.visibility || 'public',
+    data.remix || 'allowed',
+    data.thumbnailUrl || null
+  );
+};
+
+const deletePublishDraft = (projectId) => {
+  publishDraftQueries.delete.run(projectId);
+};
+
 // ==================== Activity Log Operations ====================
 
 const activityQueries = {
@@ -746,4 +804,9 @@ module.exports = {
   logActivity,
   getActivityByUserId,
   getRecentActivity,
+
+  // Publish draft operations
+  getPublishDraft,
+  savePublishDraft,
+  deletePublishDraft,
 };

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゲームを登録 - ゲームクリエイター</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/publish.css">
+</head>
+<body data-page="publish">
+  <div class="publish-container">
+    <!-- Header -->
+    <header class="publish-header">
+      <button id="backButton" class="back-btn" title="エディタに戻る">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        <span>戻る</span>
+      </button>
+      <h1>ゲームを登録</h1>
+      <div class="save-status" id="saveStatus">
+        <span class="save-indicator"></span>
+        <span class="save-text">保存済み</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="publish-main">
+      <!-- Left: Thumbnail Preview -->
+      <section class="thumbnail-section">
+        <div class="thumbnail-preview" id="thumbnailPreview">
+          <div class="thumbnail-placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>サムネイルを生成中...</span>
+          </div>
+          <img id="thumbnailImage" class="hidden" alt="サムネイル">
+        </div>
+        <div class="thumbnail-actions">
+          <button id="regenerateThumbnail" class="secondary-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            再生成
+          </button>
+          <button id="uploadThumbnail" class="secondary-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            アップロード
+          </button>
+        </div>
+      </section>
+
+      <!-- Right: Form -->
+      <section class="form-section">
+        <!-- Title -->
+        <div class="form-group">
+          <label for="gameTitle">タイトル</label>
+          <div class="input-with-generate">
+            <input type="text" id="gameTitle" placeholder="ゲームのタイトル" maxlength="50">
+            <button id="regenerateTitle" class="generate-btn" title="AIで再生成">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <span class="char-count"><span id="titleCount">0</span>/50</span>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label for="gameDescription">概要</label>
+          <div class="input-with-generate">
+            <textarea id="gameDescription" placeholder="ゲームの説明" rows="4" maxlength="500"></textarea>
+            <button id="regenerateDescription" class="generate-btn" title="AIで再生成">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <span class="char-count"><span id="descriptionCount">0</span>/500</span>
+        </div>
+
+        <!-- Tags -->
+        <div class="form-group">
+          <label for="gameTags">タグ</label>
+          <div class="tags-container" id="tagsContainer">
+            <!-- Tags will be inserted here -->
+          </div>
+          <div class="input-with-generate">
+            <input type="text" id="tagInput" placeholder="タグを追加（Enterで確定）" maxlength="20">
+            <button id="regenerateTags" class="generate-btn" title="AIで再生成">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Visibility -->
+        <div class="form-group">
+          <label>公開範囲</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="visibility" value="public" checked>
+              <span class="radio-custom"></span>
+              <div class="radio-content">
+                <span class="radio-label">公開</span>
+                <span class="radio-desc">誰でも見つけて遊べます</span>
+              </div>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="visibility" value="unlisted">
+              <span class="radio-custom"></span>
+              <div class="radio-content">
+                <span class="radio-label">限定公開</span>
+                <span class="radio-desc">リンクを知っている人だけ遊べます</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Remix Permission -->
+        <div class="form-group">
+          <label>Remix</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="remix" value="allowed" checked>
+              <span class="radio-custom"></span>
+              <div class="radio-content">
+                <span class="radio-label">許可する</span>
+                <span class="radio-desc">他の人がこのゲームを元に新しく作れます</span>
+              </div>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="remix" value="disallowed">
+              <span class="radio-custom"></span>
+              <div class="radio-content">
+                <span class="radio-label">許可しない</span>
+                <span class="radio-desc">Remixを禁止します</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="publish-footer">
+      <button id="cancelButton" class="cancel-btn">キャンセル</button>
+      <button id="publishButton" class="publish-submit-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 2L11 13"></path>
+          <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
+        </svg>
+        登録する
+      </button>
+    </footer>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <span id="loadingText">AIが情報を生成しています...</span>
+    </div>
+  </div>
+
+  <script src="/publish.js"></script>
+</body>
+</html>
