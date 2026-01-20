@@ -455,58 +455,55 @@ body[data-page="publish"] {
 }
 
 /* ============================================
-   Inline Field Loading (Nintendo-style)
+   Inline Field Loading (Kashiwa Sato × Nintendo)
+   - Ultra-minimal, clean, purposeful
    ============================================ */
 
-/* Input wrapper with overlay cover */
+/* Input wrapper base */
 .input-with-generate {
   position: relative;
 }
 
+/* Clean overlay */
 .input-with-generate.generating::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--white);
   border-radius: var(--r-12);
   z-index: 10;
-  animation: fadeIn 0.2s ease-out;
+  opacity: 0;
+  animation: overlayFadeIn 0.3s ease-out forwards;
 }
 
+@keyframes overlayFadeIn {
+  to { opacity: 0.92; }
+}
+
+/* Minimal loading indicator - three dots */
 .input-with-generate.generating::after {
-  content: '';
+  content: '・・・';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
-  border: 3px solid var(--gray-200);
-  border-top-color: var(--red);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  font-size: 1.25rem;
+  letter-spacing: 0.25em;
+  color: var(--red);
   z-index: 11;
+  animation: dotsWave 1.4s ease-in-out infinite;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes dotsWave {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
-/* Subtle pulse on the overlay */
-.input-with-generate.generating::before {
-  animation: fadeIn 0.2s ease-out, overlayPulse 2s ease-in-out infinite;
-}
-
-@keyframes overlayPulse {
-  0%, 100% { background: rgba(255, 255, 255, 0.85); }
-  50% { background: rgba(255, 241, 240, 0.9); }
-}
-
-/* Generate button hidden during generation */
+/* Generate button - fade out cleanly */
 .generate-btn.generating {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.2s ease-out;
 }
 
 /* Tags container loading */
@@ -521,51 +518,65 @@ body[data-page="publish"] {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--white);
   border-radius: var(--r-8);
   z-index: 10;
-  animation: fadeIn 0.2s ease-out, overlayPulse 2s ease-in-out infinite;
+  opacity: 0;
+  animation: overlayFadeIn 0.3s ease-out forwards;
 }
 
 .tags-container.generating::after {
-  content: '';
+  content: '・・・';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--gray-200);
-  border-top-color: var(--red);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  font-size: 1rem;
+  letter-spacing: 0.25em;
+  color: var(--red);
   z-index: 11;
+  animation: dotsWave 1.4s ease-in-out infinite;
 }
 
 /* Thumbnail generating state */
+.thumbnail-preview.generating {
+  position: relative;
+}
+
+.thumbnail-preview.generating::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--white);
+  border-radius: var(--r-16);
+  z-index: 10;
+  opacity: 0;
+  animation: overlayFadeIn 0.3s ease-out forwards;
+}
+
+.thumbnail-preview.generating::after {
+  content: '・・・';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  letter-spacing: 0.25em;
+  color: var(--red);
+  z-index: 11;
+  animation: dotsWave 1.4s ease-in-out infinite;
+}
+
 .thumbnail-preview.generating .thumbnail-placeholder {
-  animation: pulse 1.5s ease-in-out infinite;
+  opacity: 0;
 }
 
-.thumbnail-preview.generating .thumbnail-placeholder svg {
-  animation: spin 2s linear infinite;
-  opacity: 0.8;
-}
-
-/* Form group label with loading indicator */
+/* Form group label - simple text indicator */
 .form-group.generating > label::after {
-  content: '生成中';
-  display: inline-block;
-  margin-left: 8px;
+  content: ' — 生成中';
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--red);
-  animation: labelPulse 1s ease-in-out infinite;
-}
-
-@keyframes labelPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  color: var(--gray-400);
 }
 
 /* Mobile Responsive */
