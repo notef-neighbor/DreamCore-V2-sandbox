@@ -1550,8 +1550,8 @@ app.post('/api/projects/:projectId/generate-thumbnail', async (req, res) => {
       }
     }
 
-    // Limit to 5 reference images (Gemini limitation)
-    const limitedAssetPaths = assetPaths.slice(0, 5);
+    // Limit to 3 reference images for speed
+    const limitedAssetPaths = assetPaths.slice(0, 3);
 
     // Asset descriptions are now in spec.md (in the "使用画像アセット" section)
     // The spec is already included in specContent, so no need to build separate assetSection
@@ -1577,7 +1577,11 @@ ${specContent ? `仕様書（「使用画像アセット」セクションに各
 - 明るく目を引くデザイン
 ${limitedAssetPaths.length > 0 ? '- 参照画像のキャラクター・オブジェクトを必ずサムネイルに含める（新しいキャラクターを作らない）' : ''}
 
-英語のプロンプトを1行で出力してください。${limitedAssetPaths.length > 0 ? '必ず「Use the provided reference images」という指示を含めてください。' : ''}プロンプトのみ出力:`;
+出力形式: 画像生成プロンプトを1行のみ。説明や前置きは一切不要。
+${limitedAssetPaths.length > 0 ? '必ず「参照画像のキャラクターをそのまま使用」という指示を含める。' : ''}
+例: "カラフルなプラットフォームを飛び越えるかわいい猫キャラクター、ピクセルアート風ゲームシーン"
+
+プロンプト:`;
 
     const { spawn } = require('child_process');
 
@@ -1600,7 +1604,20 @@ ${limitedAssetPaths.length > 0 ? '- 参照画像のキャラクター・オブ�
     });
 
     claudePrompt.on('close', async (code) => {
-      imagePrompt = imagePrompt.trim().replace(/^["']|["']$/g, '');
+      const rawOutput = imagePrompt.trim();
+      console.log('[Thumbnail] Raw Claude output:', rawOutput);
+
+      // シンプルなパース: 余計な記号だけ除去
+      imagePrompt = rawOutput
+        .replace(/^["'`]+|["'`]+$/g, '')  // 引用符除去
+        .replace(/^\*+|\*+$/g, '')         // アスタリスク除去
+        .trim();
+
+      // プロンプトが短すぎる場合は生の出力を使用
+      if (imagePrompt.length < 20) {
+        imagePrompt = rawOutput;
+      }
+
       console.log('[Thumbnail] Image prompt:', imagePrompt);
       console.log('[Thumbnail] Reference images:', limitedAssetPaths.length);
 

@@ -250,7 +250,8 @@ class PublishPage {
         const result = await response.json();
         if (result.thumbnailUrl) {
           this.publishData.thumbnailUrl = result.thumbnailUrl;
-          this.thumbnailImage.src = result.thumbnailUrl;
+          // キャッシュバスターを追加して強制リロード
+          this.thumbnailImage.src = result.thumbnailUrl + '?t=' + Date.now();
           this.thumbnailImage.classList.remove('hidden');
           if (placeholder) placeholder.classList.add('hidden');
           // Save immediately (not debounced) to persist thumbnail
