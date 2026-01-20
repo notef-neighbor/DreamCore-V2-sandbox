@@ -621,6 +621,25 @@ body::before {
   height: 16px;
 }
 
+#historyButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--gray-100);
+  border: none;
+  border-radius: var(--r-full);
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease-out);
+}
+
+#historyButton:hover {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
 .status-indicator {
   font-size: 0.75rem;
   font-weight: 500;
@@ -1106,6 +1125,17 @@ body::before {
   color: var(--gray-400);
   box-shadow: none;
   cursor: not-allowed;
+}
+
+#sendButton.reconnect-mode {
+  background: var(--gray-600) !important;
+  color: var(--white) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  cursor: pointer !important;
+}
+
+#sendButton.reconnect-mode:hover {
+  background: var(--gray-900) !important;
 }
 
 #sendButton svg {

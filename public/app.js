@@ -58,6 +58,7 @@ class GameCreatorApp {
     this.stopButton = document.getElementById('stopButton');
     this.refreshButton = document.getElementById('refreshButton');
     this.newProjectButton = document.getElementById('newProjectButton');
+    this.historyButton = document.getElementById('historyButton');
     this.gamePreview = document.getElementById('gamePreview');
     this.statusIndicator = document.getElementById('statusIndicator');
     this.projectTitle = document.getElementById('projectTitle');
@@ -852,6 +853,7 @@ class GameCreatorApp {
 
     this.ws.onopen = () => {
       console.log(`[${this.sessionId}] WebSocket connected`);
+      this.isConnected = true;
       this.reconnectAttempts = 0; // Reset on successful connection
       if (this.statusIndicator) {
         this.updateStatus('connected', '接続中');
@@ -860,6 +862,8 @@ class GameCreatorApp {
         this.listStatusIndicator.className = 'status-indicator connected';
         this.listStatusIndicator.textContent = '接続中';
       }
+      // Restore send button to normal state
+      this.restoreSendButton();
       this.ws.send(JSON.stringify({
         type: 'init',
         visitorId: this.visitorId,
@@ -874,6 +878,7 @@ class GameCreatorApp {
 
     this.ws.onclose = (event) => {
       console.log(`[${this.sessionId}] WebSocket closed: code=${event.code}, reason=${event.reason}`);
+      this.isConnected = false;
       if (this.statusIndicator) {
         this.updateStatus('', '再接続中...');
       }
@@ -881,7 +886,8 @@ class GameCreatorApp {
         this.listStatusIndicator.className = 'status-indicator';
         this.listStatusIndicator.textContent = '再接続中...';
       }
-      if (this.sendButton) this.sendButton.disabled = true;
+      // Show reconnect button
+      this.showReconnectButton();
       if (this.chatInput) this.chatInput.disabled = true;
       // Exponential backoff: 1s, 1.5s, 2.25s, ... max 10s
       const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts || 0), 10000);
@@ -1051,6 +1057,10 @@ class GameCreatorApp {
 
     this.refreshButton?.addEventListener('click', () => this.refreshPreview());
     this.newProjectButton?.addEventListener('click', () => this.createNewProject());
+    this.historyButton?.addEventListener('click', () => {
+      history.pushState(null, '', '/');
+      this.showListView();
+    });
     this.stopButton?.addEventListener('click', () => this.stopGeneration());
     this.versionsButton?.addEventListener('click', () => this.toggleVersionPanel());
     this.closeVersionsButton?.addEventListener('click', () => this.hideVersionPanel());
@@ -2051,6 +2061,13 @@ class GameCreatorApp {
   }
 
   sendMessage() {
+    // Handle reconnect mode
+    if (!this.isConnected) {
+      console.log('[sendMessage] Triggering reconnect');
+      this.forceReconnect();
+      return;
+    }
+
     if (!this.chatInput) return;
     const content = this.chatInput.value.trim();
     console.log('[sendMessage]', { content, isProcessing: this.isProcessing, currentProjectId: this.currentProjectId });
@@ -2744,6 +2761,36 @@ class GameCreatorApp {
     if (!this.statusIndicator) return;
     this.statusIndicator.className = `status-indicator ${className}`;
     this.statusIndicator.textContent = text;
+  }
+
+  showReconnectButton() {
+    if (!this.sendButton) return;
+    this.sendButton.disabled = false;
+    this.sendButton.classList.add('reconnect-mode');
+    this.sendButton.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"></polyline>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+      </svg>
+      再接続する
+    `;
+  }
+
+  restoreSendButton() {
+    if (!this.sendButton) return;
+    this.sendButton.classList.remove('reconnect-mode');
+    this.sendButton.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+      送信
+    `;
+    // Re-enable based on current project state
+    if (this.currentProjectId && !this.isProcessing) {
+      this.sendButton.disabled = false;
+      if (this.chatInput) this.chatInput.disabled = false;
+    }
   }
 
   // Version methods
