@@ -4479,17 +4479,13 @@ class ImageEditor {
     const maxWidth = container.clientWidth - 40;
     const maxHeight = container.clientHeight - 40;
 
-    let displayWidth = this.width;
-    let displayHeight = this.height;
+    // Scale to fit container (both scale up and down)
+    const scaleX = maxWidth / this.width;
+    const scaleY = maxHeight / this.height;
+    const scale = Math.min(scaleX, scaleY);
 
-    if (displayWidth > maxWidth) {
-      displayWidth = maxWidth;
-      displayHeight = displayWidth / this.aspectRatio;
-    }
-    if (displayHeight > maxHeight) {
-      displayHeight = maxHeight;
-      displayWidth = displayHeight * this.aspectRatio;
-    }
+    const displayWidth = Math.round(this.width * scale);
+    const displayHeight = Math.round(this.height * scale);
 
     this.canvas.width = displayWidth;
     this.canvas.height = displayHeight;
