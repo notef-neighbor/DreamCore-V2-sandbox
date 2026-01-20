@@ -379,20 +379,129 @@ body::before {
   margin-top: 280px;
 }
 
-.games-label {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  color: var(--gray-400);
+/* Games Filter Bar - Nintendo × Kashiwa Sato Style */
+.games-filter-bar {
+  --slider-index: 0;
+  position: relative;
+  display: flex;
+  background: var(--gray-100);
+  border-radius: var(--r-16);
+  padding: 4px;
   margin-bottom: var(--s-24);
-  padding-left: var(--s-4);
+  gap: 4px;
+}
+
+/* Animated Slider - Glassmorphism Water/Slime */
+.filter-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px - 8px) / 3);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(220, 240, 255, 0.85) 50%,
+    rgba(200, 230, 255, 0.9) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--r-12);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 4px 16px rgba(100, 180, 255, 0.2),
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-radius 0.3s ease;
+  transform: translateX(calc(var(--slider-index) * (100% + 4px)));
+}
+
+/* Water ripple highlight */
+.filter-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 10%;
+  right: 10%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+/* Stretch effect when moving - more blobby */
+.filter-slider.stretching {
+  width: calc((100% - 8px - 8px) / 3 + 16px);
+  border-radius: var(--r-16);
+}
+
+.filter-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--s-12) var(--s-8);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--gray-400);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-12);
+  cursor: pointer;
+  transition: color 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 1;
+  position: relative;
+}
+
+.filter-tab:hover {
+  color: var(--gray-600);
+}
+
+/* Refraction effect - content appears larger through the glass */
+.filter-tab.active {
+  color: var(--gray-900);
+  transform: scale(1.08);
+  text-shadow: 0 0 1px rgba(0, 100, 200, 0.1);
+}
+
+.filter-count {
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Extra magnification for numbers - like looking through water */
+.filter-tab.active .filter-count {
+  transform: scale(1.12);
+}
+
+.filter-tab:active {
+  transform: scale(0.95);
+}
+
+.filter-tab:active .filter-count {
+  transform: scale(0.9);
 }
 
 /* Project Grid */
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--s-16);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--s-12);
 }
 
 /* Project Card - Minimal */
@@ -400,17 +509,17 @@ body::before {
   position: relative;
   background: var(--gray-50);
   border-radius: var(--r-16);
-  padding: var(--s-24);
   cursor: pointer;
   transition: all 0.3s var(--ease-out);
   border: 1px solid transparent;
+  overflow: hidden;
 }
 
 .project-card::before {
   content: '';
   position: absolute;
-  top: var(--s-16);
-  right: var(--s-16);
+  top: var(--s-8);
+  right: var(--s-8);
   width: 8px;
   height: 8px;
   background: var(--red);
@@ -418,6 +527,74 @@ body::before {
   opacity: 0;
   transform: scale(0);
   transition: all 0.3s var(--ease-out);
+  z-index: 2;
+}
+
+/* Project Card Thumbnail */
+.project-card-thumbnail {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: var(--gray-100);
+  overflow: hidden;
+}
+
+.project-card-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Published Badge */
+.project-card-badge {
+  position: absolute;
+  top: var(--s-8);
+  left: var(--s-8);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--white);
+  background: #34C759;
+  border-radius: var(--r-full);
+  z-index: 3;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.project-card-badge svg {
+  flex-shrink: 0;
+}
+
+.project-card-thumbnail-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-16);
+  box-sizing: border-box;
+}
+
+.project-card-thumbnail-placeholder .placeholder-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--white);
+  text-align: center;
+  line-height: 1.3;
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.3);
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
 
 .project-card:hover {
@@ -437,7 +614,7 @@ body::before {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--s-12);
-  margin-bottom: var(--s-12);
+  padding: var(--s-16) var(--s-16) 0;
 }
 
 .project-card-title {
@@ -486,6 +663,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: var(--s-8);
+  padding: var(--s-8) var(--s-16) var(--s-16);
 }
 
 .project-card-date {
@@ -2012,14 +2190,64 @@ body::before {
   }
 
   .project-grid {
-    grid-template-columns: 1fr;
-    gap: var(--s-12);
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--s-8);
   }
 
   .project-card {
-    padding: var(--s-16);
     background: var(--white);
     border-color: var(--gray-200);
+  }
+
+  .project-card-thumbnail {
+    aspect-ratio: 1 / 1;
+  }
+
+  .project-card-header {
+    padding: var(--s-8) var(--s-8) 0;
+  }
+
+  .project-card-meta {
+    padding: var(--s-4) var(--s-8) var(--s-8);
+  }
+
+  .project-card-title {
+    font-size: 0.875rem;
+  }
+
+  .project-card-date {
+    font-size: 0.6875rem;
+  }
+
+  .project-card-thumbnail-placeholder {
+    padding: var(--s-8);
+  }
+
+  .project-card-thumbnail-placeholder .placeholder-title {
+    font-size: 0.875rem;
+    -webkit-line-clamp: 3;
+  }
+
+  .project-card-badge {
+    padding: 3px 6px;
+    font-size: 0.5625rem;
+  }
+
+  .project-card-badge svg {
+    width: 8px;
+    height: 8px;
+  }
+
+  .games-filter-bar {
+    margin-bottom: var(--s-16);
+  }
+
+  .filter-tab {
+    padding: var(--s-8) var(--s-4);
+  }
+
+  .filter-count {
+    font-size: 1.25rem;
   }
 
   /* Show red dot by default on mobile */

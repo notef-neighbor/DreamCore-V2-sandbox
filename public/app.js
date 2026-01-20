@@ -42,6 +42,8 @@ class GameCreatorApp {
     this.projectListView = document.getElementById('projectListView');
     this.editorView = document.getElementById('editorView');
     this.projectGrid = document.getElementById('projectGrid');
+    this.gamesFilter = document.getElementById('gamesFilter');
+    this.currentProjectFilter = 'all';
     this.createProjectButton = document.getElementById('createProjectButton');
     this.listStatusIndicator = document.getElementById('listStatusIndicator');
     this.homeButton = document.getElementById('homeButton');
@@ -686,6 +688,18 @@ class GameCreatorApp {
   renderProjectGrid() {
     if (!this.projectGrid) return;
 
+    // Update filter counts
+    const allCount = this.projects.length;
+    const publishedCount = this.projects.filter(p => p.isPublic).length;
+    const draftCount = this.projects.filter(p => !p.isPublic).length;
+
+    const countAll = document.getElementById('filterCountAll');
+    const countPublished = document.getElementById('filterCountPublished');
+    const countDraft = document.getElementById('filterCountDraft');
+    if (countAll) countAll.textContent = allCount;
+    if (countPublished) countPublished.textContent = publishedCount;
+    if (countDraft) countDraft.textContent = draftCount;
+
     if (this.projects.length === 0) {
       this.projectGrid.innerHTML = `
         <div class="project-empty">
@@ -695,8 +709,47 @@ class GameCreatorApp {
       return;
     }
 
-    this.projectGrid.innerHTML = this.projects.map(project => `
-      <div class="project-card" data-id="${project.id}">
+    // Filter projects based on current filter
+    const filter = this.currentProjectFilter || 'all';
+    const filteredProjects = this.projects.filter(p => {
+      if (filter === 'published') return p.isPublic;
+      if (filter === 'draft') return !p.isPublic;
+      return true;
+    });
+
+    if (filteredProjects.length === 0) {
+      const emptyMessage = filter === 'published' ? '公開中のゲームはありません' :
+                          filter === 'draft' ? '下書きのゲームはありません' :
+                          'まだゲームがありません';
+      this.projectGrid.innerHTML = `
+        <div class="project-empty">
+          <p>${emptyMessage}</p>
+        </div>
+      `;
+      return;
+    }
+
+    this.projectGrid.innerHTML = filteredProjects.map((project, index) => `
+      <div class="project-card ${project.isPublic ? 'is-published' : ''}" data-id="${project.id}">
+        <div class="project-card-thumbnail">
+          ${project.isPublic ? `
+            <div class="project-card-badge">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+              公開中
+            </div>
+          ` : ''}
+          <img
+            src="/api/projects/${project.id}/thumbnail"
+            alt="${this.escapeHtml(project.name)}"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+            onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
+          >
+          <div class="project-card-thumbnail-placeholder" style="background: linear-gradient(135deg, hsl(${(index * 37) % 360}, 65%, 75%), hsl(${(index * 37 + 60) % 360}, 70%, 65%));">
+            <span class="placeholder-title">${this.escapeHtml(project.name)}</span>
+          </div>
+        </div>
         <div class="project-card-header">
           <h3 class="project-card-title">${this.escapeHtml(project.name)}</h3>
           <div class="project-card-actions">
@@ -1034,6 +1087,34 @@ class GameCreatorApp {
   }
 
   setupEventListeners() {
+    // Games filter tabs with animated slider
+    const filterSlider = document.getElementById('filterSlider');
+    this.gamesFilter?.querySelectorAll('.filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const index = parseInt(tab.dataset.index);
+
+        // Animate slider with stretch effect
+        if (filterSlider && this.gamesFilter) {
+          // Add stretch effect
+          filterSlider.classList.add('stretching');
+
+          // Update position via CSS variable
+          this.gamesFilter.style.setProperty('--slider-index', index);
+
+          // Remove stretch after animation starts
+          setTimeout(() => {
+            filterSlider.classList.remove('stretching');
+          }, 150);
+        }
+
+        // Update active state
+        this.gamesFilter.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        this.currentProjectFilter = tab.dataset.filter;
+        this.renderProjectGrid();
+      });
+    });
+
     // Editor page elements
     this.sendButton?.addEventListener('click', () => this.sendMessage());
 
