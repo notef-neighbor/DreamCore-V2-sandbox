@@ -1809,6 +1809,68 @@ app.get('/mypage', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'mypage.html'));
 });
 
+// ==================== Play Screen Route ====================
+
+app.get('/play/:projectId', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'play.html'));
+});
+
+// ==================== Public Games API ====================
+
+// Get random public game (must be before :projectId to avoid matching 'random' as projectId)
+app.get('/api/public/games/random', (req, res) => {
+  try {
+    const publicGames = db.getPublicProjects(100);
+
+    if (publicGames.length === 0) {
+      return res.status(404).json({ error: 'No public games available' });
+    }
+
+    const randomIndex = Math.floor(Math.random() * publicGames.length);
+    const game = publicGames[randomIndex];
+
+    res.json({
+      id: game.id,
+      name: game.name
+    });
+  } catch (error) {
+    console.error('Error fetching random game:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single public game info
+app.get('/api/public/games/:projectId', (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const project = db.getProjectById(projectId);
+
+    if (!project || !project.is_public) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    const draft = db.getPublishDraft(projectId);
+    const user = db.getUserById(project.user_id);
+
+    res.json({
+      id: project.id,
+      title: draft?.title || project.name,
+      description: draft?.description || '',
+      howToPlay: draft?.howToPlay || '',
+      tags: draft?.tags || [],
+      thumbnailUrl: draft?.thumbnailUrl,
+      creatorId: user?.visitor_id,
+      creatorName: user?.display_name || user?.username || '不明',
+      likes: 0, // TODO: Implement likes
+      createdAt: project.created_at,
+      updatedAt: project.updated_at
+    });
+  } catch (error) {
+    console.error('Error fetching game:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== Notifications Route ====================
 
 app.get('/notifications', (req, res) => {

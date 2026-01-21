@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>プレイ - ゲームクリエイター</title>
+  <link rel="stylesheet" href="/style.css">
+  <meta name="description" content="ゲームをプレイ">
+</head>
+<body data-page="play">
+  <div class="play-view" id="playView">
+    <!-- Top Bar -->
+    <header class="play-top-bar" id="topBar">
+      <button class="play-back-btn" id="backBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <div class="play-top-spacer"></div>
+      <div class="play-top-actions">
+        <button class="play-action-btn" id="likeBtn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
+          <span class="play-action-count" id="likeCount">0</span>
+        </button>
+        <button class="play-action-btn" id="commentBtn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+        <button class="play-action-btn" id="infoBtn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Game Frame -->
+    <div class="play-game-container">
+      <iframe id="gameFrame" class="play-game-frame"></iframe>
+    </div>
+
+    <!-- Bottom Bar -->
+    <nav class="play-bottom-bar" id="bottomBar">
+      <button class="play-nav-btn" id="zappingBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+        <span>次へ</span>
+      </button>
+      <button class="play-nav-btn play-nav-create" id="createBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>作る</span>
+      </button>
+      <button class="play-nav-btn" id="shareBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+        <span>共有</span>
+      </button>
+    </nav>
+
+    <!-- Bottom Sheet Overlay -->
+    <div class="play-sheet-overlay" id="sheetOverlay"></div>
+
+    <!-- Info Bottom Sheet -->
+    <div class="play-bottom-sheet" id="infoSheet">
+      <div class="play-sheet-handle"></div>
+      <div class="play-sheet-content">
+        <h2 class="play-sheet-title" id="gameTitle">-</h2>
+        <p class="play-sheet-creator">by <span id="gameCreator">-</span></p>
+        <div class="play-sheet-description" id="gameDescription"></div>
+        <div class="play-sheet-tags" id="gameTags"></div>
+      </div>
+    </div>
+
+    <!-- Comment Bottom Sheet -->
+    <div class="play-bottom-sheet" id="commentSheet">
+      <div class="play-sheet-handle"></div>
+      <div class="play-sheet-content">
+        <h2 class="play-sheet-title">コメント</h2>
+        <div class="play-comments-list" id="commentsList">
+          <p class="play-comments-empty">コメントはまだありません</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/play.js"></script>
+</body>
+</html>

@@ -207,7 +207,7 @@ class MyPageApp {
     const card = document.getElementById('gameStartCard');
 
     if (!overlay || !card) {
-      window.location.href = `/game/${this.visitorId}/${projectId}/`;
+      window.location.href = `/play/${projectId}`;
       return;
     }
 
@@ -219,7 +219,7 @@ class MyPageApp {
 
     // Navigate after animation
     setTimeout(() => {
-      window.location.href = `/game/${this.visitorId}/${projectId}/`;
+      window.location.href = `/play/${projectId}`;
     }, 800);
   }
 
