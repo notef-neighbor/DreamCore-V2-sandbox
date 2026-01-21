@@ -1635,7 +1635,8 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
 
       // Step 2: Generate image with Nano Banana
       const outputPath = path.join(projectDir, 'thumbnail.png');
-      const nanoBananaScript = path.join(process.env.HOME, '.claude/skills/nanobanana/generate.py');
+      // Use project's .claude/skills instead of HOME (for GCE deployment)
+      const nanoBananaScript = path.join(__dirname, '..', '.claude/skills/nanobanana/generate.py');
 
       // Build command args with reference images
       const nanoBananaArgs = [
