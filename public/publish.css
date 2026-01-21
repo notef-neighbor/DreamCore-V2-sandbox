@@ -309,6 +309,113 @@ body[data-page="publish"] {
   color: var(--gray-900);
 }
 
+/* Label Row with AI Button */
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.label-row label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-full);
+  color: var(--gray-500);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease-out);
+  line-height: 1;
+}
+
+.ai-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
+.ai-btn:hover {
+  background: var(--red-light);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ai-btn:active {
+  transform: scale(0.95);
+}
+
+.ai-btn.generating {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Form inputs (direct children) */
+.form-group > input,
+.form-group > textarea {
+  padding: var(--s-12) var(--s-16);
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-12);
+  font-size: 1rem;
+  color: var(--gray-900);
+  transition: all var(--duration) var(--ease-out);
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-group > input:focus,
+.form-group > textarea:focus {
+  outline: none;
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px var(--red-light);
+}
+
+.form-group > textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* Input/Textarea generating state (Nintendo style) */
+.form-group > input.generating,
+.form-group > textarea.generating {
+  position: relative;
+  color: transparent;
+  background-image: radial-gradient(circle at 30% 50%, var(--red) 5px, transparent 5px),
+                    radial-gradient(circle at 50% 50%, var(--red) 5px, transparent 5px),
+                    radial-gradient(circle at 70% 50%, var(--red) 5px, transparent 5px);
+  background-color: var(--white);
+  background-size: 100% 100%;
+  animation: inputDots 1.2s ease-in-out infinite;
+}
+
+@keyframes inputDots {
+  0%, 100% {
+    background-image: radial-gradient(circle at 30% 50%, var(--red) 5px, transparent 5px),
+                      radial-gradient(circle at 50% 50%, rgba(255,59,47,0.3) 5px, transparent 5px),
+                      radial-gradient(circle at 70% 50%, rgba(255,59,47,0.3) 5px, transparent 5px);
+  }
+  33% {
+    background-image: radial-gradient(circle at 30% 50%, rgba(255,59,47,0.3) 5px, transparent 5px),
+                      radial-gradient(circle at 50% 50%, var(--red) 5px, transparent 5px),
+                      radial-gradient(circle at 70% 50%, rgba(255,59,47,0.3) 5px, transparent 5px);
+  }
+  66% {
+    background-image: radial-gradient(circle at 30% 50%, rgba(255,59,47,0.3) 5px, transparent 5px),
+                      radial-gradient(circle at 50% 50%, rgba(255,59,47,0.3) 5px, transparent 5px),
+                      radial-gradient(circle at 70% 50%, var(--red) 5px, transparent 5px);
+  }
+}
+
 .input-with-generate {
   display: flex;
   gap: var(--s-8);

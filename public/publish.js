@@ -433,37 +433,37 @@ class PublishPage {
   }
 
   setFieldGenerating(fieldName, isGenerating) {
-    let wrapper, group, button;
+    let input, group, button;
 
     switch (fieldName) {
       case 'title':
-        wrapper = this.titleInput.closest('.input-with-generate');
+        input = this.titleInput;
         group = this.titleInput.closest('.form-group');
         button = this.regenerateTitleBtn;
         break;
       case 'description':
-        wrapper = this.descriptionInput.closest('.input-with-generate');
+        input = this.descriptionInput;
         group = this.descriptionInput.closest('.form-group');
         button = this.regenerateDescriptionBtn;
         break;
       case 'howToPlay':
-        wrapper = this.howToPlayInput.closest('.input-with-generate');
+        input = this.howToPlayInput;
         group = this.howToPlayInput.closest('.form-group');
         button = this.regenerateHowToPlayBtn;
         break;
       case 'tags':
-        wrapper = this.tagsContainer;
+        input = this.tagsContainer;
         group = this.tagsContainer.closest('.form-group');
         button = this.regenerateTagsBtn;
         break;
     }
 
     if (isGenerating) {
-      wrapper?.classList.add('generating');
+      input?.classList.add('generating');
       group?.classList.add('generating');
       button?.classList.add('generating');
     } else {
-      wrapper?.classList.remove('generating');
+      input?.classList.remove('generating');
       group?.classList.remove('generating');
       button?.classList.remove('generating');
     }

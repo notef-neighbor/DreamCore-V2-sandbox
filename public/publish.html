@@ -89,59 +89,63 @@
       <section class="form-section">
         <!-- Title -->
         <div class="form-group">
-          <label for="gameTitle">タイトル</label>
-          <div class="input-with-generate">
-            <input type="text" id="gameTitle" placeholder="ゲームのタイトル" maxlength="50">
-            <button id="regenerateTitle" class="generate-btn" title="AIで再生成">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="label-row">
+            <label for="gameTitle">タイトル</label>
+            <button id="regenerateTitle" class="ai-btn" title="AIで再生成">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
+              AI
             </button>
           </div>
+          <input type="text" id="gameTitle" placeholder="ゲームのタイトル" maxlength="50">
           <span class="char-count"><span id="titleCount">0</span>/50</span>
         </div>
 
         <!-- Description -->
         <div class="form-group">
-          <label for="gameDescription">概要</label>
-          <div class="input-with-generate">
-            <textarea id="gameDescription" placeholder="ゲームの説明" rows="4" maxlength="500"></textarea>
-            <button id="regenerateDescription" class="generate-btn" title="AIで再生成">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="label-row">
+            <label for="gameDescription">概要</label>
+            <button id="regenerateDescription" class="ai-btn" title="AIで再生成">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
+              AI
             </button>
           </div>
+          <textarea id="gameDescription" placeholder="ゲームの説明" rows="4" maxlength="500"></textarea>
           <span class="char-count"><span id="descriptionCount">0</span>/500</span>
         </div>
 
         <!-- Tags -->
         <div class="form-group">
-          <label for="gameTags">タグ</label>
+          <div class="label-row">
+            <label for="gameTags">タグ</label>
+            <button id="regenerateTags" class="ai-btn" title="AIで再生成">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              AI
+            </button>
+          </div>
           <div class="tags-container" id="tagsContainer">
             <!-- Tags will be inserted here -->
           </div>
-          <div class="input-with-generate">
-            <input type="text" id="tagInput" placeholder="タグを追加（Enterで確定）" maxlength="20">
-            <button id="regenerateTags" class="generate-btn" title="AIで再生成">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-              </svg>
-            </button>
-          </div>
+          <input type="text" id="tagInput" placeholder="タグを追加（Enterで確定）" maxlength="20">
         </div>
 
         <!-- How to Play -->
         <div class="form-group">
-          <label for="gameHowToPlay">ルールと操作方法</label>
-          <div class="input-with-generate">
-            <textarea id="gameHowToPlay" placeholder="ゲームのルールと操作方法" rows="4" maxlength="1000"></textarea>
-            <button id="regenerateHowToPlay" class="generate-btn" title="AIで再生成">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="label-row">
+            <label for="gameHowToPlay">ルールと操作方法</label>
+            <button id="regenerateHowToPlay" class="ai-btn" title="AIで再生成">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
+              AI
             </button>
           </div>
+          <textarea id="gameHowToPlay" placeholder="ゲームのルールと操作方法" rows="4" maxlength="1000"></textarea>
           <span class="char-count"><span id="howToPlayCount">0</span>/1000</span>
         </div>
 
