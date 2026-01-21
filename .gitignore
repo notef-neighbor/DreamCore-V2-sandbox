@@ -13,7 +13,7 @@ users/
 assets/
 
 # Database (ignore all - each environment manages its own)
-data/*.db
+data/
 *.db-wal
 *.db-shm
 
@@ -39,6 +39,9 @@ temp/
 # Build output
 dist/
 build/
+
+# Intro video project (separate project)
+intro-video/
 
 # Google Cloud SDK (local install)
 google-cloud-sdk/
