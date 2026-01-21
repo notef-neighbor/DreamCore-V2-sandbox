@@ -40,13 +40,22 @@ def load_reference_image(image_path: str):
     return Image.open(path)
 
 
+def load_reference_images(image_paths: list):
+    """複数の参照画像を読み込み"""
+    images = []
+    for image_path in image_paths:
+        images.append(load_reference_image(image_path))
+    return images
+
+
 def generate_image(
     prompt: str,
     output_path: str = "generated_image.png",
     aspect_ratio: str = "1:1",
     model_type: str = "pro",
     magenta_bg: bool = False,
-    reference_image: str = None
+    reference_image: str = None,
+    reference_images: list = None
 ) -> str:
     """Gemini APIを使用して画像を生成"""
     from google import genai
@@ -82,12 +91,16 @@ def generate_image(
     print(f"プロンプト: {final_prompt[:100]}...")
     if magenta_bg:
         print("オプション: マゼンタ背景")
-    if reference_image:
-        print("オプション: 参照画像あり")
+    if reference_image or reference_images:
+        count = len(reference_images) if reference_images else 1
+        print(f"オプション: 参照画像 {count}枚")
     print("生成中...")
 
     # コンテンツ構築
-    if reference_image:
+    if reference_images and len(reference_images) > 0:
+        ref_imgs = load_reference_images(reference_images)
+        contents = [final_prompt] + ref_imgs
+    elif reference_image:
         ref_img = load_reference_image(reference_image)
         contents = [final_prompt, ref_img]
     else:
@@ -129,6 +142,7 @@ def main():
   python generate.py "夕焼けの風景" -a 16:9 -o sunset.png
   python generate.py "アイコン" --magenta-bg -o icon.png
   python generate.py "同じスタイルで犬を描いて" -r reference.png
+  python generate.py "これらを組み合わせて" --refs img1.png img2.png img3.png
         """
     )
     parser.add_argument("prompt", help="画像生成プロンプト")
@@ -136,7 +150,8 @@ def main():
     parser.add_argument("-a", "--aspect-ratio", default="1:1", choices=["1:1", "16:9", "9:16", "4:3", "3:4"], help="アスペクト比")
     parser.add_argument("-m", "--model", default="pro", choices=["flash", "pro"], help="モデル: flash=高速, pro=高品質")
     parser.add_argument("--magenta-bg", action="store_true", help="マゼンタ背景で生成（後でremove-bg-magenta.pyで透過可能）")
-    parser.add_argument("-r", "--reference", default=None, help="参照画像のパス")
+    parser.add_argument("-r", "--reference", default=None, help="参照画像のパス（単一）")
+    parser.add_argument("--refs", nargs='+', default=None, help="参照画像のパス（複数）")
 
     args = parser.parse_args()
 
@@ -146,7 +161,8 @@ def main():
         aspect_ratio=args.aspect_ratio,
         model_type=args.model,
         magenta_bg=args.magenta_bg,
-        reference_image=args.reference
+        reference_image=args.reference,
+        reference_images=args.refs
     )
 
 
