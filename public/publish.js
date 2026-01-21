@@ -42,6 +42,7 @@ class PublishPage {
     await this.loadProjectData();
     await this.loadPublishData();
     this.updateUI();
+    this.loadExistingMovie();
   }
 
   bindElements() {
@@ -495,6 +496,34 @@ class PublishPage {
     }
 
     await this.generateThumbnail();
+  }
+
+  loadExistingMovie() {
+    // Check if movie already exists
+    const movieUrl = `/api/projects/${this.projectId}/movie?t=${Date.now()}`;
+
+    fetch(movieUrl, { method: 'HEAD' })
+      .then(response => {
+        if (response.ok) {
+          // Movie exists, show it
+          const placeholder = this.moviePreview.querySelector('.movie-placeholder');
+          this.movieVideo.src = movieUrl;
+          this.movieVideo.classList.remove('hidden');
+          if (placeholder) {
+            placeholder.classList.add('hidden');
+          }
+          this.generateMovieBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            再生成
+          `;
+        }
+      })
+      .catch(() => {
+        // Movie doesn't exist, keep placeholder
+      });
   }
 
   async generateMovie() {
