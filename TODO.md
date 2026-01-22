@@ -4,7 +4,7 @@
 
 - [x] `assets.is_deleted` に NOT NULL + DEFAULT FALSE 制約追加
   - マイグレーション: `supabase/migrations/002_assets_is_deleted_not_null.sql`
-  - Supabase Dashboardで実行が必要
+  - ✅ Supabase Dashboardで実行済み (2026-01-22)
 - [x] `database.js`（SQLite版レガシー）削除
 - [x] `initLoginUsers.js` 削除（Supabase Auth移行済み）
 
