@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/style.css">
   <meta name="description" content="チャットで会話するだけで、オリジナルのゲームが作れます。">
-  <!-- Early auth check: redirect to login if no session (before any JS loads) -->
+  <!-- Early auth check + Supabase lazy loader -->
   <script>
     (function() {
       var cached = localStorage.getItem('dreamcore_session_cache');
@@ -21,14 +21,18 @@
         if (Date.now() - data.timestamp > 300000) { window.location.href = '/'; }
       } catch(e) { window.location.href = '/'; }
     })();
-  </script>
-  <!-- Supabase SDK (static load) -->
-  <script src="/lib/supabase.min.js" defer></script>
-  <!-- Supabase config (anon key is public) -->
-  <script>
     window.__SUPABASE__ = {
       url: 'https://tcynrijrovktirsvwiqb.supabase.co',
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjeW5yaWpyb3ZrdGlyc3Z3aXFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjY5OTAsImV4cCI6MjA4NDYwMjk5MH0.y-_E-vuQg84t8BGISdPL18oaYcayS8ip1OLJsZwM3hI'
+    };
+    window.__loadSupabase = function() {
+      if (window.supabase) return Promise.resolve();
+      return new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = '/lib/supabase.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
     };
   </script>
 </head>

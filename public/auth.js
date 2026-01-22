@@ -78,13 +78,18 @@ function setCachedSession(session) {
  *
  * Optimization: Uses inline config (window.__SUPABASE__) when available
  * Session is loaded from cache first, then validated in background
+ * SDK is lazy-loaded on first use (not at page load)
  */
 async function initAuth() {
   if (supabaseClient) return supabaseClient;
 
-  // Require Supabase SDK to be loaded via static script tag
+  // Lazy load Supabase SDK if not already loaded
   if (!window.supabase) {
-    throw new Error('[Auth] Supabase SDK not loaded. Please include the Supabase script tag before auth.js');
+    if (window.__loadSupabase) {
+      await window.__loadSupabase();
+    } else {
+      throw new Error('[Auth] Supabase SDK not loaded and no loader available');
+    }
   }
 
   // Get config: prefer inline, fallback to API

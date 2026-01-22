@@ -20,20 +20,25 @@
       if (!cached) { window.location.href = '/'; return; }
       try {
         var data = JSON.parse(cached);
-        if (Date.now() - data.timestamp > 300000) { // 5 min TTL
+        if (Date.now() - data.timestamp > 300000) {
           localStorage.removeItem('dreamcore_session_cache');
           window.location.href = '/';
         }
       } catch(e) { window.location.href = '/'; }
     })();
-  </script>
-  <!-- Supabase SDK (static load) -->
-  <script src="/lib/supabase.min.js" defer></script>
-  <!-- Supabase config (anon key is public) -->
-  <script>
+    // Supabase config + lazy loader (SDK loads on first use, not at page load)
     window.__SUPABASE__ = {
       url: 'https://tcynrijrovktirsvwiqb.supabase.co',
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjeW5yaWpyb3ZrdGlyc3Z3aXFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjY5OTAsImV4cCI6MjA4NDYwMjk5MH0.y-_E-vuQg84t8BGISdPL18oaYcayS8ip1OLJsZwM3hI'
+    };
+    window.__loadSupabase = function() {
+      if (window.supabase) return Promise.resolve();
+      return new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = '/lib/supabase.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
     };
   </script>
 </head>
