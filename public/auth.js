@@ -36,6 +36,24 @@ function getCachedSession() {
 }
 
 /**
+ * SYNC: Check if user has a valid cached session (no async, no SDK needed)
+ * Use this for instant UI decisions before SDK loads
+ * @returns {boolean} True if cached session exists and not expired
+ */
+function hasSessionSync() {
+  return getCachedSession() !== null;
+}
+
+/**
+ * SYNC: Get cached session synchronously (no async, no SDK needed)
+ * Use this for instant UI rendering before SDK loads
+ * @returns {Object|null} Cached session or null
+ */
+function getSessionSync() {
+  return getCachedSession();
+}
+
+/**
  * Save session to localStorage cache
  * @param {Object|null} session - Session to cache
  */
@@ -262,6 +280,8 @@ window.DreamCoreAuth = {
   signInWithGoogle,
   signOut,
   getSession,
+  getSessionSync,    // SYNC: instant session check (no SDK)
+  hasSessionSync,    // SYNC: instant boolean check (no SDK)
   getUser,
   getAccessToken,
   isAuthenticated,

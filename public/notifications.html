@@ -9,6 +9,17 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/style.css">
   <meta name="description" content="ゲームクリエイター - 通知">
+  <!-- Early auth check -->
+  <script>
+    (function() {
+      var cached = localStorage.getItem('dreamcore_session_cache');
+      if (!cached) { window.location.href = '/'; return; }
+      try {
+        var data = JSON.parse(cached);
+        if (Date.now() - data.timestamp > 300000) { window.location.href = '/'; }
+      } catch(e) { window.location.href = '/'; }
+    })();
+  </script>
   <!-- Supabase SDK (static load) -->
   <script src="/lib/supabase.min.js" defer></script>
   <!-- Supabase config (anon key is public) -->

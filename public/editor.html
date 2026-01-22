@@ -13,6 +13,20 @@
   <!-- Cropper CSS: lazy load (only needed when editing assets) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" media="print" onload="this.media='all'">
   <meta name="description" content="チャットで会話するだけで、オリジナルのゲームが作れます。">
+  <!-- Early auth check: redirect to login if no session (before any JS loads) -->
+  <script>
+    (function() {
+      var cached = localStorage.getItem('dreamcore_session_cache');
+      if (!cached) { window.location.href = '/'; return; }
+      try {
+        var data = JSON.parse(cached);
+        if (Date.now() - data.timestamp > 300000) { // 5 min TTL
+          localStorage.removeItem('dreamcore_session_cache');
+          window.location.href = '/';
+        }
+      } catch(e) { window.location.href = '/'; }
+    })();
+  </script>
   <!-- Supabase SDK (static load) -->
   <script src="/lib/supabase.min.js" defer></script>
   <!-- Supabase config (anon key is public) -->

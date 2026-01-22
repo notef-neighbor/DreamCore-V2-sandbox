@@ -261,33 +261,47 @@ class GameCreatorApp {
    */
   async checkAuthAndConnect() {
     try {
-      // Get session (uses localStorage cache for speed)
-      const session = await DreamCoreAuth.getSession();
+      // FAST PATH: Use sync localStorage check first (no SDK, no async)
+      const cachedSession = DreamCoreAuth.getSessionSync();
 
-      if (!session) {
-        // Not logged in, redirect to login
+      if (!cachedSession) {
+        // No cached session - redirect immediately
         window.location.href = '/';
         return;
       }
 
-      // Set auth state
-      this.accessToken = session.access_token;
-      this.currentUser = session.user;
-      this.visitorId = session.user.id;
+      // Use cached session for immediate UI (before SDK loads)
+      this.accessToken = cachedSession.access_token;
+      this.currentUser = cachedSession.user;
+      this.visitorId = cachedSession.user.id;
       this.isAuthenticated = true;
 
-      // Update UI with user info
+      // Update UI with user info immediately
       if (this.currentUser && this.userDisplayName) {
         this.userDisplayName.textContent = this.currentUser.user_metadata?.full_name ||
                                            this.currentUser.user_metadata?.name ||
                                            this.currentUser.email?.split('@')[0] || '';
       }
 
-      // Now connect WebSocket (requires auth token)
+      // Connect WebSocket with cached token
       this.connectWebSocket();
 
       // Load page-specific data
       this.loadPageData();
+
+      // BACKGROUND: Verify session with SDK (refresh if needed)
+      // This runs after UI is already displayed
+      DreamCoreAuth.getSession().then(session => {
+        if (!session) {
+          // Session expired - redirect to login
+          window.location.href = '/';
+        } else if (session.access_token !== cachedSession.access_token) {
+          // Token refreshed - update
+          this.accessToken = session.access_token;
+        }
+      }).catch(err => {
+        console.warn('[Auth] Background verification failed:', err);
+      });
     } catch (error) {
       console.error('[Auth] Init error:', error);
       window.location.href = '/';
