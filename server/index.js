@@ -20,7 +20,7 @@ const { getStyleById } = require('./stylePresets');
 const { getStyleOptionsWithImages } = require('./styleImageCache');
 const { generateVisualGuide, formatGuideForCodeGeneration } = require('./visualGuideGenerator');
 const { authenticate, optionalAuth, verifyWebSocketAuth } = require('./authMiddleware');
-const { isValidUUID, isPathSafe, getProjectPath } = require('./config');
+const { isValidUUID, isPathSafe, getProjectPath, SUPABASE_URL, SUPABASE_ANON_KEY } = require('./config');
 const { supabaseAdmin } = require('./supabaseClient');
 
 const app = express();
@@ -80,6 +80,14 @@ app.get('/api/health', (req, res) => {
 // ==================== Authentication API Endpoints ====================
 
 // NOTE: /api/auth/* routes removed - use Supabase Auth instead
+
+// Public config endpoint (for frontend Supabase client)
+app.get('/api/config', (req, res) => {
+  res.json({
+    supabaseUrl: SUPABASE_URL,
+    supabaseAnonKey: SUPABASE_ANON_KEY
+  });
+});
 
 // ==================== REST API Endpoints ====================
 

@@ -19,9 +19,22 @@ AI-powered browser game creation platform.
 
 ## 認証ルール
 
+- **認証方式**: Supabase Auth + Google OAuth
 - 認証は `authenticate` ミドルウェア経由
 - 所有者チェック: `project.user_id === req.user.id`
-- WebSocket: `access_token` クエリパラメータ必須
+- WebSocket: `access_token` をinitメッセージで送信
+
+### フロントエンド認証
+
+- `public/auth.js` - Supabase Auth ユーティリティ（`DreamCoreAuth`グローバル）
+- `public/index.html` - Google Sign-In ボタン
+- `/api/config` - フロントエンド用Supabase設定を提供
+
+### Supabase Dashboard設定（設定済み）
+
+- **Authentication > Providers > Google**: 有効
+- Google Cloud Console でOAuthクライアント設定済み
+- リダイレクトURL: `https://tcynrijrovktirsvwiqb.supabase.co/auth/v1/callback`
 
 ## UUID検証
 
@@ -112,7 +125,7 @@ USING (owner_id = auth.uid() AND is_deleted = FALSE)
 
 - ~~`database.js`~~ - 削除済み
 - ~~`initLoginUsers.js`~~ - 削除済み
-- `assets.is_deleted` - マイグレーション作成済み（`supabase/migrations/002_*`）、Supabaseで実行が必要
+- ~~`assets.is_deleted`~~ - マイグレーション実行済み（2026-01-22）
 
 ## 開発ガイドライン
 

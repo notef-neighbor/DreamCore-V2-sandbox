@@ -6,6 +6,45 @@
   <title>ゲームクリエイター - チャットでゲームを作ろう</title>
   <link rel="stylesheet" href="/style.css">
   <meta name="description" content="チャットで会話するだけで、オリジナルのゲームが作れます。プログラミング知識は不要です。">
+  <style>
+    .google-signin-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 24px;
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #3c4043;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    .google-signin-btn:hover {
+      background: #f7f8f8;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .google-signin-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .google-signin-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+    .login-error {
+      color: #d93025;
+      font-size: 14px;
+      margin-top: 12px;
+      text-align: center;
+    }
+    .login-error.hidden {
+      display: none;
+    }
+  </style>
 </head>
 <body data-page="login">
   <!-- Login View -->
@@ -13,75 +52,64 @@
     <div class="login-container">
       <div class="login-header">
         <h1>ゲームクリエイター</h1>
-        <p class="login-subtitle">招待ユーザー専用</p>
+        <p class="login-subtitle">チャットでゲームを作ろう</p>
       </div>
-      <form class="login-form" id="loginForm" onsubmit="return false;">
-        <div class="form-group">
-          <label for="loginUsername">ユーザーID</label>
-          <input type="text" id="loginUsername" placeholder="IDを入力してください" autocomplete="username">
-        </div>
-        <div class="login-error hidden" id="loginError">
-          このIDは登録されていません
-        </div>
-        <button type="button" class="login-button" id="loginButton">
-          ログイン
+      <div class="login-form">
+        <button type="button" class="google-signin-btn" id="googleSignInButton">
+          <svg viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Googleでログイン
         </button>
-      </form>
+        <div class="login-error hidden" id="loginError"></div>
+      </div>
     </div>
   </div>
 
+  <script src="/auth.js"></script>
   <script>
-    // Check if already logged in
-    const visitorId = localStorage.getItem('visitorId');
-    if (visitorId) {
-      // Redirect to discover page
-      window.location.href = '/discover';
-    } else {
-      // Show login view
-      document.getElementById('loginView').classList.remove('hidden');
-    }
-
-    // Login form handling
-    document.getElementById('loginButton').addEventListener('click', async () => {
-      const username = document.getElementById('loginUsername').value.trim();
+    (async () => {
       const errorEl = document.getElementById('loginError');
-
-      if (!username) {
-        errorEl.textContent = 'ユーザーIDを入力してください';
-        errorEl.classList.remove('hidden');
-        return;
-      }
+      const signInBtn = document.getElementById('googleSignInButton');
 
       try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username })
+        // Initialize auth
+        await DreamCoreAuth.initAuth();
+
+        // Check if already logged in
+        const session = await DreamCoreAuth.getSession();
+        if (session) {
+          window.location.href = '/create.html';
+          return;
+        }
+
+        // Show login view
+        document.getElementById('loginView').classList.remove('hidden');
+
+        // Google Sign-In button handler
+        signInBtn.addEventListener('click', async () => {
+          signInBtn.disabled = true;
+          errorEl.classList.add('hidden');
+
+          try {
+            await DreamCoreAuth.signInWithGoogle();
+            // Redirect happens automatically via OAuth flow
+          } catch (err) {
+            errorEl.textContent = err.message || 'ログインに失敗しました';
+            errorEl.classList.remove('hidden');
+            signInBtn.disabled = false;
+          }
         });
 
-        const data = await response.json();
-
-        if (data.success) {
-          localStorage.setItem('visitorId', data.user.visitorId);
-          localStorage.setItem('loginUsername', data.user.username);
-          localStorage.setItem('sessionId', data.sessionId);
-          window.location.href = '/discover';
-        } else {
-          errorEl.textContent = data.error || 'ログインに失敗しました';
-          errorEl.classList.remove('hidden');
-        }
       } catch (err) {
-        errorEl.textContent = 'ネットワークエラーが発生しました';
+        console.error('[Auth] Init error:', err);
+        errorEl.textContent = 'システムエラーが発生しました';
         errorEl.classList.remove('hidden');
       }
-    });
-
-    // Enter key to submit
-    document.getElementById('loginUsername').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        document.getElementById('loginButton').click();
-      }
-    });
+    })();
   </script>
 </body>
 </html>

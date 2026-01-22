@@ -9,10 +9,11 @@ class GameCreatorApp {
     this.currentJobId = null;
     this.jobPollInterval = null;
 
-    // Authentication state
+    // Authentication state (Supabase Auth)
     this.sessionId = localStorage.getItem('sessionId');
     this.currentUser = null;
-    this.isAuthenticated = !!this.visitorId;
+    this.accessToken = null;
+    this.isAuthenticated = false;
 
     // Current view state
     this.currentView = 'list'; // 'list', 'editor', 'discover', 'zapping'
@@ -217,20 +218,36 @@ class GameCreatorApp {
     this.init();
   }
 
-  init() {
+  async init() {
     // Detect which page we're on
     this.currentPage = document.body.dataset.page || 'unknown';
 
     // Check authentication for protected pages
     const protectedPages = ['discover', 'create', 'editor', 'mypage', 'notifications'];
     if (protectedPages.includes(this.currentPage)) {
-      if (!this.visitorId) {
-        // Not logged in, redirect to login
+      try {
+        // Initialize Supabase Auth and check session
+        await DreamCoreAuth.initAuth();
+        const session = await DreamCoreAuth.getSession();
+
+        if (!session) {
+          // Not logged in, redirect to login
+          window.location.href = '/';
+          return;
+        }
+
+        // Set auth state
+        this.accessToken = session.access_token;
+        this.currentUser = session.user;
+        this.visitorId = session.user.id; // For backward compatibility
+        this.isAuthenticated = true;
+
+        // Initialize the app for this page
+        this.initPage();
+      } catch (error) {
+        console.error('[Auth] Init error:', error);
         window.location.href = '/';
-        return;
       }
-      // Initialize the app for this page
-      this.initPage();
     }
   }
 
@@ -381,31 +398,27 @@ class GameCreatorApp {
   }
 
   async logout() {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: this.sessionId })
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-
-    // Clear local state
-    localStorage.removeItem('gameCreatorSessionId');
-    this.sessionId = null;
-    this.currentUser = null;
-    this.visitorId = null;
-    this.isAuthenticated = false;
-
-    // Close WebSocket
+    // Close WebSocket first
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
 
-    // Show login view
-    this.showLoginView();
+    // Clear local state
+    this.sessionId = null;
+    this.currentUser = null;
+    this.accessToken = null;
+    this.visitorId = null;
+    this.isAuthenticated = false;
+
+    // Sign out via Supabase Auth (this will redirect to /)
+    try {
+      await DreamCoreAuth.signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Redirect anyway
+      window.location.href = '/';
+    }
   }
 
   showLoginView() {
@@ -1028,7 +1041,7 @@ class GameCreatorApp {
       this.restoreSendButton();
       this.ws.send(JSON.stringify({
         type: 'init',
-        visitorId: this.visitorId,
+        access_token: this.accessToken,
         sessionId: this.sessionId
       }));
     };
