@@ -38,10 +38,12 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 ## 重要ファイル
 
-- `.claude/plans/auth-migration.md` - 認証移行ドキュメント（実装の詳細はここ）
+- `.claude/plans/auth-migration.md` - 認証移行ドキュメント（実装の詳細）
+- `.claude/plans/sandbox-architecture.md` - セキュリティ/サンドボックス設計
 - `server/authMiddleware.js` - 認証ミドルウェア
 - `server/config.js` - 設定・起動チェック
 - `server/supabaseClient.js` - Supabaseクライアント
+- `server/database-supabase.js` - Supabase DB操作（現在使用中）
 
 ## Phase 1 スコープ
 
