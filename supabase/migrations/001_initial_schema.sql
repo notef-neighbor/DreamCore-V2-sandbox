@@ -4,6 +4,8 @@
 -- ============================================
 -- Users table (extends Supabase Auth)
 -- ============================================
+-- NOTE: email is NOT NULL because we require Google OAuth.
+-- If adding phone auth or other providers without email, this constraint must be relaxed.
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
@@ -132,10 +134,11 @@ CREATE TABLE IF NOT EXISTS public.assets (
 -- Enable RLS
 ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
 
--- Users can read their own assets or public assets
-CREATE POLICY "assets_read_own_or_public"
+-- Phase 1: Users can only read their own assets (owner-only)
+-- Phase 2: Change to (auth.uid() = owner_id OR is_public = TRUE) to enable public assets
+CREATE POLICY "assets_read_own"
   ON public.assets FOR SELECT
-  USING (auth.uid() = owner_id OR is_public = TRUE);
+  USING (auth.uid() = owner_id AND is_deleted = FALSE);
 
 -- Users can insert their own assets
 CREATE POLICY "assets_insert_own"
@@ -197,7 +200,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger: Create user profile when new auth user is created
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
