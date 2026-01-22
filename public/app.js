@@ -1,7 +1,7 @@
 class GameCreatorApp {
   constructor() {
     this.ws = null;
-    this.visitorId = localStorage.getItem('visitorId');
+    this.visitorId = null; // Set by Supabase Auth (session.user.id) for backward compatibility
     this.currentProjectId = null;
     this.currentProjectName = null;
     this.projects = [];
@@ -327,74 +327,17 @@ class GameCreatorApp {
   }
 
   async checkSession() {
-    if (!this.sessionId) {
-      this.showLoginView();
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/auth/me?sessionId=${this.sessionId}`);
-      if (response.ok) {
-        const data = await response.json();
-        this.currentUser = data.user;
-        this.visitorId = data.user.visitorId;
-        this.isAuthenticated = true;
-        this.onAuthSuccess();
-      } else {
-        // Session invalid or expired
-        localStorage.removeItem('gameCreatorSessionId');
-        this.sessionId = null;
-        this.showLoginView();
-      }
-    } catch (error) {
-      console.error('Session check failed:', error);
-      this.showLoginView();
-    }
+    // DEPRECATED: 旧認証APIは廃止されました。認証はSupabase Auth（DreamCoreAuth）で処理されます。
+    // このメソッドは呼び出されるべきではありません。
+    console.warn('[DEPRECATED] checkSession() は廃止されました。DreamCoreAuth を使用してください。');
+    throw new Error('checkSession() は廃止されました。認証は Supabase Auth (DreamCoreAuth) で処理してください。');
   }
 
   async login() {
-    // Prevent double submission
-    if (this.loginButton.disabled) return;
-
-    const username = this.loginUsername.value.trim();
-
-    if (!username) {
-      this.showLoginError('ユーザーIDを入力してください');
-      return;
-    }
-
-    this.loginButton.disabled = true;
-    this.loginButton.textContent = 'ログイン中...';
-    this.loginError.classList.add('hidden');
-
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Save session
-        this.sessionId = data.sessionId;
-        this.currentUser = data.user;
-        this.visitorId = data.user.visitorId;
-        this.isAuthenticated = true;
-        localStorage.setItem('gameCreatorSessionId', this.sessionId);
-
-        this.onAuthSuccess();
-      } else {
-        this.showLoginError(data.error || 'ログインに失敗しました');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      this.showLoginError('サーバーに接続できませんでした');
-    } finally {
-      this.loginButton.disabled = false;
-      this.loginButton.textContent = 'ログイン';
-    }
+    // DEPRECATED: 旧認証APIは廃止されました。認証はSupabase Auth（DreamCoreAuth）で処理されます。
+    // このメソッドは呼び出されるべきではありません。
+    console.warn('[DEPRECATED] login() は廃止されました。DreamCoreAuth.signInWithGoogle() を使用してください。');
+    throw new Error('login() は廃止されました。認証は Supabase Auth (DreamCoreAuth) で処理してください。');
   }
 
   async logout() {
@@ -1384,18 +1327,10 @@ class GameCreatorApp {
   }
 
   async loadPublicGames() {
-    try {
-      const response = await fetch('/api/public-games');
-      if (response.ok) {
-        const data = await response.json();
-        this.publicGames = data.games || [];
-        this.renderDiscoverGrid();
-      }
-    } catch (error) {
-      console.error('Failed to load public games:', error);
-      this.publicGames = [];
-      this.renderDiscoverGrid();
-    }
+    // Phase 1: 公開機能は無効。/api/public-games エンドポイントは削除済み。
+    // discoverページは「準備中」表示が正しい動作。
+    this.publicGames = [];
+    this.renderDiscoverGrid();
   }
 
   renderDiscoverGrid() {
@@ -2779,9 +2714,9 @@ class GameCreatorApp {
 
   // Fetch AI context (edits, summary) from server
   async fetchAIContext() {
-    if (!this.currentProjectId || !this.visitorId) return null;
+    if (!this.currentProjectId) return null;
     try {
-      const response = await fetch(`/api/projects/${this.currentProjectId}/ai-context?visitorId=${this.visitorId}`);
+      const response = await DreamCoreAuth.authFetch(`/api/projects/${this.currentProjectId}/ai-context`);
       if (response.ok) {
         const data = await response.json();
         if (data.context && data.context.edits && data.context.edits.length > 0) {
@@ -3057,10 +2992,10 @@ class GameCreatorApp {
 
   // Code viewer methods
   async showCodeViewer() {
-    if (!this.currentProjectId || !this.visitorId || !this.codeViewerModal) return;
+    if (!this.currentProjectId || !this.codeViewerModal) return;
 
     try {
-      const response = await fetch(`/api/projects/${this.currentProjectId}/code?visitorId=${this.visitorId}`);
+      const response = await DreamCoreAuth.authFetch(`/api/projects/${this.currentProjectId}/code`);
       const data = await response.json();
 
       if (data.code && this.codeViewerCode) {
@@ -3134,10 +3069,10 @@ class GameCreatorApp {
   }
 
   async downloadProject() {
-    if (!this.currentProjectId || !this.visitorId) return;
+    if (!this.currentProjectId) return;
 
     try {
-      const response = await fetch(`/api/projects/${this.currentProjectId}/download?visitorId=${this.visitorId}`);
+      const response = await DreamCoreAuth.authFetch(`/api/projects/${this.currentProjectId}/download`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -3417,11 +3352,10 @@ class GameCreatorApp {
 
           const formData = new FormData();
           formData.append('file', processedFile);
-          formData.append('visitorId', this.visitorId);
           formData.append('originalName', file.name);
           if (this.currentProjectId) formData.append('projectId', this.currentProjectId);
 
-          const response = await fetch('/api/assets/upload', {
+          const response = await DreamCoreAuth.authFetch('/api/assets/upload', {
             method: 'POST',
             body: formData
           });
@@ -3455,17 +3389,15 @@ class GameCreatorApp {
   }
 
   async loadAssets() {
-    if (!this.visitorId) return;
-
     try {
       const currentProjectId = this.currentProjectId || '';
-      const response = await fetch(`/api/assets?visitorId=${this.visitorId}&currentProjectId=${currentProjectId}`);
+      const response = await DreamCoreAuth.authFetch(`/api/assets?currentProjectId=${currentProjectId}`);
       const data = await response.json();
 
       this.renderAssetGridGrouped(this.myAssetGrid, data.assets, true, currentProjectId);
 
       // Also load public assets
-      const publicResponse = await fetch(`/api/assets/search?visitorId=${this.visitorId}`);
+      const publicResponse = await DreamCoreAuth.authFetch('/api/assets/search');
       const publicData = await publicResponse.json();
       const publicAssets = publicData.assets.filter(a => a.isPublic && !a.isOwner);
       this.renderAssetGrid(this.publicAssetGrid, publicAssets, false);
@@ -3475,14 +3407,12 @@ class GameCreatorApp {
   }
 
   async searchAssets(query) {
-    if (!this.visitorId) return;
-
     try {
       const url = query
-        ? `/api/assets/search?visitorId=${this.visitorId}&q=${encodeURIComponent(query)}`
-        : `/api/assets?visitorId=${this.visitorId}`;
+        ? `/api/assets/search?q=${encodeURIComponent(query)}`
+        : '/api/assets';
 
-      const response = await fetch(url);
+      const response = await DreamCoreAuth.authFetch(url);
       const data = await response.json();
       this.renderAssetGrid(this.myAssetGrid, data.assets, true);
     } catch (error) {
@@ -3904,14 +3834,13 @@ class GameCreatorApp {
 
       const formData = new FormData();
       formData.append('file', processedFile);
-      formData.append('visitorId', this.visitorId);
       formData.append('originalName', file.name); // Send original filename separately to preserve encoding
       if (this.currentProjectId) formData.append('projectId', this.currentProjectId);
       if (tags) formData.append('tags', tags);
       if (description) formData.append('description', description);
 
       try {
-        const response = await fetch('/api/assets/upload', {
+        const response = await DreamCoreAuth.authFetch('/api/assets/upload', {
           method: 'POST',
           body: formData
         });
@@ -3944,10 +3873,10 @@ class GameCreatorApp {
 
   async toggleAssetPublic(assetId, isPublic) {
     try {
-      await fetch(`/api/assets/${assetId}/publish`, {
+      await DreamCoreAuth.authFetch(`/api/assets/${assetId}/publish`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visitorId: this.visitorId, isPublic })
+        body: JSON.stringify({ isPublic })
       });
       this.loadAssets();
     } catch (error) {
@@ -3959,10 +3888,8 @@ class GameCreatorApp {
     if (!confirm('Delete this asset?')) return;
 
     try {
-      await fetch(`/api/assets/${assetId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visitorId: this.visitorId })
+      await DreamCoreAuth.authFetch(`/api/assets/${assetId}`, {
+        method: 'DELETE'
       });
       this.loadAssets();
     } catch (error) {
@@ -3975,10 +3902,10 @@ class GameCreatorApp {
     const newPublicState = !this.selectedAsset.isPublic;
 
     try {
-      await fetch(`/api/assets/${this.selectedAsset.id}/publish`, {
+      await DreamCoreAuth.authFetch(`/api/assets/${this.selectedAsset.id}/publish`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visitorId: this.visitorId, isPublic: newPublicState })
+        body: JSON.stringify({ isPublic: newPublicState })
       });
 
       // Update local state without clearing selection
@@ -4036,10 +3963,8 @@ class GameCreatorApp {
 
     try {
       for (const asset of assets) {
-        await fetch(`/api/assets/${asset.id}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorId: this.visitorId })
+        await DreamCoreAuth.authFetch(`/api/assets/${asset.id}`, {
+          method: 'DELETE'
         });
       }
       this.clearSelection();
@@ -4442,14 +4367,13 @@ class GameCreatorApp {
       // Upload as new asset
       const formData = new FormData();
       formData.append('file', compressedFile);
-      formData.append('visitorId', this.visitorId);
       formData.append('originalName', newName);
       // Save to current project
       if (this.currentProjectId) {
         formData.append('projectId', this.currentProjectId);
       }
 
-      const response = await fetch('/api/assets/upload', {
+      const response = await DreamCoreAuth.authFetch('/api/assets/upload', {
         method: 'POST',
         body: formData
       });
@@ -4600,7 +4524,7 @@ class GameCreatorApp {
     if (this.generateImageButton) this.generateImageButton.disabled = true;
 
     try {
-      const response = await fetch('/api/generate-image', {
+      const response = await DreamCoreAuth.authFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, style, size })
@@ -5062,12 +4986,11 @@ class ImageEditor {
     // Get image as base64
     const dataUrl = imageToSend.toDataURL('image/png');
 
-    const response = await fetch('/api/assets/remove-background', {
+    const response = await DreamCoreAuth.authFetch('/api/assets/remove-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        image: dataUrl,
-        visitorId
+        image: dataUrl
       })
     });
 
