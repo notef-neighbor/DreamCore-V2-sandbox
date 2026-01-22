@@ -77,8 +77,8 @@
   }
 }
 
-/* ===== Typography - Inter (Apple System Font Alternative) ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* ===== Typography - Inter (loaded via HTML <link> for performance) ===== */
+/* Font is loaded in HTML with rel="preconnect" to avoid render-blocking */
 
 * {
   margin: 0;

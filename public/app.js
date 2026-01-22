@@ -5467,6 +5467,10 @@ class CropSelection {
 }
 
 // Initialize app when DOM is ready
+// Use setTimeout(0) to yield to browser for first paint
 document.addEventListener('DOMContentLoaded', () => {
-  window.app = new GameCreatorApp();
+  // Allow browser to paint first, then init
+  setTimeout(() => {
+    window.app = new GameCreatorApp();
+  }, 0);
 });
