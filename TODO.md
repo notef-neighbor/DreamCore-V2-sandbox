@@ -29,6 +29,9 @@
 - [x] テストスイート作成（48+テスト）
 - [x] Phase 1 owner-only モード確認
 - [x] `.claude/plans/` をgit管理対象に追加
+- [x] フロントエンドSupabase Auth対応（Google Sign-In）
+- [x] API呼び出しをauthFetch化（Authorization Bearer）
+- [x] `profiles` → `users` テーブル修正（FK制約対応）
 
 ---
 

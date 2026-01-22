@@ -2917,14 +2917,14 @@ class GameCreatorApp {
 
   refreshPreview() {
     if (!this.gamePreview) return;
-    if (this.visitorId && this.currentProjectId) {
+    if (this.visitorId && this.currentProjectId && this.accessToken) {
       // Show loading status
       this.updateGameStatus('loading', '読み込み中...');
       this.currentErrors = [];
       this.hideErrorPanel();
 
       const timestamp = Date.now();
-      this.gamePreview.src = `/game/${this.visitorId}/${this.currentProjectId}/index.html?t=${timestamp}`;
+      this.gamePreview.src = `/game/${this.visitorId}/${this.currentProjectId}/index.html?t=${timestamp}&access_token=${encodeURIComponent(this.accessToken)}`;
     }
   }
 
