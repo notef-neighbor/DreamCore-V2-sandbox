@@ -1,3 +1,10 @@
+// Load environment variables first
+require('dotenv').config();
+
+// Validate required environment variables (fails fast if missing)
+const { validateEnvironment } = require('./config');
+validateEnvironment();
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');

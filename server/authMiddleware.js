@@ -5,7 +5,7 @@
  * Supports both REST API and WebSocket authentication.
  */
 
-const { verifyToken, isConfigured } = require('./supabaseClient');
+const { verifyToken } = require('./supabaseClient');
 
 /**
  * Extract access token from request
@@ -47,21 +47,6 @@ const extractToken = (req) => {
  * @param {Function} next
  */
 const authenticate = async (req, res, next) => {
-  // Skip auth if Supabase is not configured (development mode)
-  if (!isConfigured()) {
-    console.warn('[Auth] Supabase not configured, using fallback auth');
-    // Fallback: use visitorId from query/body for backwards compatibility
-    const visitorId = req.query.visitorId || req.body?.visitorId;
-    if (visitorId) {
-      req.user = {
-        id: visitorId,
-        isLegacy: true
-      };
-      return next();
-    }
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
   const token = extractToken(req);
 
   if (!token) {
@@ -96,18 +81,6 @@ const authenticate = async (req, res, next) => {
  * @param {Function} next
  */
 const optionalAuth = async (req, res, next) => {
-  if (!isConfigured()) {
-    // Fallback: use visitorId from query/body
-    const visitorId = req.query.visitorId || req.body?.visitorId;
-    if (visitorId) {
-      req.user = {
-        id: visitorId,
-        isLegacy: true
-      };
-    }
-    return next();
-  }
-
   const token = extractToken(req);
 
   if (!token) {
@@ -137,14 +110,6 @@ const optionalAuth = async (req, res, next) => {
  * @returns {Promise<{user: Object|null, error: string|null}>}
  */
 const verifyWebSocketAuth = async (token) => {
-  if (!isConfigured()) {
-    // Return a mock user for development
-    return {
-      user: { id: token, isLegacy: true },
-      error: null
-    };
-  }
-
   if (!token) {
     return { user: null, error: 'No access token provided' };
   }

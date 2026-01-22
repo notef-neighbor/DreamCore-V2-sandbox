@@ -115,8 +115,31 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Check if Supabase is configured
-const USE_SUPABASE_AUTH = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+// ==================== Startup Guard ====================
+
+/**
+ * Validate required environment variables at startup.
+ * Call this function early in index.js to fail fast.
+ */
+const validateEnvironment = () => {
+  const missing = [];
+
+  if (!SUPABASE_URL) missing.push('SUPABASE_URL');
+  if (!SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY');
+
+  if (missing.length > 0) {
+    console.error('='.repeat(60));
+    console.error('FATAL: Missing required environment variables:');
+    missing.forEach(v => console.error(`  - ${v}`));
+    console.error('');
+    console.error('Please configure these in your .env file.');
+    console.error('See .env.example for reference.');
+    console.error('='.repeat(60));
+    process.exit(1);
+  }
+
+  console.log('Environment validation passed');
+};
 
 // ==================== GCS Settings (Backup) ====================
 
@@ -157,10 +180,12 @@ const FEATURES = {
   publishing: false,                   // Game publishing (Phase 2)
   playerSandbox: false,                // Player sandbox (Phase 2)
 
-  // Always enabled
-  legacyAuth: !IS_PRODUCTION,          // Support visitorId auth in development
+  // Backup
   gcsBackup: USE_GCS_BACKUP
 };
+
+// NOTE: legacyAuth (visitorId) has been removed.
+// All authentication now requires Supabase Auth.
 
 // ==================== Export ====================
 
@@ -190,7 +215,7 @@ module.exports = {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
-  USE_SUPABASE_AUTH,
+  validateEnvironment,
 
   // GCS
   GCS_PROJECT_ID,
