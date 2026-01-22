@@ -2500,9 +2500,6 @@ class GameCreatorApp {
   }
 
   showWelcomeMessage() {
-    // Remove static welcome if present (from HTML)
-    this.hideWelcomeMessage();
-
     // All possible game suggestions
     const allSuggestions = [
       { label: '宇宙シューティング', prompt: '宇宙を飛ぶシューティングゲームを作って' },
@@ -2526,8 +2523,35 @@ class GameCreatorApp {
     const shuffled = allSuggestions.sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, 3);
 
+    // Check if static welcome exists (from HTML)
+    const existingWelcome = document.getElementById('welcomeMessage');
+    const examplesContainer = document.getElementById('welcomeExamples');
+
+    if (existingWelcome && examplesContainer) {
+      // Update only the examples part (keep icon/title/desc static)
+      examplesContainer.innerHTML = `
+        <span class="example-label">例えば...</span>
+        <div class="example-chips">
+          ${selected.map(s => `<button class="example-chip" data-prompt="${s.prompt}">${s.label}</button>`).join('')}
+        </div>
+      `;
+      // Add click handlers
+      examplesContainer.querySelectorAll('.example-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          if (this.chatInput) {
+            this.chatInput.value = chip.dataset.prompt;
+            this.chatInput.focus();
+          }
+          this.hideWelcomeMessage();
+        });
+      });
+      return;
+    }
+
+    // Fallback: Create full welcome if static doesn't exist
     const welcomeDiv = document.createElement('div');
     welcomeDiv.className = 'welcome-message';
+    welcomeDiv.id = 'welcomeMessage';
     welcomeDiv.innerHTML = `
       <div class="welcome-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -2538,7 +2562,7 @@ class GameCreatorApp {
       </div>
       <h3>ようこそ！</h3>
       <p>どんなゲームを作りたいですか？<br>自由に話しかけてください。</p>
-      <div class="welcome-examples">
+      <div class="welcome-examples" id="welcomeExamples">
         <span class="example-label">例えば...</span>
         <div class="example-chips">
           ${selected.map(s => `<button class="example-chip" data-prompt="${s.prompt}">${s.label}</button>`).join('')}
@@ -2553,7 +2577,6 @@ class GameCreatorApp {
           this.chatInput.value = chip.dataset.prompt;
           this.chatInput.focus();
         }
-        // Remove welcome message
         this.hideWelcomeMessage();
       });
     });
