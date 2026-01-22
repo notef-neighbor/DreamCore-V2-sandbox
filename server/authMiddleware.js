@@ -5,7 +5,7 @@
  * Supports both REST API and WebSocket authentication.
  */
 
-const { verifyToken } = require('./supabaseClient');
+const { verifyToken, createUserClient } = require('./supabaseClient');
 
 /**
  * Extract access token from request
@@ -65,6 +65,10 @@ const authenticate = async (req, res, next) => {
     createdAt: user.created_at
   };
 
+  // Create and attach Supabase client with user's JWT (for RLS)
+  req.supabase = createUserClient(token);
+  req.accessToken = token;  // Store token for WebSocket forwarding if needed
+
   next();
 };
 
@@ -93,6 +97,10 @@ const optionalAuth = async (req, res, next) => {
       metadata: user.user_metadata || {},
       createdAt: user.created_at
     };
+
+    // Create and attach Supabase client with user's JWT (for RLS)
+    req.supabase = createUserClient(token);
+    req.accessToken = token;
   }
 
   next();
@@ -122,6 +130,8 @@ const verifyWebSocketAuth = async (token) => {
       email: user.email,
       metadata: user.user_metadata || {}
     },
+    supabase: createUserClient(token),  // Supabase client with user's JWT
+    accessToken: token,
     error: null
   };
 };

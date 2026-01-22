@@ -1,4 +1,4 @@
-const db = require('./database');
+const db = require('./database-supabase');
 const EventEmitter = require('events');
 
 class JobManager extends EventEmitter {
@@ -9,50 +9,53 @@ class JobManager extends EventEmitter {
   }
 
   // Create a new job
-  createJob(userId, projectId) {
-    const job = db.createJob(userId, projectId);
+  async createJob(userId, projectId) {
+    const job = await db.createJob(userId, projectId);
+    if (!job) {
+      throw new Error('Failed to create job');
+    }
     console.log(`Job created: ${job.id} for project ${projectId}`);
     return job;
   }
 
   // Get job by ID
-  getJob(jobId) {
-    return db.getJobById(jobId);
+  async getJob(jobId) {
+    return await db.getJobById(jobId);
   }
 
   // Get active job for a project (pending or processing)
-  getActiveJob(projectId) {
-    return db.getActiveJobByProjectId(projectId);
+  async getActiveJob(projectId) {
+    return await db.getActiveJobByProjectId(projectId);
   }
 
   // Get jobs for a user
-  getUserJobs(userId, limit = 20) {
-    return db.getJobsByUserId(userId, limit);
+  async getUserJobs(userId, limit = 20) {
+    return await db.getJobsByUserId(userId, limit);
   }
 
   // Get jobs for a project
-  getProjectJobs(projectId, limit = 20) {
-    return db.getJobsByProjectId(projectId, limit);
+  async getProjectJobs(projectId, limit = 20) {
+    return await db.getJobsByProjectId(projectId, limit);
   }
 
   // Start processing a job
-  startJob(jobId) {
-    const job = db.updateJobStatus(jobId, 'processing');
+  async startJob(jobId) {
+    const job = await db.updateJobStatus(jobId, 'processing');
     this.emit('jobStarted', job);
     this.notifySubscribers(jobId, { type: 'started', job });
     return job;
   }
 
   // Update job progress
-  updateProgress(jobId, progress, message = null) {
-    const job = db.updateJobProgress(jobId, progress, message);
+  async updateProgress(jobId, progress, message = null) {
+    const job = await db.updateJobProgress(jobId, progress, message);
     this.notifySubscribers(jobId, { type: 'progress', job, progress, message });
     return job;
   }
 
   // Complete a job
-  completeJob(jobId, result = null) {
-    const job = db.completeJob(jobId, result);
+  async completeJob(jobId, result = null) {
+    const job = await db.completeJob(jobId, result);
     this.runningJobs.delete(jobId);
     this.emit('jobCompleted', job);
     this.notifySubscribers(jobId, { type: 'completed', job, result });
@@ -61,8 +64,8 @@ class JobManager extends EventEmitter {
   }
 
   // Fail a job
-  failJob(jobId, error) {
-    const job = db.failJob(jobId, error);
+  async failJob(jobId, error) {
+    const job = await db.failJob(jobId, error);
     this.runningJobs.delete(jobId);
     this.emit('jobFailed', job);
     this.notifySubscribers(jobId, { type: 'failed', job, error });
@@ -71,13 +74,13 @@ class JobManager extends EventEmitter {
   }
 
   // Cancel a job
-  cancelJob(jobId) {
+  async cancelJob(jobId) {
     const runningJob = this.runningJobs.get(jobId);
     if (runningJob && runningJob.cancel) {
       runningJob.cancel();
     }
 
-    const job = db.cancelJob(jobId);
+    const job = await db.cancelJob(jobId);
     this.runningJobs.delete(jobId);
     this.emit('jobCancelled', job);
     this.notifySubscribers(jobId, { type: 'cancelled', job });
@@ -129,8 +132,8 @@ class JobManager extends EventEmitter {
   }
 
   // Stream progress updates (for WebSocket/SSE)
-  streamJob(jobId, onUpdate) {
-    const job = this.getJob(jobId);
+  async streamJob(jobId, onUpdate) {
+    const job = await this.getJob(jobId);
     if (!job) {
       return null;
     }
@@ -146,23 +149,16 @@ class JobManager extends EventEmitter {
   }
 
   // Get pending jobs count
-  getPendingCount() {
-    return db.getPendingJobs(1000).length;
+  async getPendingCount() {
+    const jobs = await db.getPendingJobs(1000);
+    return jobs.length;
   }
 
   // Clean up old completed jobs (optional maintenance)
-  cleanupOldJobs(daysOld = 7) {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - daysOld);
-
-    const result = db.db.prepare(`
-      DELETE FROM jobs
-      WHERE status IN ('completed', 'failed', 'cancelled')
-      AND updated_at < ?
-    `).run(cutoff.toISOString());
-
-    console.log(`Cleaned up ${result.changes} old jobs`);
-    return result.changes;
+  // Note: This needs to be done via Supabase SQL or admin API
+  async cleanupOldJobs(daysOld = 7) {
+    console.log(`Job cleanup: Use Supabase Dashboard or SQL to clean up jobs older than ${daysOld} days`);
+    return 0;
   }
 }
 

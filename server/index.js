@@ -14,11 +14,14 @@ const multer = require('multer');
 const sharp = require('sharp');
 const userManager = require('./userManager');
 const { claudeRunner, jobManager } = require('./claudeRunner');
-const db = require('./database');
+const db = require('./database-supabase');
 const geminiClient = require('./geminiClient');
 const { getStyleById } = require('./stylePresets');
 const { getStyleOptionsWithImages } = require('./styleImageCache');
 const { generateVisualGuide, formatGuideForCodeGeneration } = require('./visualGuideGenerator');
+const { authenticate, optionalAuth, verifyWebSocketAuth } = require('./authMiddleware');
+const { isValidUUID, isPathSafe, getProjectPath } = require('./config');
+const { supabaseAdmin } = require('./supabaseClient');
 
 const app = express();
 const server = http.createServer(app);
@@ -76,123 +79,71 @@ app.get('/api/health', (req, res) => {
 
 // ==================== Authentication API Endpoints ====================
 
-// Login with username only (invite-only)
-app.post('/api/auth/login', (req, res) => {
-  const { username } = req.body;
-
-  if (!username) {
-    return res.status(400).json({ error: 'Username required' });
-  }
-
-  // Find user by username
-  const loginUser = db.getLoginUserByUsername(username.trim().toLowerCase());
-  if (!loginUser) {
-    return res.status(401).json({ error: 'このIDは登録されていません' });
-  }
-
-  // Create session
-  const session = db.createSession(loginUser.id);
-
-  // Update last login
-  db.updateLoginUserLastLogin(loginUser.id);
-
-  // Get linked user's visitor_id
-  const user = db.getUserById(loginUser.user_id);
-
-  res.json({
-    success: true,
-    sessionId: session.id,
-    user: {
-      id: loginUser.id,
-      username: loginUser.username,
-      displayName: loginUser.display_name,
-      visitorId: user ? user.visitor_id : null
-    }
-  });
-});
-
-// Logout
-app.post('/api/auth/logout', (req, res) => {
-  const sessionId = req.headers['x-session-id'] || req.body.sessionId;
-
-  if (sessionId) {
-    db.deleteSession(sessionId);
-  }
-
-  res.json({ success: true });
-});
-
-// Get current user from session
-app.get('/api/auth/me', (req, res) => {
-  const sessionId = req.headers['x-session-id'] || req.query.sessionId;
-
-  if (!sessionId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  // Validate session
-  const session = db.getSessionById(sessionId);
-  if (!session) {
-    return res.status(401).json({ error: 'Session expired or invalid' });
-  }
-
-  // Get login user
-  const loginUser = db.getLoginUserById(session.login_user_id);
-  if (!loginUser) {
-    return res.status(401).json({ error: 'User not found' });
-  }
-
-  // Get linked user's visitor_id
-  const user = db.getUserById(loginUser.user_id);
-
-  res.json({
-    user: {
-      id: loginUser.id,
-      username: loginUser.username,
-      displayName: loginUser.display_name,
-      visitorId: user ? user.visitor_id : null
-    }
-  });
-});
+// NOTE: /api/auth/* routes removed - use Supabase Auth instead
 
 // ==================== REST API Endpoints ====================
 
 // Get job status
-app.get('/api/jobs/:jobId', (req, res) => {
-  const job = jobManager.getJob(req.params.jobId);
+// Helper: check job ownership via user_id
+const checkJobOwnership = async (req, res, next) => {
+  const { jobId } = req.params;
+  if (!isValidUUID(jobId)) {
+    return res.status(400).json({ error: 'Invalid job ID' });
+  }
+  const job = await jobManager.getJob(jobId);
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
-  res.json(job);
+  if (job.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  req.job = job;
+  next();
+};
+
+app.get('/api/jobs/:jobId', authenticate, checkJobOwnership, (req, res) => {
+  res.json(req.job);
 });
 
 // Get active job for a project
-app.get('/api/projects/:projectId/active-job', (req, res) => {
-  const job = jobManager.getActiveJob(req.params.projectId);
+// Helper: check project ownership and attach to req
+const checkProjectOwnership = async (req, res, next) => {
+  const { projectId } = req.params;
+  if (!isValidUUID(projectId)) {
+    return res.status(400).json({ error: 'Invalid project ID' });
+  }
+  const project = await db.getProjectById(req.supabase, projectId);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+  if (project.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  req.project = project;
+  next();
+};
+
+app.get('/api/projects/:projectId/active-job', authenticate, checkProjectOwnership, async (req, res) => {
+  const job = await jobManager.getActiveJob(req.params.projectId);
   res.json({ job: job || null });
 });
 
 // Get jobs for a project
-app.get('/api/projects/:projectId/jobs', (req, res) => {
+app.get('/api/projects/:projectId/jobs', authenticate, checkProjectOwnership, async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
-  const jobs = jobManager.getProjectJobs(req.params.projectId, limit);
+  const jobs = await jobManager.getProjectJobs(req.params.projectId, limit);
   res.json({ jobs });
 });
 
 // Cancel a job
-app.post('/api/jobs/:jobId/cancel', (req, res) => {
+app.post('/api/jobs/:jobId/cancel', authenticate, checkJobOwnership, (req, res) => {
   const job = claudeRunner.cancelJob(req.params.jobId);
   res.json({ success: true, job });
 });
 
 // Get project HTML code
-app.get('/api/projects/:projectId/code', (req, res) => {
-  const visitorId = req.query.visitorId;
-  if (!visitorId) {
-    return res.status(401).json({ error: 'No visitor ID' });
-  }
-
-  const projectDir = userManager.getProjectDir(visitorId, req.params.projectId);
+app.get('/api/projects/:projectId/code', authenticate, checkProjectOwnership, (req, res) => {
+  const projectDir = getProjectPath(req.user.id, req.params.projectId);
   const indexPath = path.join(projectDir, 'index.html');
 
   if (!fs.existsSync(indexPath)) {
@@ -204,24 +155,14 @@ app.get('/api/projects/:projectId/code', (req, res) => {
 });
 
 // Get latest AI context (Gemini edits, summary, etc.)
-app.get('/api/projects/:projectId/ai-context', (req, res) => {
-  const visitorId = req.query.visitorId;
-  if (!visitorId) {
-    return res.status(401).json({ error: 'No visitor ID' });
-  }
-
-  const context = userManager.getLatestAIContext(visitorId, req.params.projectId);
+app.get('/api/projects/:projectId/ai-context', authenticate, checkProjectOwnership, (req, res) => {
+  const context = userManager.getLatestAIContext(req.user.id, req.params.projectId);
   res.json({ context });
 });
 
 // Download project as ZIP
-app.get('/api/projects/:projectId/download', async (req, res) => {
-  const visitorId = req.query.visitorId;
-  if (!visitorId) {
-    return res.status(401).json({ error: 'No visitor ID' });
-  }
-
-  const projectDir = userManager.getProjectDir(visitorId, req.params.projectId);
+app.get('/api/projects/:projectId/download', authenticate, checkProjectOwnership, async (req, res) => {
+  const projectDir = getProjectPath(req.user.id, req.params.projectId);
 
   if (!fs.existsSync(projectDir)) {
     return res.status(404).json({ error: 'Project not found' });
@@ -251,7 +192,7 @@ app.get('/api/projects/:projectId/download', async (req, res) => {
 // ==================== Image Generation API ====================
 
 // Generate image using Gemini Imagen (Nano Banana Pro)
-app.post('/api/generate-image', async (req, res) => {
+app.post('/api/generate-image', authenticate, async (req, res) => {
   try {
     const { prompt, style, size } = req.body;
 
@@ -284,16 +225,29 @@ app.post('/api/generate-image', async (req, res) => {
 // ==================== Background Removal API ====================
 
 // Remove background using Replicate API (BRIA RMBG 2.0)
-app.post('/api/assets/remove-background', async (req, res) => {
+// Helper: check asset ownership and attach to req
+const checkAssetOwnership = async (req, res, next) => {
+  const assetId = req.params.id;
+  if (!isValidUUID(assetId)) {
+    return res.status(400).json({ error: 'Invalid asset ID' });
+  }
+  const asset = await db.getAssetById(req.supabase, assetId);
+  if (!asset) {
+    return res.status(404).json({ error: 'Asset not found' });
+  }
+  if (asset.owner_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  req.asset = asset;
+  next();
+};
+
+app.post('/api/assets/remove-background', authenticate, async (req, res) => {
   try {
-    const { image, visitorId } = req.body;
+    const { image } = req.body;
 
     if (!image) {
       return res.status(400).json({ error: 'image is required' });
-    }
-
-    if (!visitorId) {
-      return res.status(400).json({ error: 'visitorId is required' });
     }
 
     const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
@@ -402,27 +356,31 @@ app.post('/api/assets/remove-background', async (req, res) => {
 // ==================== Asset API Endpoints ====================
 
 // Upload asset
-app.post('/api/assets/upload', upload.single('file'), (req, res) => {
+app.post('/api/assets/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
-    const { visitorId, projectId, originalName } = req.body;
-    if (!visitorId) {
-      return res.status(400).json({ error: 'visitorId required' });
-    }
-
-    const user = db.getUserByVisitorId(visitorId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const { projectId, originalName } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Verify project ownership if projectId provided
+    if (projectId) {
+      if (!isValidUUID(projectId)) {
+        return res.status(400).json({ error: 'Invalid project ID' });
+      }
+      const project = await db.getProjectById(req.supabase, projectId);
+      if (!project || project.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied to project' });
+      }
+    }
+
     // Use originalName from body if provided (preserves UTF-8 encoding)
     const displayName = originalName || req.file.originalname;
 
-    const asset = db.createAsset(
-      user.id,
+    const asset = await db.createAsset(
+      req.supabase,
+      req.user.id,
       req.file.filename,
       displayName,
       req.file.path,
@@ -435,7 +393,7 @@ app.post('/api/assets/upload', upload.single('file'), (req, res) => {
 
     // Link asset to current project if projectId provided
     if (projectId) {
-      db.linkAssetToProject(projectId, asset.id, 'image');
+      await db.linkAssetToProject(req.supabase, projectId, asset.id, 'image');
     }
 
     res.json({
@@ -455,107 +413,70 @@ app.post('/api/assets/upload', upload.single('file'), (req, res) => {
 });
 
 // Search assets (must be before /:id to avoid route collision)
-app.get('/api/assets/search', (req, res) => {
-  const { q, visitorId } = req.query;
-
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
+app.get('/api/assets/search', authenticate, async (req, res) => {
+  const { q } = req.query;
 
   let assets;
   if (q) {
-    assets = db.searchAssets(user.id, q);
+    assets = await db.searchAssets(req.supabase, req.user.id, q);
   } else {
-    assets = db.getAccessibleAssets(user.id);
+    assets = await db.getAccessibleAssets(req.supabase, req.user.id);
   }
 
+  // Phase 1: Only show owner's assets
   res.json({
-    assets: assets.map(a => ({
-      id: a.id,
-      filename: a.original_name,
-      mimeType: a.mime_type,
-      size: a.size,
-      isPublic: !!a.is_public,
-      isOwner: a.owner_id === user.id,
-      tags: a.tags,
-      description: a.description,
-      url: `/api/assets/${a.id}`
-    }))
+    assets: assets
+      .filter(a => a.owner_id === req.user.id)
+      .map(a => ({
+        id: a.id,
+        filename: a.original_name,
+        mimeType: a.mime_type,
+        size: a.size,
+        isPublic: !!a.is_public,
+        isOwner: true,
+        tags: a.tags,
+        description: a.description,
+        url: `/api/assets/${a.id}`
+      }))
   });
 });
 
-// Get asset file (reference-based: checks deletion and availability)
-app.get('/api/assets/:id', (req, res) => {
-  // Use getActiveAsset to check deletion status and availability period
-  const asset = db.getActiveAsset(req.params.id);
-
-  if (!asset) {
-    // Check if asset exists but is deleted/unavailable
-    const rawAsset = db.getAssetById(req.params.id);
-    if (rawAsset) {
-      if (rawAsset.is_deleted) {
-        return res.status(410).json({ error: 'Asset has been deleted' });
-      }
-      // Check availability period
-      const now = new Date().toISOString();
-      if (rawAsset.available_until && now > rawAsset.available_until) {
-        return res.status(410).json({ error: 'Asset is no longer available' });
-      }
-      if (rawAsset.available_from && now < rawAsset.available_from) {
-        return res.status(403).json({ error: 'Asset is not yet available' });
-      }
-    }
-    return res.status(404).json({ error: 'Asset not found' });
+// Get asset file (Phase 1: owner-only)
+app.get('/api/assets/:id', authenticate, checkAssetOwnership, (req, res) => {
+  // req.asset is already verified by checkAssetOwnership
+  if (req.asset.is_deleted) {
+    return res.status(410).json({ error: 'Asset has been deleted' });
   }
 
   // Check if file exists
-  if (!fs.existsSync(asset.storage_path)) {
+  if (!fs.existsSync(req.asset.storage_path)) {
     return res.status(404).json({ error: 'Asset file not found' });
   }
 
-  res.type(asset.mime_type || 'application/octet-stream');
-  res.sendFile(asset.storage_path);
+  res.type(req.asset.mime_type || 'application/octet-stream');
+  res.sendFile(req.asset.storage_path);
 });
 
-// Get asset metadata
-app.get('/api/assets/:id/meta', (req, res) => {
-  const asset = db.getAssetById(req.params.id);
-  if (!asset) {
-    return res.status(404).json({ error: 'Asset not found' });
-  }
-
+// Get asset metadata (Phase 1: owner-only)
+app.get('/api/assets/:id/meta', authenticate, checkAssetOwnership, (req, res) => {
   res.json({
-    id: asset.id,
-    filename: asset.original_name,
-    mimeType: asset.mime_type,
-    size: asset.size,
-    isPublic: !!asset.is_public,
-    tags: asset.tags,
-    description: asset.description,
-    createdAt: asset.created_at,
-    url: `/api/assets/${asset.id}`
+    id: req.asset.id,
+    filename: req.asset.original_name,
+    mimeType: req.asset.mime_type,
+    size: req.asset.size,
+    isPublic: !!req.asset.is_public,
+    tags: req.asset.tags,
+    description: req.asset.description,
+    createdAt: req.asset.created_at,
+    url: `/api/assets/${req.asset.id}`
   });
 });
 
 // List user's assets
-app.get('/api/assets', (req, res) => {
-  const { visitorId, currentProjectId } = req.query;
+app.get('/api/assets', authenticate, async (req, res) => {
+  const { currentProjectId } = req.query;
 
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const assets = db.getAssetsWithProjectsByOwnerId(user.id);
+  const assets = await db.getAssetsWithProjectsByOwnerId(req.supabase, req.user.id);
 
   // Parse project info and group assets
   const assetsWithProjects = assets.map(a => {
@@ -587,29 +508,10 @@ app.get('/api/assets', (req, res) => {
 });
 
 // Update asset publish status
-app.put('/api/assets/:id/publish', (req, res) => {
-  const { visitorId, isPublic } = req.body;
+app.put('/api/assets/:id/publish', authenticate, checkAssetOwnership, async (req, res) => {
+  const { isPublic } = req.body;
 
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const asset = db.getAssetById(req.params.id);
-  if (!asset) {
-    return res.status(404).json({ error: 'Asset not found' });
-  }
-
-  // Check ownership
-  if (asset.owner_id !== user.id) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-
-  const updated = db.setAssetPublic(req.params.id, isPublic);
+  const updated = await db.setAssetPublic(req.supabase, req.params.id, isPublic);
   res.json({
     success: true,
     asset: {
@@ -620,29 +522,10 @@ app.put('/api/assets/:id/publish', (req, res) => {
 });
 
 // Update asset metadata
-app.put('/api/assets/:id', (req, res) => {
-  const { visitorId, tags, description } = req.body;
+app.put('/api/assets/:id', authenticate, checkAssetOwnership, async (req, res) => {
+  const { tags, description } = req.body;
 
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const asset = db.getAssetById(req.params.id);
-  if (!asset) {
-    return res.status(404).json({ error: 'Asset not found' });
-  }
-
-  // Check ownership
-  if (asset.owner_id !== user.id) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-
-  const updated = db.updateAssetMeta(req.params.id, tags, description);
+  const updated = await db.updateAssetMeta(req.supabase, req.params.id, tags, description);
   res.json({
     success: true,
     asset: {
@@ -654,34 +537,23 @@ app.put('/api/assets/:id', (req, res) => {
 });
 
 // Delete asset (soft delete - file remains but asset becomes inaccessible)
-app.delete('/api/assets/:id', (req, res) => {
-  const { visitorId } = req.body;
-
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const asset = db.getAssetById(req.params.id);
-  if (!asset) {
-    return res.status(404).json({ error: 'Asset not found' });
-  }
-
-  // Check ownership
-  if (asset.owner_id !== user.id) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-
+app.delete('/api/assets/:id', authenticate, checkAssetOwnership, async (req, res) => {
   // Soft delete (logical deletion - asset becomes inaccessible but data remains)
   // This ensures that all projects referencing this asset will see it as "deleted"
-  db.deleteAsset(req.params.id);
+  // NOTE: Use service_role client because RLS WITH CHECK blocks user from setting is_deleted=true
+  const deleted = await db.deleteAsset(supabaseAdmin, req.params.id);
 
-  // Return usage count so owner knows impact
-  const usageCount = db.getAssetUsageCount(req.params.id);
+  if (deleted === false) {
+    return res.status(500).json({ error: 'Failed to delete asset' });
+  }
+
+  if (deleted === null) {
+    // No rows affected - asset was already deleted (race condition)
+    return res.status(404).json({ error: 'Asset not found or already deleted' });
+  }
+
+  // Return usage count so owner knows impact (use admin client since asset is now hidden by RLS)
+  const usageCount = await db.getAssetUsageCount(supabaseAdmin, req.params.id);
   res.json({
     success: true,
     message: usageCount > 0
@@ -693,59 +565,14 @@ app.delete('/api/assets/:id', (req, res) => {
 // ==================== Public Games API ====================
 
 // Get public games for discover feed
-app.get('/api/public-games', (req, res) => {
+// NOTE: /api/public-games removed for Phase 1 (owner-only)
+
+// Get single game preview (owner-only)
+// Phase 1: Owner-only preview (no public access)
+app.get('/api/projects/:projectId/preview', authenticate, checkProjectOwnership, (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
-    const publicProjects = db.getPublicProjects(limit);
-
-    const games = publicProjects.map(project => {
-      // Get creator info
-      const creator = db.getUserById(project.user_id);
-      return {
-        id: project.id,
-        name: project.name,
-        creatorId: creator?.visitor_id,
-        creatorName: creator?.display_name || creator?.username || 'anonymous',
-        createdAt: project.created_at,
-        updatedAt: project.updated_at,
-        likes: project.likes || 0
-      };
-    });
-
-    res.json({ games });
-  } catch (error) {
-    console.error('Failed to get public games:', error);
-    res.status(500).json({ error: 'Failed to get public games' });
-  }
-});
-
-// Get single public game preview
-app.get('/api/projects/:projectId/preview', (req, res) => {
-  const { visitorId } = req.query;
-  const { projectId } = req.params;
-
-  try {
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).send('Game not found');
-    }
-
-    // Allow access if public OR if owner
-    const user = visitorId ? db.getUserByVisitorId(visitorId) : null;
-    const isOwner = user && project.user_id === user.id;
-
-    if (!project.is_public && !isOwner) {
-      return res.status(403).send('This game is not public');
-    }
-
-    // Get the creator's visitor_id
-    const creator = db.getUserById(project.user_id);
-    if (!creator) {
-      return res.status(404).send('Creator not found');
-    }
-
-    // Read the index.html file
-    const projectDir = userManager.getProjectDir(creator.visitor_id, projectId);
+    // Read the index.html file (user is already verified as owner)
+    const projectDir = getProjectPath(req.user.id, req.params.projectId);
     const indexPath = path.join(projectDir, 'index.html');
 
     if (!fs.existsSync(indexPath)) {
@@ -837,9 +664,28 @@ const ERROR_DETECTION_SCRIPT = `
 `;
 
 // Serve project game files (supports nested paths: js/, css/, assets/)
-app.get('/game/:visitorId/:projectId/*', (req, res) => {
-  const { visitorId, projectId } = req.params;
+app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
+  const { userId, projectId } = req.params;
   const filename = req.params[0] || 'index.html';
+
+  // Validate UUID format
+  if (!isValidUUID(userId) || !isValidUUID(projectId)) {
+    return res.status(400).json({ error: 'Invalid ID format' });
+  }
+
+  // Ownership check: authenticated user must match URL userId
+  if (req.user.id !== userId) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  // Verify project exists and belongs to user
+  const project = await db.getProjectById(req.supabase, projectId);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+  if (project.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   const ext = path.extname(filename).toLowerCase();
   const contentTypes = {
@@ -866,8 +712,13 @@ app.get('/game/:visitorId/:projectId/*', (req, res) => {
   const binaryExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.wav', '.ogg', '.woff', '.woff2', '.ttf'];
   const isBinary = binaryExtensions.includes(ext);
 
-  const projectDir = userManager.getProjectDir(visitorId, projectId);
+  const projectDir = getProjectPath(userId, projectId);
   const filePath = path.join(projectDir, filename);
+
+  // Path traversal protection
+  if (!isPathSafe(projectDir, filePath)) {
+    return res.status(400).json({ error: 'Invalid file path' });
+  }
 
   if (fs.existsSync(filePath)) {
     res.type(contentTypes[ext] || 'application/octet-stream');
@@ -900,14 +751,15 @@ app.get('/game/:visitorId/:projectId/*', (req, res) => {
 
 // ==================== WebSocket Connection Handling ====================
 
-// Track WebSocket connections by visitor
-const wsConnections = new Map(); // visitorId -> Set of ws
+// Track WebSocket connections by userId
+const wsConnections = new Map(); // userId -> Set of ws
 
 wss.on('connection', (ws) => {
-  let visitorId = null;
+  let userId = null;
   let currentProjectId = null;
   let jobUnsubscribe = null;
   let sessionId = null;
+  let userSupabase = null;  // Supabase client with user's JWT
 
   // Helper to safely send
   const safeSend = (data) => {
@@ -916,28 +768,56 @@ wss.on('connection', (ws) => {
     }
   };
 
+  // Helper: check project ownership (async)
+  const verifyProjectOwnership = async (projectId) => {
+    if (!projectId || !isValidUUID(projectId)) return false;
+    if (!userSupabase) return false;
+    const project = await db.getProjectById(userSupabase, projectId);
+    return project && project.user_id === userId;
+  };
+
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
 
       switch (data.type) {
         case 'init':
-          // Initialize or reconnect visitor
-          visitorId = userManager.getOrCreateUser(data.visitorId);
+          // Initialize with access_token (Supabase Auth)
+          if (!data.access_token) {
+            safeSend({ type: 'error', message: 'access_token required' });
+            ws.close(4001, 'Authentication required');
+            return;
+          }
+
+          const { user, supabase, error } = await verifyWebSocketAuth(data.access_token);
+          if (error || !user) {
+            safeSend({ type: 'error', message: error || 'Invalid token' });
+            ws.close(4001, 'Authentication failed');
+            return;
+          }
+
+          userId = user.id;
+          userSupabase = supabase;  // Store for db operations
           sessionId = data.sessionId || 'unknown';
-          const projects = userManager.getProjects(visitorId);
+
+          // Ensure profile exists in database (for foreign key constraints)
+          const profile = await db.getOrCreateUserFromAuth(user);
+          console.log(`[${sessionId}] Profile ensured:`, profile ? profile.id : 'null');
+
+          userManager.ensureUserDirectory(userId);  // Ensure user dir exists
+          const projects = await userManager.getProjects(userSupabase, userId);
 
           // Track connection
-          if (!wsConnections.has(visitorId)) {
-            wsConnections.set(visitorId, new Set());
+          if (!wsConnections.has(userId)) {
+            wsConnections.set(userId, new Set());
           }
-          wsConnections.get(visitorId).add(ws);
+          wsConnections.get(userId).add(ws);
 
-          console.log(`[${sessionId}] Client connected: ${visitorId} (total: ${wsConnections.get(visitorId).size} connections)`);
+          console.log(`[${sessionId}] Client connected: ${userId} (total: ${wsConnections.get(userId).size} connections)`);
 
           safeSend({
             type: 'init',
-            visitorId,
+            userId,
             projects
           });
           break;
@@ -948,20 +828,24 @@ wss.on('connection', (ws) => {
           break;
 
         case 'selectProject':
-          if (!visitorId) {
+          if (!userId) {
             safeSend({ type: 'error', message: 'Not initialized' });
+            return;
+          }
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
             return;
           }
           currentProjectId = data.projectId;
 
           // Get conversation history
-          const history = userManager.getConversationHistory(visitorId, currentProjectId);
+          const history = await userManager.getConversationHistory(userSupabase, userId, currentProjectId);
 
           // Get versions (without edits - edits are fetched on demand)
-          const versionsWithEdits = userManager.getVersions(visitorId, currentProjectId);
+          const versionsWithEdits = userManager.getVersions(userId, currentProjectId);
 
           // Check for active job
-          const activeJob = jobManager.getActiveJob(currentProjectId);
+          const activeJob = await jobManager.getActiveJob(currentProjectId);
 
           safeSend({
             type: 'projectSelected',
@@ -981,54 +865,66 @@ wss.on('connection', (ws) => {
           break;
 
         case 'createProject':
-          if (!visitorId) {
+          if (!userId) {
             safeSend({ type: 'error', message: 'Not initialized' });
             return;
           }
-          const newProject = userManager.createProject(visitorId, data.name);
+          const newProject = await userManager.createProject(userSupabase, userId, data.name);
           currentProjectId = newProject.id;
           safeSend({
             type: 'projectCreated',
             project: newProject,
-            projects: userManager.getProjects(visitorId)
+            projects: await userManager.getProjects(userSupabase, userId)
           });
           break;
 
         case 'deleteProject':
-          if (!visitorId || !data.projectId) {
+          if (!userId || !data.projectId) {
             safeSend({ type: 'error', message: 'Invalid request' });
             return;
           }
-          userManager.deleteProject(visitorId, data.projectId);
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
+            return;
+          }
+          await userManager.deleteProject(userSupabase, userId, data.projectId);
           if (currentProjectId === data.projectId) {
             currentProjectId = null;
           }
           safeSend({
             type: 'projectDeleted',
             projectId: data.projectId,
-            projects: userManager.getProjects(visitorId)
+            projects: await userManager.getProjects(userSupabase, userId)
           });
           break;
 
         case 'renameProject':
-          if (!visitorId || !data.projectId || !data.name) {
+          if (!userId || !data.projectId || !data.name) {
             safeSend({ type: 'error', message: 'Invalid request' });
             return;
           }
-          const renamedProject = userManager.renameProject(visitorId, data.projectId, data.name);
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
+            return;
+          }
+          const renamedProject = await userManager.renameProject(userSupabase, userId, data.projectId, data.name);
           safeSend({
             type: 'projectRenamed',
             project: renamedProject,
-            projects: userManager.getProjects(visitorId)
+            projects: await userManager.getProjects(userSupabase, userId)
           });
           break;
 
         case 'getProjectInfo':
-          if (!visitorId || !data.projectId) {
+          if (!userId || !data.projectId) {
             safeSend({ type: 'error', message: 'Invalid request' });
             return;
           }
-          const projectInfo = db.getProjectById(data.projectId);
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
+            return;
+          }
+          const projectInfo = await db.getProjectById(userSupabase, data.projectId);
           if (projectInfo) {
             safeSend({
               type: 'projectInfo',
@@ -1043,7 +939,7 @@ wss.on('connection', (ws) => {
           break;
 
         case 'message':
-          if (!visitorId || !currentProjectId) {
+          if (!userId || !currentProjectId) {
             safeSend({ type: 'error', message: 'No project selected' });
             return;
           }
@@ -1061,10 +957,10 @@ wss.on('connection', (ws) => {
           const shouldCheckStyleSelection = !data.skipStyleSelection && !data.selectedStyle;
           if (shouldCheckStyleSelection) {
             // Check if this is a new project
-            const files = userManager.listProjectFiles(visitorId, currentProjectId);
+            const files = userManager.listProjectFiles(userId, currentProjectId);
             let isNewProject = true;
             if (files.length > 0) {
-              const indexContent = userManager.readProjectFile(visitorId, currentProjectId, 'index.html');
+              const indexContent = userManager.readProjectFile(userId, currentProjectId, 'index.html');
               const isInitialWelcomePage = indexContent &&
                 indexContent.length < 2000 &&
                 indexContent.includes('Welcome to Game Creator');
@@ -1106,7 +1002,7 @@ wss.on('connection', (ws) => {
               // Save STYLE.md to project for persistence across updates
               try {
                 const styleContent = `# ビジュアルスタイル: ${style.name}\n\nID: ${styleId}\nDimension: ${dimension}\n\n${style.guideline || ''}`;
-                userManager.writeProjectFile(visitorId, currentProjectId, 'STYLE.md', styleContent);
+                await userManager.writeProjectFile(userSupabase, userId, currentProjectId, 'STYLE.md', styleContent);
                 console.log(`[Style Selection] Saved STYLE.md for ${style.name}`);
               } catch (err) {
                 console.error(`[Style Selection] Failed to save STYLE.md:`, err.message);
@@ -1133,7 +1029,7 @@ wss.on('connection', (ws) => {
             console.log(`[Style Selection] No selectedStyle in data`);
           }
 
-          userManager.addToHistory(visitorId, currentProjectId, 'user', data.content); // Store original message
+          await userManager.addToHistory(userSupabase, userId, currentProjectId, 'user', data.content); // Store original message
 
           // Log debug options if enabled
           if (debugOptions.disableSkills || debugOptions.useClaude) {
@@ -1144,7 +1040,7 @@ wss.on('connection', (ws) => {
           if (data.async !== false) {
             try {
               const { job, isExisting, startProcessing } = await claudeRunner.runClaudeAsJob(
-                visitorId,
+                userId,
                 currentProjectId,
                 userMessage,
                 debugOptions
@@ -1171,7 +1067,7 @@ wss.on('connection', (ws) => {
                   if (update.type === 'completed') {
                     safeSend({
                       type: 'gameUpdated',
-                      visitorId,
+                      userId,
                       projectId: currentProjectId
                     });
                   }
@@ -1199,22 +1095,22 @@ wss.on('connection', (ws) => {
 
             try {
               const result = await claudeRunner.runClaude(
-                visitorId,
+                userId,
                 currentProjectId,
                 userMessage,
                 (progress) => safeSend(progress)
               );
 
-              userManager.createVersionSnapshot(visitorId, currentProjectId, userMessage.substring(0, 50));
-              userManager.addToHistory(visitorId, currentProjectId, 'assistant', result.output ? 'ゲームを更新しました' : '');
+              userManager.createVersionSnapshot(userId, currentProjectId, userMessage.substring(0, 50));
+              await userManager.addToHistory(userSupabase, userId, currentProjectId, 'assistant', result.output ? 'ゲームを更新しました' : '');
 
               safeSend({
                 type: 'gameUpdated',
-                visitorId,
+                userId,
                 projectId: currentProjectId
               });
             } catch (error) {
-              userManager.addToHistory(visitorId, currentProjectId, 'assistant', `Error: ${error.message}`);
+              await userManager.addToHistory(userSupabase, userId, currentProjectId, 'assistant', `Error: ${error.message}`);
               safeSend({
                 type: 'error',
                 message: error.message
@@ -1224,20 +1120,38 @@ wss.on('connection', (ws) => {
           break;
 
         case 'getJobStatus':
+          if (!userId) {
+            safeSend({ type: 'error', message: 'Not authenticated' });
+            return;
+          }
           if (!data.jobId) {
             safeSend({ type: 'error', message: 'Job ID required' });
             return;
           }
-          const job = jobManager.getJob(data.jobId);
+          const jobStatus = await jobManager.getJob(data.jobId);
+          if (!jobStatus || jobStatus.user_id !== userId) {
+            safeSend({ type: 'jobStatus', job: null });
+            return;
+          }
           safeSend({
             type: 'jobStatus',
-            job: job || null
+            job: jobStatus
           });
           break;
 
         case 'subscribeJob':
+          if (!userId) {
+            safeSend({ type: 'error', message: 'Not authenticated' });
+            return;
+          }
           if (!data.jobId) {
             safeSend({ type: 'error', message: 'Job ID required' });
+            return;
+          }
+          // Verify ownership before subscribing
+          const jobToSubscribe = await jobManager.getJob(data.jobId);
+          if (!jobToSubscribe || jobToSubscribe.user_id !== userId) {
+            safeSend({ type: 'error', message: 'Job not found' });
             return;
           }
           if (jobUnsubscribe) jobUnsubscribe();
@@ -1248,11 +1162,15 @@ wss.on('connection', (ws) => {
           break;
 
         case 'getVersions':
-          if (!visitorId || !data.projectId) {
+          if (!userId || !data.projectId) {
             safeSend({ type: 'error', message: 'Invalid request' });
             return;
           }
-          const versions = userManager.getVersions(visitorId, data.projectId);
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
+            return;
+          }
+          const versions = userManager.getVersions(userId, data.projectId);
           safeSend({
             type: 'versionsList',
             projectId: data.projectId,
@@ -1261,11 +1179,15 @@ wss.on('connection', (ws) => {
           break;
 
         case 'getVersionEdits':
-          if (!visitorId || !data.projectId || !data.versionHash) {
+          if (!userId || !data.projectId || !data.versionHash) {
             safeSend({ type: 'error', message: 'Invalid request' });
             return;
           }
-          const editsData = userManager.getVersionEdits(visitorId, data.projectId, data.versionHash);
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
+            return;
+          }
+          const editsData = userManager.getVersionEdits(userId, data.projectId, data.versionHash);
           safeSend({
             type: 'versionEdits',
             projectId: data.projectId,
@@ -1276,11 +1198,15 @@ wss.on('connection', (ws) => {
           break;
 
         case 'restoreVersion':
-          if (!visitorId || !data.projectId || !data.versionId) {
+          if (!userId || !data.projectId || !data.versionId) {
             safeSend({ type: 'error', message: 'Invalid request' });
             return;
           }
-          const restoreResult = userManager.restoreVersion(visitorId, data.projectId, data.versionId);
+          if (!await verifyProjectOwnership(data.projectId)) {
+            safeSend({ type: 'error', message: 'Access denied' });
+            return;
+          }
+          const restoreResult = userManager.restoreVersion(userId, data.projectId, data.versionId);
           if (restoreResult.success) {
             safeSend({
               type: 'versionRestored',
@@ -1290,7 +1216,7 @@ wss.on('connection', (ws) => {
 
             // Regenerate SPEC.md after restore to reflect restored code
             if (restoreResult.needsSpecRegeneration) {
-              claudeRunner.updateSpec(visitorId, data.projectId).catch(err => {
+              claudeRunner.updateSpec(userId, data.projectId).catch(err => {
                 console.error('SPEC.md regeneration after restore failed:', err.message);
               });
             }
@@ -1304,10 +1230,16 @@ wss.on('connection', (ws) => {
 
         case 'cancel':
           if (data.jobId) {
-            claudeRunner.cancelJob(data.jobId);
-            safeSend({ type: 'cancelled', message: 'Job cancelled', jobId: data.jobId });
-          } else if (visitorId && currentProjectId) {
-            claudeRunner.cancelRun(`${visitorId}-${currentProjectId}`);
+            // Verify job ownership
+            const cancelJobData = await jobManager.getJob(data.jobId);
+            if (cancelJobData && cancelJobData.user_id === userId) {
+              await claudeRunner.cancelJob(data.jobId);
+              safeSend({ type: 'cancelled', message: 'Job cancelled', jobId: data.jobId });
+            } else {
+              safeSend({ type: 'error', message: 'Access denied' });
+            }
+          } else if (userId && currentProjectId) {
+            claudeRunner.cancelRun(`${userId}-${currentProjectId}`);
             safeSend({ type: 'cancelled', message: 'Operation cancelled' });
           }
           break;
@@ -1322,16 +1254,16 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log(`[${sessionId}] Client disconnected: ${visitorId}`);
+    console.log(`[${sessionId}] Client disconnected: ${userId}`);
 
     // Clean up
     if (jobUnsubscribe) jobUnsubscribe();
 
     // Remove from connections
-    if (visitorId && wsConnections.has(visitorId)) {
-      wsConnections.get(visitorId).delete(ws);
-      if (wsConnections.get(visitorId).size === 0) {
-        wsConnections.delete(visitorId);
+    if (userId && wsConnections.has(userId)) {
+      wsConnections.get(userId).delete(ws);
+      if (wsConnections.get(userId).size === 0) {
+        wsConnections.delete(userId);
       }
     }
   });
@@ -1344,94 +1276,65 @@ wss.on('connection', (ws) => {
 // ==================== Project API Endpoints ====================
 
 // Get project by ID
-app.get('/api/project/:projectId', (req, res) => {
-  const { visitorId } = req.query;
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const projects = userManager.getProjects(visitorId);
-  const project = projects.find(p => p.id === req.params.projectId);
-
-  if (!project) {
-    return res.status(404).json({ error: 'Project not found' });
-  }
-
-  res.json({ project });
-});
+// NOTE: /api/project/:projectId removed - use /api/projects/:projectId instead
 
 // Get all projects for a user
-app.get('/api/projects', (req, res) => {
-  const { visitorId } = req.query;
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
-
-  const projects = userManager.getProjects(visitorId);
+app.get('/api/projects', authenticate, async (req, res) => {
+  const projects = await userManager.getProjects(req.supabase, req.user.id);
   res.json({ projects });
 });
 
 // Get single project by ID
-app.get('/api/projects/:projectId', (req, res) => {
-  const project = db.getProjectById(req.params.projectId);
-  if (!project) {
-    return res.status(404).json({ error: 'Project not found' });
-  }
-  res.json(project);
+app.get('/api/projects/:projectId', authenticate, checkProjectOwnership, (req, res) => {
+  res.json(req.project);
 });
 
 // ==================== Publish API ====================
 
 // Get publish draft
-app.get('/api/projects/:projectId/publish-draft', (req, res) => {
+app.get('/api/projects/:projectId/publish-draft', authenticate, checkProjectOwnership, async (req, res) => {
   const { projectId } = req.params;
-  const draft = db.getPublishDraft(projectId);
+  const draft = await db.getPublishDraft(req.supabase, projectId);
   res.json(draft || null);
 });
 
 // Save publish draft
-app.put('/api/projects/:projectId/publish-draft', async (req, res) => {
+app.put('/api/projects/:projectId/publish-draft', authenticate, checkProjectOwnership, async (req, res) => {
   const { projectId } = req.params;
   const draftData = req.body;
 
   try {
     // Save to database
-    db.savePublishDraft(projectId, draftData);
+    await db.savePublishDraft(req.supabase, projectId, draftData);
 
     // Also save to project directory as PUBLISH.json and commit to Git
-    const project = db.getProjectById(projectId);
-    if (project) {
-      const user = db.getUserById(project.user_id);
-      if (user) {
-        const projectDir = userManager.getProjectDir(user.visitor_id, projectId);
-        const publishPath = path.join(projectDir, 'PUBLISH.json');
+    const projectDir = getProjectPath(req.user.id, projectId);
+    const publishPath = path.join(projectDir, 'PUBLISH.json');
 
-        // Save publish data as JSON
-        const publishData = {
-          title: draftData.title || '',
-          description: draftData.description || '',
-          howToPlay: draftData.howToPlay || '',
-          tags: draftData.tags || [],
-          visibility: draftData.visibility || 'public',
-          remix: draftData.remix || 'allowed',
-          thumbnailUrl: draftData.thumbnailUrl || null,
-          updatedAt: new Date().toISOString()
-        };
-        fs.writeFileSync(publishPath, JSON.stringify(publishData, null, 2), 'utf-8');
+    // Save publish data as JSON
+    const publishData = {
+      title: draftData.title || '',
+      description: draftData.description || '',
+      howToPlay: draftData.howToPlay || '',
+      tags: draftData.tags || [],
+      visibility: draftData.visibility || 'public',
+      remix: draftData.remix || 'allowed',
+      thumbnailUrl: draftData.thumbnailUrl || null,
+      updatedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(publishPath, JSON.stringify(publishData, null, 2), 'utf-8');
 
-        // Commit to Git (non-blocking)
-        const { exec } = require('child_process');
-        exec('git add PUBLISH.json && git commit -m "Update publish info" --allow-empty', {
-          cwd: projectDir
-        }, (err) => {
-          if (err) {
-            console.log('[Publish] Git commit skipped or failed:', err.message);
-          } else {
-            console.log('[Publish] Committed PUBLISH.json');
-          }
-        });
+    // Commit to Git (non-blocking)
+    const { exec } = require('child_process');
+    exec('git add PUBLISH.json && git commit -m "Update publish info" --allow-empty', {
+      cwd: projectDir
+    }, (err) => {
+      if (err) {
+        console.log('[Publish] Git commit skipped or failed:', err.message);
+      } else {
+        console.log('[Publish] Committed PUBLISH.json');
       }
-    }
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -1441,22 +1344,12 @@ app.put('/api/projects/:projectId/publish-draft', async (req, res) => {
 });
 
 // Generate title, description, tags using Claude CLI (Sonnet)
-app.post('/api/projects/:projectId/generate-publish-info', async (req, res) => {
+app.post('/api/projects/:projectId/generate-publish-info', authenticate, checkProjectOwnership, async (req, res) => {
   const { projectId } = req.params;
-  const { visitorId } = req.body;
-
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
 
   try {
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
     // Get project code
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const projectDir = getProjectPath(req.user.id, projectId);
     const indexPath = path.join(projectDir, 'index.html');
     let gameCode = '';
     if (fs.existsSync(indexPath)) {
@@ -1478,7 +1371,7 @@ app.post('/api/projects/:projectId/generate-publish-info', async (req, res) => {
 
     const prompt = `以下のゲームプロジェクトの情報から、公開用のタイトル、概要、ルールと操作方法、タグを生成してください。
 
-プロジェクト名: ${project.name}
+プロジェクト名: ${req.project.name}
 
 ${specContent ? `仕様書:\n${specContent}\n` : ''}
 ${gameCode ? `ゲームコード（抜粋）:\n${gameCode.slice(0, 3000)}\n` : ''}
@@ -1537,22 +1430,13 @@ ${gameCode ? `ゲームコード（抜粋）:\n${gameCode.slice(0, 3000)}\n` : '
 });
 
 // Generate thumbnail using Nano Banana
-app.post('/api/projects/:projectId/generate-thumbnail', async (req, res) => {
+app.post('/api/projects/:projectId/generate-thumbnail', authenticate, checkProjectOwnership, async (req, res) => {
   const { projectId } = req.params;
-  const { visitorId, title } = req.body;
-
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
+  const { title } = req.body;
 
   try {
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
     // Get spec.md if exists
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const projectDir = getProjectPath(req.user.id, projectId);
     // Try specs/game.md first, then spec.md for backwards compatibility
     let specContent = '';
     const specPaths = [
@@ -1567,7 +1451,7 @@ app.post('/api/projects/:projectId/generate-thumbnail', async (req, res) => {
     }
 
     // Get project assets for reference images
-    const projectAssets = db.getProjectAssets(projectId);
+    const projectAssets = await db.getProjectAssets(req.supabase, projectId);
     const assetPaths = [];
 
     for (const asset of projectAssets) {
@@ -1598,7 +1482,7 @@ app.post('/api/projects/:projectId/generate-thumbnail', async (req, res) => {
     const promptGeneratorPrompt = `あなたは画像生成AIへのプロンプトを作成するアシスタントです。
 以下のゲーム情報を元に、サムネイル画像生成用のプロンプトを作成してください。
 
-タイトル: ${title || project.name}
+タイトル: ${title || req.project.name}
 ${specContent ? `仕様書:\n${specContent.slice(0, 3000)}\n` : ''}${refImageInstruction}
 
 要件:
@@ -1736,21 +1620,15 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
 });
 
 // Upload thumbnail image
-app.post('/api/projects/:projectId/upload-thumbnail', upload.single('thumbnail'), async (req, res) => {
+app.post('/api/projects/:projectId/upload-thumbnail', authenticate, checkProjectOwnership, upload.single('thumbnail'), async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { visitorId } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const projectDir = getProjectPath(req.user.id, projectId);
     const thumbnailPath = path.join(projectDir, 'thumbnail.webp');
 
     // Remove old png thumbnail if exists
@@ -1785,23 +1663,10 @@ app.post('/api/projects/:projectId/upload-thumbnail', upload.single('thumbnail')
 });
 
 // Get thumbnail image
-app.get('/api/projects/:projectId/thumbnail', (req, res) => {
+// Phase 1: Owner-only thumbnail access
+app.get('/api/projects/:projectId/thumbnail', authenticate, checkProjectOwnership, (req, res) => {
   try {
-    const { projectId } = req.params;
-
-    // Find project to get visitor ID
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).send('Project not found');
-    }
-
-    // Get user to find visitor_id
-    const user = db.getUserById(project.user_id);
-    if (!user) {
-      return res.status(404).send('User not found');
-    }
-
-    const projectDir = userManager.getProjectDir(user.visitor_id, projectId);
+    const projectDir = getProjectPath(req.user.id, req.params.projectId);
 
     // Check for webp first (uploaded), then png (generated)
     const webpPath = path.join(projectDir, 'thumbnail.webp');
@@ -1824,21 +1689,11 @@ app.get('/api/projects/:projectId/thumbnail', (req, res) => {
 
 // Generate game demo movie using Remotion + AI
 // AI reads the game code and generates a Remotion component that recreates the gameplay
-app.post('/api/projects/:projectId/generate-movie', async (req, res) => {
+app.post('/api/projects/:projectId/generate-movie', authenticate, checkProjectOwnership, async (req, res) => {
   const { projectId } = req.params;
-  const { visitorId } = req.body;
-
-  if (!visitorId) {
-    return res.status(400).json({ error: 'visitorId required' });
-  }
 
   try {
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const projectDir = getProjectPath(req.user.id, projectId);
     const gameVideoDir = path.join(__dirname, '..', 'game-video');
 
     // Read the game code
@@ -1862,7 +1717,7 @@ app.post('/api/projects/:projectId/generate-movie', async (req, res) => {
     }
 
     // Gather assets and copy to Remotion public directory
-    const projectAssets = db.getProjectAssets(projectId);
+    const projectAssets = await db.getProjectAssets(req.supabase, projectId);
     const remotionPublicDir = path.join(gameVideoDir, 'public');
 
     // Ensure public directory exists
@@ -1944,7 +1799,7 @@ ${assetInfo.map(a => `- ${a.staticName}: ${a.name}${a.description ? ` (${a.descr
 
 ### 技術要件
 - アセット画像は staticFile() で読み込む（例: staticFile("asset0.png")）
-- ゲームタイトル「${project.name}」を表示
+- ゲームタイトル「${req.project.name}」を表示
 - interpolate() でシーンごとにscale/opacity/positionを変化させる
 - ビネット効果: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.8) 100%)
 - ゲームの雰囲気が伝わる魅力的なデモ
@@ -2100,36 +1955,10 @@ export const RemotionRoot = () => {
   }
 });
 
-// Serve movie file
-app.get('/api/projects/:projectId/movie', (req, res) => {
-  const { projectId } = req.params;
-  const visitorId = req.query.visitorId || req.headers['x-visitor-id'];
-
+// Serve movie file (owner-only for Phase 1)
+app.get('/api/projects/:projectId/movie', authenticate, checkProjectOwnership, (req, res) => {
   try {
-    const project = db.getProjectById(projectId);
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    // Try to find project dir
-    let projectDir = null;
-    const usersDir = path.join(__dirname, '..', 'users');
-
-    if (fs.existsSync(usersDir)) {
-      const visitors = fs.readdirSync(usersDir);
-      for (const visitor of visitors) {
-        const possibleDir = path.join(usersDir, visitor, projectId);
-        if (fs.existsSync(possibleDir)) {
-          projectDir = possibleDir;
-          break;
-        }
-      }
-    }
-
-    if (!projectDir) {
-      return res.status(404).json({ error: 'Project directory not found' });
-    }
-
+    const projectDir = getProjectPath(req.user.id, req.params.projectId);
     const moviePath = path.join(projectDir, 'movie.mp4');
 
     if (fs.existsSync(moviePath)) {
@@ -2151,65 +1980,31 @@ app.get('/mypage', (req, res) => {
 
 // ==================== Play Screen Route ====================
 
-app.get('/play/:projectId', (req, res) => {
+// Phase 1: Owner-only preview
+app.get('/play/:projectId', authenticate, async (req, res) => {
+  const { projectId } = req.params;
+
+  // Validate and check ownership
+  if (!isValidUUID(projectId)) {
+    return res.status(400).send('Invalid project ID');
+  }
+
+  const project = await db.getProjectById(req.supabase, projectId);
+  if (!project) {
+    return res.status(404).send('Project not found');
+  }
+
+  if (project.user_id !== req.user.id) {
+    return res.status(403).send('Access denied');
+  }
+
   res.sendFile(path.join(__dirname, '..', 'public', 'play.html'));
 });
 
 // ==================== Public Games API ====================
 
 // Get random public game (must be before :projectId to avoid matching 'random' as projectId)
-app.get('/api/public/games/random', (req, res) => {
-  try {
-    const publicGames = db.getPublicProjects(100);
-
-    if (publicGames.length === 0) {
-      return res.status(404).json({ error: 'No public games available' });
-    }
-
-    const randomIndex = Math.floor(Math.random() * publicGames.length);
-    const game = publicGames[randomIndex];
-
-    res.json({
-      id: game.id,
-      name: game.name
-    });
-  } catch (error) {
-    console.error('Error fetching random game:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get single public game info
-app.get('/api/public/games/:projectId', (req, res) => {
-  try {
-    const { projectId } = req.params;
-    const project = db.getProjectById(projectId);
-
-    if (!project || !project.is_public) {
-      return res.status(404).json({ error: 'Game not found' });
-    }
-
-    const draft = db.getPublishDraft(projectId);
-    const user = db.getUserById(project.user_id);
-
-    res.json({
-      id: project.id,
-      title: draft?.title || project.name,
-      description: draft?.description || '',
-      howToPlay: draft?.howToPlay || '',
-      tags: draft?.tags || [],
-      thumbnailUrl: draft?.thumbnailUrl,
-      creatorId: user?.visitor_id,
-      creatorName: user?.display_name || user?.username || '不明',
-      likes: 0, // TODO: Implement likes
-      createdAt: project.created_at,
-      updatedAt: project.updated_at
-    });
-  } catch (error) {
-    console.error('Error fetching game:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// NOTE: /api/public/games/* routes removed for Phase 1 (owner-only)
 
 // ==================== Notifications Route ====================
 

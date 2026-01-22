@@ -16,8 +16,12 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const db = require('./database');
+const db = require('./database-supabase');
+const { supabaseAdmin } = require('./supabaseClient');
 const config = require('./config');
+
+// Helper: get client or fallback to admin (for background job context)
+const getClient = (client) => client || supabaseAdmin;
 
 // Base directory for user files (game code, assets)
 const PROJECTS_DIR = config.PROJECTS_DIR;
@@ -29,19 +33,8 @@ config.ensureDirectories();
 // Note: Users directory git has been replaced with DB activity_log table
 // initUsersGit() is no longer needed - activity is logged to SQLite instead
 
-// Run migration from JSON files if needed
-const runMigration = () => {
-  try {
-    const result = db.migrateFromJsonFiles(USERS_DIR);
-    if (result.migratedUsers > 0 || result.migratedProjects > 0) {
-      console.log('Migration completed:', result);
-    }
-  } catch (e) {
-    console.error('Migration failed:', e);
-  }
-};
-
-runMigration();
+// Note: Migration from JSON files is no longer needed with Supabase
+// Legacy data migration should be done via SQL scripts or manual import
 
 // Helper to execute git commands
 const execGit = (cmd, cwd) => {
@@ -163,9 +156,10 @@ const ensureProjectDir = (userId, projectId) => {
 };
 
 // Log activity to database (replaces git-based commitToUsers)
-const logActivity = (action, targetType = null, targetId = null, details = null, userId = null) => {
+// Note: This is async but we don't await it - fire and forget
+const logActivity = async (action, targetType = null, targetId = null, details = null, userId = null) => {
   try {
-    db.logActivity(userId, action, targetType, targetId, details);
+    await db.logActivity(userId, action, targetType, targetId, details);
   } catch (e) {
     // Ignore errors - activity logging should not break main flow
     console.log('Activity log error:', e.message);
@@ -190,82 +184,85 @@ const commitToProject = (projectDir, message) => {
 // ==================== User Operations ====================
 
 /**
- * Get or create user from Supabase Auth data (V2)
- * @param {Object} authUser - Supabase Auth user object
- * @returns {Object} User record with id
+ * Ensure user directory exists (for file storage)
+ * Called after Supabase Auth creates/retrieves user
+ * @param {string} userId - Supabase Auth user ID
  */
-const getOrCreateUserFromAuth = (authUser) => {
-  const user = db.getOrCreateUserFromAuth(authUser);
-
-  // Ensure user directory exists
-  const userDir = config.getUserPath(user.id);
+const ensureUserDirectory = (userId) => {
+  const userDir = config.getUserPath(userId);
   if (!fs.existsSync(userDir)) {
     fs.mkdirSync(userDir, { recursive: true });
-    logActivity('create', 'user', user.id);
+    // Fire and forget - don't await
+    logActivity('create', 'user', userId);
   }
-
-  return user;
 };
 
 /**
- * Legacy: Get or create user from visitorId (backwards compatibility)
- * @param {string} visitorId - Browser fingerprint / legacy ID
- * @returns {string} User ID (same as visitorId for legacy users)
+ * @deprecated Use Supabase Auth directly
+ * User creation is now handled by Supabase Auth
  */
-const getOrCreateUser = (visitorId) => {
-  // Generate new UUID if visitorId is null or undefined
-  if (!visitorId) {
-    visitorId = require('uuid').v4();
-    console.log('Generated new userId:', visitorId);
-  }
+const getOrCreateUserFromAuth = async () => {
+  throw new Error('getOrCreateUserFromAuth is deprecated - use Supabase Auth');
+};
 
-  const user = db.getOrCreateUser(visitorId);
-
-  // Ensure user directory exists
-  const userDir = config.getUserPath(user.id);
-  if (!fs.existsSync(userDir)) {
-    fs.mkdirSync(userDir, { recursive: true });
-    logActivity('create', 'user', user.id);
-  }
-
-  return user.id;
+/**
+ * @deprecated Use Supabase Auth directly
+ * Legacy visitorId system is no longer supported
+ */
+const getOrCreateUser = async () => {
+  throw new Error('getOrCreateUser is deprecated - use Supabase Auth');
 };
 
 // ==================== Project Operations ====================
 
-const getProjects = (visitorId) => {
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) return [];
+/**
+ * Get all projects for a user
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @returns {Promise<Array>} Array of project objects
+ */
+const getProjects = async (client, userId) => {
+  const c = getClient(client);
+  const projects = await db.getProjectsByUserId(c, userId);
 
-  const projects = db.getProjectsByUserId(user.id);
-  return projects.map(p => {
-    // Get description from publish_draft if available
-    const draft = db.getPublishDraft(p.id);
-    return {
-      id: p.id,
-      name: p.name,
-      description: draft?.description || '',
-      isPublic: !!p.is_public,
-      remixedFrom: p.remixed_from,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at
-    };
-  });
+  // Get publish drafts for descriptions (parallel fetch)
+  const drafts = await Promise.all(
+    projects.map(p => db.getPublishDraft(c, p.id))
+  );
+
+  return projects.map((p, i) => ({
+    id: p.id,
+    name: p.name,
+    description: drafts[i]?.description || '',
+    isPublic: !!p.is_public,
+    remixedFrom: p.remixed_from,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at
+  }));
 };
 
-const createProject = (visitorId, name = 'New Game') => {
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    throw new Error('User not found');
+/**
+ * Create a new project
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} name - Project name
+ * @returns {Promise<Object>} Created project
+ */
+const createProject = async (client, userId, name = 'New Game') => {
+  // Ensure user directory exists
+  ensureUserDirectory(userId);
+
+  const project = await db.createProject(getClient(client), userId, name);
+
+  if (!project) {
+    throw new Error('Failed to create project');
   }
 
-  const project = db.createProject(user.id, name);
-
   // Create project directory
-  ensureProjectDir(visitorId, project.id);
+  ensureProjectDir(userId, project.id);
 
-  // Log activity
-  logActivity('create', 'project', project.id, name, user.id);
+  // Log activity (fire and forget)
+  logActivity('create', 'project', project.id, name, userId);
 
   return {
     id: project.id,
@@ -275,15 +272,22 @@ const createProject = (visitorId, name = 'New Game') => {
   };
 };
 
-const deleteProject = (visitorId, projectId) => {
-  const project = db.getProjectById(projectId);
+/**
+ * Delete a project
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ */
+const deleteProject = async (client, userId, projectId) => {
+  const c = getClient(client);
+  const project = await db.getProjectById(c, projectId);
   if (!project) return;
 
-  // Delete from database
-  db.deleteProject(projectId);
+  // Delete from database (RLS ensures ownership)
+  await db.deleteProject(c, projectId);
 
   // Delete project directory
-  const projectDir = getProjectDir(visitorId, projectId);
+  const projectDir = getProjectDir(userId, projectId);
   if (fs.existsSync(projectDir)) {
     fs.rmSync(projectDir, { recursive: true, force: true });
   }
@@ -291,8 +295,16 @@ const deleteProject = (visitorId, projectId) => {
   logActivity('delete', 'project', projectId);
 };
 
-const renameProject = (visitorId, projectId, newName) => {
-  const project = db.updateProject(projectId, newName);
+/**
+ * Rename a project
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ * @param {string} newName - New project name
+ * @returns {Promise<Object|null>} Updated project or null
+ */
+const renameProject = async (client, userId, projectId, newName) => {
+  const project = await db.updateProject(getClient(client), projectId, newName);
   if (!project) return null;
 
   logActivity('rename', 'project', projectId, newName);
@@ -308,8 +320,8 @@ const renameProject = (visitorId, projectId, newName) => {
 // ==================== File Operations ====================
 
 // Recursively list all files in project directory
-const listProjectFiles = (visitorId, projectId, subdir = '') => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const listProjectFiles = (userId, projectId, subdir = '') => {
+  const projectDir = getProjectDir(userId, projectId);
   const targetDir = subdir ? path.join(projectDir, subdir) : projectDir;
 
   if (!fs.existsSync(targetDir)) return [];
@@ -327,7 +339,7 @@ const listProjectFiles = (visitorId, projectId, subdir = '') => {
 
     if (stat.isDirectory()) {
       // Recursively get files from subdirectory
-      const subFiles = listProjectFiles(visitorId, projectId, relativePath);
+      const subFiles = listProjectFiles(userId, projectId, relativePath);
       results.push(...subFiles);
     } else if (stat.isFile()) {
       results.push(relativePath);
@@ -338,8 +350,8 @@ const listProjectFiles = (visitorId, projectId, subdir = '') => {
 };
 
 // List only directories in project
-const listProjectDirs = (visitorId, projectId) => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const listProjectDirs = (userId, projectId) => {
+  const projectDir = getProjectDir(userId, projectId);
   if (!fs.existsSync(projectDir)) return [];
 
   return fs.readdirSync(projectDir).filter(f => {
@@ -348,8 +360,8 @@ const listProjectDirs = (visitorId, projectId) => {
   });
 };
 
-const readProjectFile = (visitorId, projectId, filename) => {
-  const filePath = path.join(getProjectDir(visitorId, projectId), filename);
+const readProjectFile = (userId, projectId, filename) => {
+  const filePath = path.join(getProjectDir(userId, projectId), filename);
   if (fs.existsSync(filePath)) {
     // Check if it's a binary file
     const ext = path.extname(filename).toLowerCase();
@@ -362,8 +374,17 @@ const readProjectFile = (visitorId, projectId, filename) => {
   return null;
 };
 
-const writeProjectFile = (visitorId, projectId, filename, content) => {
-  const projectDir = ensureProjectDir(visitorId, projectId);
+/**
+ * Write a file to a project directory
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ * @param {string} filename - Filename (can include subdirectory)
+ * @param {string} content - File content
+ * @returns {Promise<string>} File path
+ */
+const writeProjectFile = async (client, userId, projectId, filename, content) => {
+  const projectDir = ensureProjectDir(userId, projectId);
   const filePath = path.join(projectDir, filename);
 
   // Create subdirectory if needed
@@ -375,7 +396,7 @@ const writeProjectFile = (visitorId, projectId, filename, content) => {
   fs.writeFileSync(filePath, content);
 
   // Update project timestamp
-  db.touchProject(projectId);
+  await db.touchProject(getClient(client), projectId);
 
   return filePath;
 };
@@ -393,18 +414,21 @@ const ensureUserAssetsDir = (userId) => {
   return userAssetsDir;
 };
 
-// Save a generated image using reference-based asset management
-// Returns the API path (e.g., "/api/assets/{assetId}") for use in HTML
-const saveGeneratedImage = (visitorId, projectId, filename, base64Data) => {
-  // Get user for DB operations
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    console.error('User not found for visitorId:', visitorId);
-    return null;
-  }
+/**
+ * Save a generated image using reference-based asset management
+ * Returns the API path (e.g., "/api/assets/{assetId}") for use in HTML
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ * @param {string} filename - Original filename
+ * @param {string} base64Data - Base64 encoded image data
+ * @returns {Promise<string|null>} API path or null on error
+ */
+const saveGeneratedImage = async (client, userId, projectId, filename, base64Data) => {
+  const c = getClient(client);
 
   // Ensure user's assets directory exists
-  const userAssetsDir = ensureUserAssetsDir(visitorId);
+  const userAssetsDir = ensureUserAssetsDir(userId);
 
   // Generate unique asset ID
   const assetId = require('uuid').v4();
@@ -432,8 +456,9 @@ const saveGeneratedImage = (visitorId, projectId, filename, base64Data) => {
   const mimeType = mimeTypes[ext.toLowerCase()] || 'image/png';
 
   // Create asset record in database
-  const asset = db.createAsset(
-    user.id,
+  const asset = await db.createAsset(
+    c,
+    userId,
     storageName,
     filename,
     storagePath,
@@ -445,10 +470,10 @@ const saveGeneratedImage = (visitorId, projectId, filename, base64Data) => {
   );
 
   // Link asset to project
-  db.linkAssetToProject(projectId, asset.id, 'image');
+  await db.linkAssetToProject(c, projectId, asset.id, 'image');
 
   // Update project timestamp
-  db.touchProject(projectId);
+  await db.touchProject(c, projectId);
 
   console.log(`Saved generated image: ${filename} -> /api/assets/${asset.id}`);
 
@@ -456,55 +481,18 @@ const saveGeneratedImage = (visitorId, projectId, filename, base64Data) => {
   return `/api/assets/${asset.id}`;
 };
 
-// Search files in user's past projects using git
-const searchPastProjects = (visitorId, query) => {
-  const visitorDir = path.join(USERS_DIR, visitorId);
-  if (!fs.existsSync(visitorDir)) return [];
-
-  const results = [];
-  const projectDirs = fs.readdirSync(visitorDir).filter(f => {
-    const stat = fs.statSync(path.join(visitorDir, f));
-    return stat.isDirectory() && !f.startsWith('.');
-  });
-
-  for (const projectId of projectDirs) {
-    const projectDir = path.join(visitorDir, projectId);
-    const gitDir = path.join(projectDir, '.git');
-
-    if (!fs.existsSync(gitDir)) continue;
-
-    // Search in git log for the query
-    const grepResult = execGit(`git log --all -p --grep="${query}" --oneline -5`, projectDir);
-    if (grepResult && grepResult.trim()) {
-      results.push({
-        projectId,
-        type: 'commit',
-        matches: grepResult.substring(0, 500)
-      });
-    }
-
-    // Search in current files
-    const files = listProjectFiles(visitorId, projectId);
-    for (const file of files) {
-      const content = readProjectFile(visitorId, projectId, file);
-      if (content && content.toLowerCase().includes(query.toLowerCase())) {
-        results.push({
-          projectId,
-          type: 'file',
-          file,
-          preview: content.substring(0, 200)
-        });
-      }
-    }
-  }
-
-  return results.slice(0, 10);  // Limit results
-};
-
 // ==================== Chat History Operations ====================
 
-const getConversationHistory = (visitorId, projectId, limit = 50) => {
-  const messages = db.getChatHistory(projectId);
+/**
+ * Get conversation history for a project
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ * @param {number} limit - Max messages to return
+ * @returns {Promise<Array>} Array of message objects
+ */
+const getConversationHistory = async (client, userId, projectId, limit = 50) => {
+  const messages = await db.getChatHistory(getClient(client), projectId);
   const result = messages.map(m => ({
     role: m.role,
     content: m.message,
@@ -513,9 +501,18 @@ const getConversationHistory = (visitorId, projectId, limit = 50) => {
   return result.length > limit ? result.slice(-limit) : result;
 };
 
-const addToHistory = (visitorId, projectId, role, content) => {
-  db.addChatMessage(projectId, role, content);
-  db.touchProject(projectId);
+/**
+ * Add a message to conversation history
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ * @param {string} role - Message role (user/assistant)
+ * @param {string} content - Message content
+ */
+const addToHistory = async (client, userId, projectId, role, content) => {
+  const c = getClient(client);
+  await db.addChatMessage(c, projectId, role, content);
+  await db.touchProject(c, projectId);
 };
 
 // ==================== Version Control Operations ====================
@@ -564,13 +561,13 @@ const saveAIContext = (projectDir, aiContext) => {
 
 /**
  * Create version snapshot with optional AI context
- * @param {string} visitorId - Visitor ID
+ * @param {string} userId - User ID
  * @param {string} projectId - Project ID
  * @param {string} message - Commit message
  * @param {Object} aiContext - Optional AI context to save alongside commit
  */
-const createVersionSnapshot = (visitorId, projectId, message = '', aiContext = null) => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const createVersionSnapshot = (userId, projectId, message = '', aiContext = null) => {
+  const projectDir = getProjectDir(userId, projectId);
   const indexPath = path.join(projectDir, 'index.html');
 
   if (!fs.existsSync(indexPath)) return null;
@@ -599,8 +596,8 @@ const createVersionSnapshot = (visitorId, projectId, message = '', aiContext = n
   return null;
 };
 
-const getVersions = (visitorId, projectId, options = {}) => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const getVersions = (userId, projectId, options = {}) => {
+  const projectDir = getProjectDir(userId, projectId);
 
   if (!fs.existsSync(path.join(projectDir, '.git'))) {
     return [];
@@ -688,8 +685,8 @@ const getAIContextForCommit = (projectDir, commitHash) => {
   }
 };
 
-const restoreVersion = (visitorId, projectId, versionId) => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const restoreVersion = (userId, projectId, versionId) => {
+  const projectDir = getProjectDir(userId, projectId);
 
   if (!fs.existsSync(path.join(projectDir, '.git'))) {
     return { success: false, error: 'Git not initialized' };
@@ -719,8 +716,16 @@ const restoreVersion = (visitorId, projectId, versionId) => {
 
 // ==================== Public Projects ====================
 
-const setProjectPublic = (visitorId, projectId, isPublic) => {
-  const project = db.setProjectPublic(projectId, isPublic);
+/**
+ * Set project public/private status
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} projectId - Project ID
+ * @param {boolean} isPublic - Public status
+ * @returns {Promise<Object>} Updated project
+ */
+const setProjectPublic = async (client, userId, projectId, isPublic) => {
+  const project = await db.setProjectPublic(getClient(client), projectId, isPublic);
   return {
     id: project.id,
     name: project.name,
@@ -728,37 +733,45 @@ const setProjectPublic = (visitorId, projectId, isPublic) => {
   };
 };
 
-const getPublicProjects = (limit = 50) => {
-  return db.getPublicProjects(limit);
+/**
+ * Get public projects (for discovery)
+ * Note: Uses admin client internally (public data)
+ * @param {number} limit - Max projects to return
+ * @returns {Promise<Array>} Array of public projects
+ */
+const getPublicProjects = async (limit = 50) => {
+  return await db.getPublicProjects(limit);
 };
 
 // ==================== Remix ====================
 
-const remixProject = (visitorId, sourceProjectId) => {
-  const sourceProject = db.getProjectById(sourceProjectId);
+/**
+ * Remix a public project
+ * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
+ * @param {string} userId - User ID (from Supabase Auth)
+ * @param {string} sourceProjectId - Source project ID (must be public)
+ * @returns {Promise<Object>} New remixed project
+ */
+const remixProject = async (client, userId, sourceProjectId) => {
+  // Get source project (uses admin to read public projects)
+  const sourceProject = await db.getPublicProjectById(sourceProjectId);
   if (!sourceProject || !sourceProject.is_public) {
     throw new Error('Project not found or not public');
   }
 
-  const user = db.getUserByVisitorId(visitorId);
-  if (!user) {
-    throw new Error('User not found');
-  }
-
-  // Find source visitor
-  const sourceUser = db.getUserById(sourceProject.user_id);
-  if (!sourceUser) {
-    throw new Error('Source user not found');
-  }
-
   // Create new project as remix
-  const newProject = db.createProject(user.id, `${sourceProject.name} (Remix)`, sourceProjectId);
+  const newProject = await db.createProject(
+    getClient(client),
+    userId,
+    `${sourceProject.name} (Remix)`,
+    sourceProjectId
+  );
 
-  // Copy files
-  const sourceDir = getProjectDir(sourceUser.visitor_id, sourceProjectId);
-  const targetDir = ensureProjectDir(visitorId, newProject.id);
+  // Copy files from source to new project
+  const sourceDir = getProjectDir(sourceProject.user_id, sourceProjectId);
+  const targetDir = ensureProjectDir(userId, newProject.id);
 
-  const files = listProjectFiles(sourceUser.visitor_id, sourceProjectId);
+  const files = listProjectFiles(sourceProject.user_id, sourceProjectId);
   for (const file of files) {
     const content = fs.readFileSync(path.join(sourceDir, file));
     fs.writeFileSync(path.join(targetDir, file), content);
@@ -768,7 +781,7 @@ const remixProject = (visitorId, sourceProjectId) => {
   execGit('git add -A', targetDir);
   execGit(`git commit -m "Remixed from ${sourceProjectId}"`, targetDir);
 
-  logActivity('remix', 'project', newProject.id, `from ${sourceProjectId}`, user.id);
+  logActivity('remix', 'project', newProject.id, `from ${sourceProjectId}`, userId);
 
   return {
     id: newProject.id,
@@ -782,12 +795,12 @@ const remixProject = (visitorId, sourceProjectId) => {
 
 /**
  * Get the latest AI context for a project
- * @param {string} visitorId - Visitor ID
+ * @param {string} userId - User ID
  * @param {string} projectId - Project ID
  * @returns {Object|null} Latest AI context or null if not found
  */
-const getLatestAIContext = (visitorId, projectId) => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const getLatestAIContext = (userId, projectId) => {
+  const projectDir = getProjectDir(userId, projectId);
   const contextDir = path.join(projectDir, '.ai-context');
 
   if (!fs.existsSync(contextDir)) {
@@ -818,20 +831,21 @@ const getLatestAIContext = (visitorId, projectId) => {
 /**
  * Get edits for a specific version (on demand)
  */
-const getVersionEdits = (visitorId, projectId, versionHash) => {
-  const projectDir = getProjectDir(visitorId, projectId);
+const getVersionEdits = (userId, projectId, versionHash) => {
+  const projectDir = getProjectDir(userId, projectId);
   return getAIContextForCommit(projectDir, versionHash);
 };
 
 module.exports = {
   getProjectDir,
   ensureProjectDir,
+  ensureUserDirectory,
 
-  // User operations
-  getOrCreateUserFromAuth,  // V2: Supabase Auth
-  getOrCreateUser,          // Legacy: visitorId
+  // User operations (deprecated - use Supabase Auth)
+  getOrCreateUserFromAuth,  // @deprecated
+  getOrCreateUser,          // @deprecated
 
-  // Project operations
+  // Project operations (async, require client param)
   getProjects,
   createProject,
   deleteProject,
@@ -844,11 +858,10 @@ module.exports = {
   listProjectFiles,
   listProjectDirs,
   readProjectFile,
-  writeProjectFile,
-  saveGeneratedImage,
-  searchPastProjects,
+  writeProjectFile,        // async, requires client param
+  saveGeneratedImage,      // async, requires client param
 
-  // Chat operations
+  // Chat operations (async, require client param)
   getConversationHistory,
   addToHistory,
 

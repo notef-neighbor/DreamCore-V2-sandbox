@@ -34,6 +34,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 - `npm run dev` - 開発サーバー起動（ファイル変更で自動再起動）
 - `npm start` - 本番起動
+- デフォルトポート: **3000**（`PORT`環境変数で変更可能）
 
 ## 重要ファイル
 
@@ -48,3 +49,71 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 - 公開機能なし
 - `/play/:projectId` - owner-onlyプレビュー
 - `/discover` - 静的ページ（Phase 2準備中表示）
+
+## RLS設計方針（Phase 1）
+
+### 基本原則
+
+- **削除済みリソースは見せない**: `is_deleted = true` のアセットはRLSで非表示
+- **所有者のみアクセス可**: projects, assets は `owner_id = auth.uid()` でフィルタ
+
+### assets テーブルの特殊動作
+
+SELECTポリシー:
+```sql
+USING (owner_id = auth.uid() AND is_deleted = FALSE)
+```
+
+**Soft Delete後の動作**:
+- 更新後、その行はSELECTポリシーにより**見えなくなる**
+- PostgRESTのRETURNING（`.select()`）を使うと、更新後の行が取得できずエラーになる
+
+**RLS WITH CHECK制約について**:
+- 現在のDB設定では、ユーザークライアントからの`is_deleted = true`更新がRLSで拒否される
+- 原因: UPDATEポリシーの`WITH CHECK`句が`is_deleted = FALSE`を要求している可能性
+- **対応**: `db.deleteAsset()`は`req.supabase`（ユーザークライアント）を使用しているため、service_roleに変更が必要
+
+**これは仕様です**:
+- Phase 1では削除済みアセットを表示しない設計
+- ソフトデリート時は `.select()` を使わない（`database-supabase.js:491-495`参照）
+- 検証が必要な場合は `service_role` クライアントを使用
+
+**対策済み**: DELETE `/api/assets/:id` エンドポイントでは `supabaseAdmin` (service_role) を使用してsoft deleteを実行
+
+### Wrong Owner アクセス時の挙動
+
+他ユーザーのリソースにアクセスした場合:
+- **HTTP 404** が返る（403ではない）
+- RLSがクエリ結果をフィルタするため「存在しない」扱いになる
+- これはセキュリティ上適切（リソースの存在を漏洩しない）
+
+## テスト
+
+- `node test-rls.js` - RLSポリシーのテスト
+- `node test-job-permissions.js` - ジョブ権限テスト
+- `node test-ws-permissions-final.js` - WebSocket権限テスト
+- `node test-ws-project-operations.js` - プロジェクトCRUD操作テスト
+- `node test-assets-api.js` - アセットAPIテスト
+- `node test-exception-boundary.js` - 例外・境界ケーステスト
+
+## Phase 1 完了ステータス
+
+### 確認済み項目
+
+- [x] public系エンドポイント削除（`/api/public-games`等）
+- [x] `/play/:projectId` owner-only
+- [x] `/api/assets/search` owner限定
+- [x] 起動時envバリデーション（config.js）
+- [x] Supabase Auth一本化（database-supabase.js使用中、database.js は未使用）
+
+### 技術的負債
+
+- `database.js` - SQLite版レガシー。削除可能
+- `initLoginUsers.js` - Supabase Auth移行後に削除
+- `assets.is_deleted` - NOT NULL + default false なし。NULL混在の可能性あり
+
+## 開発ガイドライン
+
+### サブエージェント活用
+
+複数ファイルの調査・検証は並列サブエージェントで効率化する（本ドキュメントは運用ルールの上書きではない）

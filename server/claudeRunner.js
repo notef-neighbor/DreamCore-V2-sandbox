@@ -3,7 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const userManager = require('./userManager');
 const jobManager = require('./jobManager');
-const db = require('./database');
+const db = require('./database-supabase');
+const { supabaseAdmin } = require('./supabaseClient');
 const geminiClient = require('./geminiClient');
 const claudeChat = require('./claudeChat');
 
@@ -486,7 +487,7 @@ ${specSummary ? `現在のゲーム仕様:\n${specSummary}` : ''}
         output += data.toString();
       });
 
-      claude.on('close', (code) => {
+      claude.on('close', async (code) => {
         try {
           // Extract JSON array from response
           const jsonMatch = output.match(/\[[\s\S]*?\]/);
@@ -639,15 +640,15 @@ ${skillPaths}
   }
 
   // Build prompt for Claude - with mandatory skill reading
-  buildPrompt(visitorId, projectId, userMessage) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
-    const history = userManager.getConversationHistory(visitorId, projectId);
+  async buildPrompt(userId, projectId, userMessage) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
+    const history = await userManager.getConversationHistory(null, userId, projectId);
 
     // Check if this is a new project
-    const files = userManager.listProjectFiles(visitorId, projectId);
+    const files = userManager.listProjectFiles(userId, projectId);
     let isNewProject = true;
     if (files.length > 0) {
-      const indexContent = userManager.readProjectFile(visitorId, projectId, 'index.html');
+      const indexContent = userManager.readProjectFile(userId, projectId, 'index.html');
       const isInitialWelcomePage = indexContent &&
         indexContent.length < 2000 &&
         indexContent.includes('Welcome to Game Creator');
@@ -671,8 +672,8 @@ ${skillInstructions}
   }
 
   // Build prompt without skills (for debug mode)
-  buildPromptWithoutSkills(visitorId, projectId, userMessage) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  buildPromptWithoutSkills(userId, projectId, userMessage) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
 
     const prompt = `スマートフォン向けブラウザゲームを作成してください。
 
@@ -687,7 +688,7 @@ ${skillInstructions}
 
   // Generate images for the project and save them
   // gameCode and gameSpec are used by Haiku to determine image direction
-  async generateProjectImages(visitorId, projectId, images, jobId, gameCode = null, gameSpec = null) {
+  async generateProjectImages(userId, projectId, images, jobId, gameCode = null, gameSpec = null) {
     const generatedAssets = {};
     const maxImages = 3;  // Limit to 3 images per request
 
@@ -729,8 +730,9 @@ ${skillInstructions}
 
         if (result.success && result.image) {
           // Save to project assets directory
-          const assetPath = userManager.saveGeneratedImage(
-            visitorId,
+          const assetPath = await userManager.saveGeneratedImage(
+            null,  // Use admin client for background job
+            userId,
             projectId,
             img.name,
             result.image
@@ -749,24 +751,24 @@ ${skillInstructions}
   }
 
   // Try Gemini first for code generation
-  async tryGeminiGeneration(visitorId, projectId, userMessage, jobId, debugOptions = {}) {
+  async tryGeminiGeneration(userId, projectId, userMessage, jobId, debugOptions = {}) {
     if (!geminiClient.isAvailable()) {
       console.log('Gemini not available, using Claude Code');
       return null;
     }
 
     try {
-      const history = userManager.getConversationHistory(visitorId, projectId);
+      const history = await userManager.getConversationHistory(null, userId, projectId);
 
       // Get current code (null for new projects)
       // Check if this is truly a new project (only has initial welcome page)
-      const files = userManager.listProjectFiles(visitorId, projectId);
+      const files = userManager.listProjectFiles(userId, projectId);
       let currentCode = null;
       let isNewProject = true;
 
       if (files.length > 0) {
         // Check if it's just the initial welcome page
-        const indexContent = userManager.readProjectFile(visitorId, projectId, 'index.html');
+        const indexContent = userManager.readProjectFile(userId, projectId, 'index.html');
         const isInitialWelcomePage = indexContent &&
           indexContent.length < 2000 &&
           indexContent.includes('Welcome to Game Creator');
@@ -775,7 +777,7 @@ ${skillInstructions}
           // Real project with actual code
           isNewProject = false;
           currentCode = files.map(f => {
-            const content = userManager.readProjectFile(visitorId, projectId, f);
+            const content = userManager.readProjectFile(userId, projectId, f);
             return `--- ${f} ---\n${content}`;
           }).join('\n\n');
         }
@@ -787,7 +789,7 @@ ${skillInstructions}
 
       if (isNewProject) {
         // Clear Claude CLI cache to prevent cross-project data leakage
-        const projectDir = userManager.getProjectDir(visitorId, projectId);
+        const projectDir = userManager.getProjectDir(userId, projectId);
         this.clearClaudeCache(projectDir);
 
         // First check if user is responding to dimension question
@@ -835,7 +837,7 @@ ${skillInstructions}
 
           if (detectedDimension === 'unclear') {
             // Store the original request in history before asking
-            userManager.addToHistory(visitorId, projectId, 'user', userMessage);
+            await userManager.addToHistory(null, userId, projectId, 'user', userMessage);
 
             // Ask user to clarify
             jobManager.updateProgress(jobId, 100, '確認が必要です');
@@ -858,7 +860,7 @@ ${skillInstructions}
       // For new projects: Spec will be created AFTER code generation by Gemini
       let gameSpec = null;
       if (!isNewProject) {
-        gameSpec = this.readSpec(visitorId, projectId);
+        gameSpec = this.readSpec(userId, projectId);
         if (gameSpec) {
           console.log('Including existing SPEC.md in code generation');
         }
@@ -867,7 +869,7 @@ ${skillInstructions}
       // Read STYLE.md for visual consistency across updates
       let visualStyle = null;
       if (!isNewProject) {
-        visualStyle = this.readStyle(visitorId, projectId);
+        visualStyle = this.readStyle(userId, projectId);
         if (visualStyle) {
           console.log('Including existing STYLE.md in code generation');
         }
@@ -880,7 +882,7 @@ ${skillInstructions}
         jobManager.updateProgress(jobId, 10, 'Claude Haikuで回答中...');
 
         try {
-          const projectDir = userManager.getProjectDir(visitorId, projectId);
+          const projectDir = userManager.getProjectDir(userId, projectId);
           const chatResult = await claudeChat.handleChat({
             userMessage: effectiveUserMessage,
             projectDir,
@@ -1024,8 +1026,8 @@ ${skillInstructions}
   // Apply Gemini-generated result (create or edit mode)
   // gameCode and gameSpec are used by Haiku to determine image direction
   // aiContext contains prompt/skills info for traceability
-  async applyGeminiResult(visitorId, projectId, geminiResult, jobId, gameCode = null, gameSpec = null, aiContext = null) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async applyGeminiResult(userId, projectId, geminiResult, jobId, gameCode = null, gameSpec = null, aiContext = null) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
 
     try {
       // Generate images if requested by Gemini
@@ -1036,7 +1038,7 @@ ${skillInstructions}
 
         // Pass gameCode and gameSpec for Haiku to analyze image direction
         generatedAssets = await this.generateProjectImages(
-          visitorId,
+          userId,
           projectId,
           geminiResult.images,
           jobId,
@@ -1140,7 +1142,7 @@ ${skillInstructions}
       // Create git commit with AI context
       jobManager.updateProgress(jobId, 88, 'バージョン保存中...');
       userManager.createVersionSnapshot(
-        visitorId,
+        userId,
         projectId,
         geminiResult.summary || 'Gemini generated code',
         aiContext  // Pass AI context for traceability
@@ -1155,35 +1157,31 @@ ${skillInstructions}
   }
 
   // Run Claude as an async job
-  async runClaudeAsJob(visitorId, projectId, userMessage, debugOptions = {}) {
-    // Get user from database
-    const user = db.getUserByVisitorId(visitorId);
-    if (!user) {
-      throw new Error('User not found');
-    }
+  async runClaudeAsJob(userId, projectId, userMessage, debugOptions = {}) {
+    // userId comes from Supabase Auth JWT (already validated)
 
     // Check for existing active job
-    const existingJob = jobManager.getActiveJob(projectId);
+    const existingJob = await jobManager.getActiveJob(projectId);
     if (existingJob) {
       return { job: existingJob, isExisting: true, startProcessing: () => {} };
     }
 
     // Create new job
-    const job = jobManager.createJob(user.id, projectId);
+    const job = await jobManager.createJob(userId, projectId);
 
     // Return job with a function to start processing (allows caller to subscribe first)
     return {
       job,
       isExisting: false,
       startProcessing: () => {
-        this.processJob(job.id, visitorId, projectId, userMessage, debugOptions);
+        this.processJob(job.id, userId, projectId, userMessage, debugOptions);
       }
     };
   }
 
   // Process job (runs in background)
-  async processJob(jobId, visitorId, projectId, userMessage, debugOptions = {}) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async processJob(jobId, userId, projectId, userMessage, debugOptions = {}) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
 
     // Debug: Log the full user message to verify visual guideline is included
     console.log(`[ProcessJob] User message length: ${userMessage.length}`);
@@ -1194,7 +1192,7 @@ ${skillInstructions}
     }
 
     // Use Claude CLI to detect user intent
-    jobManager.startJob(jobId);
+    await jobManager.startJob(jobId);
     jobManager.updateProgress(jobId, 5, '意図を判定中...');
 
     const intent = await this.detectIntent(userMessage);
@@ -1213,7 +1211,7 @@ ${skillInstructions}
         cancelLabel: 'キャンセル'
       });
 
-      jobManager.completeJob(jobId, {
+      await jobManager.completeJob(jobId, {
         message: 'リストア確認',
         mode: 'restore',
         generator: 'claude'
@@ -1227,7 +1225,7 @@ ${skillInstructions}
       console.log('Chat intent detected by Claude, using Haiku...');
 
       // Check if project exists (chat only makes sense for existing projects)
-      const projectDir = userManager.getProjectDir(visitorId, projectId);
+      const projectDir = userManager.getProjectDir(userId, projectId);
       const indexPath = require('path').join(projectDir, 'index.html');
       const projectExists = require('fs').existsSync(indexPath);
 
@@ -1235,8 +1233,8 @@ ${skillInstructions}
         jobManager.updateProgress(jobId, 10, 'Claude Haikuで回答中...');
 
         try {
-          const gameSpec = this.readSpec(visitorId, projectId);
-          const history = userManager.getConversationHistory(visitorId, projectId);
+          const gameSpec = this.readSpec(userId, projectId);
+          const history = await userManager.getConversationHistory(null, userId, projectId);
           const chatResult = await claudeChat.handleChat({
             userMessage,
             projectDir,
@@ -1256,9 +1254,9 @@ ${skillInstructions}
           const historyMessage = chatResult.suggestions?.length > 0
             ? `${chatResult.message}\n\n提案: ${chatResult.suggestions.join('、')}`
             : chatResult.message;
-          userManager.addToHistory(visitorId, projectId, 'assistant', historyMessage);
+          await userManager.addToHistory(null, userId, projectId, 'assistant', historyMessage);
 
-          jobManager.completeJob(jobId, {
+          await jobManager.completeJob(jobId, {
             message: chatResult.message,
             mode: 'chat',
             generator: 'haiku'
@@ -1278,7 +1276,7 @@ ${skillInstructions}
     // Skip Gemini if useClaude is enabled
     if (!debugOptions.useClaude) {
       // Try Gemini first for code generation
-      const geminiResult = await this.tryGeminiGeneration(visitorId, projectId, userMessage, jobId, debugOptions);
+      const geminiResult = await this.tryGeminiGeneration(userId, projectId, userMessage, jobId, debugOptions);
 
       if (geminiResult) {
         // Handle chat mode (no code changes, just conversation)
@@ -1288,9 +1286,9 @@ ${skillInstructions}
           const historyMessage = geminiResult.suggestions?.length > 0
             ? `${responseMessage}\n\n提案: ${geminiResult.suggestions.join('、')}`
             : responseMessage;
-          userManager.addToHistory(visitorId, projectId, 'assistant', historyMessage);
+          await userManager.addToHistory(null, userId, projectId, 'assistant', historyMessage);
 
-          jobManager.completeJob(jobId, {
+          await jobManager.completeJob(jobId, {
             message: responseMessage,
             mode: 'chat',
             generator: 'gemini'
@@ -1305,12 +1303,12 @@ ${skillInstructions}
         // For create mode: use generated code; for edit mode: use existing code
         let gameCodeForImages = null;
         if (geminiResult.mode === 'edit') {
-          gameCodeForImages = userManager.readProjectFile(visitorId, projectId, 'index.html');
+          gameCodeForImages = userManager.readProjectFile(userId, projectId, 'index.html');
         } else if (geminiResult.files && geminiResult.files.length > 0) {
           const indexFile = geminiResult.files.find(f => f.path === 'index.html');
           gameCodeForImages = indexFile ? indexFile.content : geminiResult.files[0].content;
         }
-        const gameSpec = this.readSpec(visitorId, projectId);
+        const gameSpec = this.readSpec(userId, projectId);
 
         // Build AI context for traceability
         const aiContext = {
@@ -1321,14 +1319,14 @@ ${skillInstructions}
           edits: geminiResult.edits || []
         };
 
-        const applied = await this.applyGeminiResult(visitorId, projectId, geminiResult, jobId, gameCodeForImages, gameSpec, aiContext);
+        const applied = await this.applyGeminiResult(userId, projectId, geminiResult, jobId, gameCodeForImages, gameSpec, aiContext);
 
         if (applied) {
           const responseMessage = geminiResult.summary || 'Geminiでゲームを生成しました';
-          userManager.addToHistory(visitorId, projectId, 'assistant', responseMessage);
+          await userManager.addToHistory(null, userId, projectId, 'assistant', responseMessage);
 
-          const currentHtml = userManager.readProjectFile(visitorId, projectId, 'index.html');
-          jobManager.completeJob(jobId, {
+          const currentHtml = userManager.readProjectFile(userId, projectId, 'index.html');
+          await jobManager.completeJob(jobId, {
             message: responseMessage,
             html: currentHtml,
             generator: 'gemini'
@@ -1342,10 +1340,10 @@ ${skillInstructions}
           if (geminiResult.mode === 'create') {
             // Use specs from Gemini response directly (saves Sonnet API call)
             if (geminiResult.specs) {
-              this.saveSpecsFromGemini(visitorId, projectId, geminiResult.specs)
+              this.saveSpecsFromGemini(userId, projectId, geminiResult.specs)
                 .then(() => {
                   console.log('Specs saved from Gemini response');
-                  return this.maybeAutoRenameProject(visitorId, projectId);
+                  return this.maybeAutoRenameProject(userId, projectId);
                 })
                 .then(renamed => {
                   if (renamed) {
@@ -1361,9 +1359,9 @@ ${skillInstructions}
             } else {
               // Fallback: create spec from code if Gemini didn't include specs
               console.log('No specs in Gemini response, using fallback');
-              this.createInitialSpecFromCode(visitorId, projectId, userMessage, null, gameCodeForImages)
+              this.createInitialSpecFromCode(userId, projectId, userMessage, null, gameCodeForImages)
                 .then(() => {
-                  return this.maybeAutoRenameProject(visitorId, projectId);
+                  return this.maybeAutoRenameProject(userId, projectId);
                 })
                 .then(renamed => {
                   if (renamed) {
@@ -1378,10 +1376,10 @@ ${skillInstructions}
                 });
             }
           } else {
-            this.updateSpec(visitorId, projectId, userMessage)
+            this.updateSpec(userId, projectId, userMessage)
               .then(() => {
                 // Auto-rename after spec is updated
-                return this.maybeAutoRenameProject(visitorId, projectId);
+                return this.maybeAutoRenameProject(userId, projectId);
               })
               .then(renamed => {
                 if (renamed) {
@@ -1410,10 +1408,10 @@ ${skillInstructions}
     let prompt, detectedSkills;
     if (debugOptions.disableSkills) {
       console.log('[DEBUG] Skills disabled');
-      prompt = this.buildPromptWithoutSkills(visitorId, projectId, userMessage);
+      prompt = this.buildPromptWithoutSkills(userId, projectId, userMessage);
       detectedSkills = [];
     } else {
-      const result = this.buildPrompt(visitorId, projectId, userMessage);
+      const result = await this.buildPrompt(userId, projectId, userMessage);
       prompt = result.prompt;
       detectedSkills = result.detectedSkills;
     }
@@ -1518,76 +1516,88 @@ ${skillInstructions}
         errorOutput += data.toString();
       });
 
-      claude.on('close', (code) => {
-        console.log('Claude job', jobId, 'exited with code:', code);
+      claude.on('close', async (code) => {
+        try {
+          console.log('Claude job', jobId, 'exited with code:', code);
 
-        if (code === 0) {
-          // Read updated file
-          const currentHtml = userManager.readProjectFile(visitorId, projectId, 'index.html');
+          if (code === 0) {
+            // Read updated file
+            const currentHtml = userManager.readProjectFile(userId, projectId, 'index.html');
 
-          // Extract HTML from response if present
-          const htmlMatch = output.match(/```html\n([\s\S]*?)```/);
-          if (htmlMatch) {
-            userManager.writeProjectFile(visitorId, projectId, 'index.html', htmlMatch[1]);
-          }
-
-          // Use collected assistant text or default message
-          const responseMessage = assistantText.trim() || 'ゲームを更新しました';
-
-          // Build AI context for traceability
-          const aiContext = {
-            userPrompt: userMessage,
-            aiSummary: responseMessage,
-            skills: detectedSkills,
-            generator: 'claude'
-          };
-
-          // Create version snapshot with AI context
-          userManager.createVersionSnapshot(visitorId, projectId, userMessage.substring(0, 50), aiContext);
-
-          // Add to history
-          userManager.addToHistory(visitorId, projectId, 'assistant', responseMessage);
-
-          // Complete the job with the actual response
-          jobManager.completeJob(jobId, {
-            message: responseMessage,
-            html: currentHtml
-          });
-
-          // Update specs asynchronously (don't wait) - pass userMessage for selective update
-          this.updateSpec(visitorId, projectId, userMessage).catch(err => {
-            console.error('Spec update error:', err.message);
-          });
-
-          // Auto-rename project if it has default name
-          this.maybeAutoRenameProject(visitorId, projectId).then(renamed => {
-            if (renamed) {
-              jobManager.notifySubscribers(jobId, {
-                type: 'projectRenamed',
-                project: renamed
-              });
+            // Extract HTML from response if present
+            const htmlMatch = output.match(/```html\n([\s\S]*?)```/);
+            if (htmlMatch) {
+              await userManager.writeProjectFile(null, userId, projectId, 'index.html', htmlMatch[1]);
             }
-          });
 
-          resolve({ success: true });
-        } else {
-          const errorMsg = errorOutput || output || 'Unknown error';
-          jobManager.failJob(jobId, errorMsg);
-          resolve({ success: false, error: errorMsg });
+            // Use collected assistant text or default message
+            const responseMessage = assistantText.trim() || 'ゲームを更新しました';
+
+            // Build AI context for traceability
+            const aiContext = {
+              userPrompt: userMessage,
+              aiSummary: responseMessage,
+              skills: detectedSkills,
+              generator: 'claude'
+            };
+
+            // Create version snapshot with AI context
+            userManager.createVersionSnapshot(userId, projectId, userMessage.substring(0, 50), aiContext);
+
+            // Add to history
+            await userManager.addToHistory(null, userId, projectId, 'assistant', responseMessage);
+
+            // Complete the job with the actual response
+            await jobManager.completeJob(jobId, {
+              message: responseMessage,
+              html: currentHtml
+            });
+
+            // Update specs asynchronously (don't wait) - pass userMessage for selective update
+            this.updateSpec(userId, projectId, userMessage).catch(err => {
+              console.error('Spec update error:', err.message);
+            });
+
+            // Auto-rename project if it has default name
+            this.maybeAutoRenameProject(userId, projectId).then(renamed => {
+              if (renamed) {
+                jobManager.notifySubscribers(jobId, {
+                  type: 'projectRenamed',
+                  project: renamed
+                });
+              }
+            }).catch(err => {
+              console.error('Auto-rename error:', err.message);
+            });
+
+            resolve({ success: true });
+          } else {
+            const errorMsg = errorOutput || output || 'Unknown error';
+            await jobManager.failJob(jobId, errorMsg);
+            resolve({ success: false, error: errorMsg });
+          }
+        } catch (err) {
+          console.error('Error in close handler:', err);
+          resolve({ success: false, error: err.message });
         }
       });
 
-      claude.on('error', (err) => {
-        jobManager.failJob(jobId, err.message);
-        resolve({ success: false, error: err.message });
+      claude.on('error', async (err) => {
+        try {
+          await jobManager.failJob(jobId, err.message);
+          resolve({ success: false, error: err.message });
+        } catch (handlerErr) {
+          console.error('Error in error handler:', handlerErr);
+          resolve({ success: false, error: err.message });
+        }
       });
     });
   }
 
   // Legacy sync method (kept for backward compatibility)
-  async runClaude(visitorId, projectId, userMessage, onProgress) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
-    const { prompt, detectedSkills } = this.buildPrompt(visitorId, projectId, userMessage);
+  async runClaude(userId, projectId, userMessage, onProgress) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
+    const { prompt, detectedSkills } = await this.buildPrompt(userId, projectId, userMessage);
 
     if (detectedSkills.length > 0) {
       console.log('Detected skills:', detectedSkills.join(', '));
@@ -1675,27 +1685,32 @@ ${skillInstructions}
         console.log('Claude stderr:', data.toString());
       });
 
-      claude.on('close', (code) => {
-        console.log('Claude exited with code:', code);
+      claude.on('close', async (code) => {
+        try {
+          console.log('Claude exited with code:', code);
 
-        const processKey = `${visitorId}-${projectId}`;
-        this.runningProcesses.delete(processKey);
+          const processKey = `${userId}-${projectId}`;
+          this.runningProcesses.delete(processKey);
 
-        if (code === 0) {
-          const currentHtml = userManager.readProjectFile(visitorId, projectId, 'index.html');
+          if (code === 0) {
+            const currentHtml = userManager.readProjectFile(userId, projectId, 'index.html');
 
-          const htmlMatch = output.match(/```html\n([\s\S]*?)```/);
-          if (htmlMatch) {
-            userManager.writeProjectFile(visitorId, projectId, 'index.html', htmlMatch[1]);
+            const htmlMatch = output.match(/```html\n([\s\S]*?)```/);
+            if (htmlMatch) {
+              await userManager.writeProjectFile(null, userId, projectId, 'index.html', htmlMatch[1]);
+            }
+
+            const responseMsg = output.trim() || 'ゲームを更新しました';
+            onProgress({ type: 'complete', message: responseMsg });
+            resolve({ success: true, output: currentHtml });
+          } else {
+            const errorMsg = errorOutput || output || 'Unknown error';
+            onProgress({ type: 'error', message: `エラーが発生しました: ${errorMsg}` });
+            reject(new Error(errorMsg));
           }
-
-          const responseMsg = output.trim() || 'ゲームを更新しました';
-          onProgress({ type: 'complete', message: responseMsg });
-          resolve({ success: true, output: currentHtml });
-        } else {
-          const errorMsg = errorOutput || output || 'Unknown error';
-          onProgress({ type: 'error', message: `エラーが発生しました: ${errorMsg}` });
-          reject(new Error(errorMsg));
+        } catch (err) {
+          console.error('Error in close handler:', err);
+          reject(err);
         }
       });
 
@@ -1704,7 +1719,7 @@ ${skillInstructions}
         reject(err);
       });
 
-      this.runningProcesses.set(`${visitorId}-${projectId}`, claude);
+      this.runningProcesses.set(`${userId}-${projectId}`, claude);
     });
   }
 
@@ -1718,14 +1733,14 @@ ${skillInstructions}
     return false;
   }
 
-  cancelJob(jobId) {
-    return jobManager.cancelJob(jobId);
+  async cancelJob(jobId) {
+    return await jobManager.cancelJob(jobId);
   }
 
   // Update specs asynchronously after code generation (selective update)
-  async updateSpec(visitorId, projectId, userMessage = '') {
+  async updateSpec(userId, projectId, userMessage = '') {
     console.log('[updateSpec] Called for project:', projectId);
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
     const indexPath = path.join(projectDir, 'index.html');
 
@@ -1762,12 +1777,12 @@ ${skillInstructions}
     console.log(`[updateSpec] Diff size: ${diff.length} chars`);
 
     // Update specs with diff (not full code)
-    await this.updateSpecsWithDiff(visitorId, projectId, userMessage, diff);
+    await this.updateSpecsWithDiff(userId, projectId, userMessage, diff);
   }
 
   // Update specs using diff (not full code) - more efficient
-  async updateSpecsWithDiff(visitorId, projectId, userMessage, diff) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async updateSpecsWithDiff(userId, projectId, userMessage, diff) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     // Ensure specs directory exists
@@ -1840,7 +1855,7 @@ ${currentSpecs.progress || '（なし）'}
         stderr += data.toString();
       });
 
-      claude.on('close', (code) => {
+      claude.on('close', async (code) => {
         if (stderr) {
           console.log('[updateSpec] stderr:', stderr.substring(0, 500));
         }
@@ -1884,8 +1899,8 @@ ${currentSpecs.progress || '（なし）'}
   }
 
   // Update a single spec file (legacy - kept for backward compatibility)
-  async updateSingleSpec(visitorId, projectId, specType, currentCode) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async updateSingleSpec(userId, projectId, specType, currentCode) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     // Ensure specs directory exists
@@ -1985,14 +2000,18 @@ ${templates[specType]}
         output += data.toString();
       });
 
-      claude.on('close', (code) => {
-        if (code === 0 && output.includes('#')) {
-          // Extract markdown content
-          const content = output.trim();
-          fs.writeFileSync(specPath, content, 'utf-8');
-          console.log(`Updated specs/${specType}.md`);
-        } else {
-          console.log(`Failed to update ${specType}.md`);
+      claude.on('close', async (code) => {
+        try {
+          if (code === 0 && output.includes('#')) {
+            // Extract markdown content
+            const content = output.trim();
+            fs.writeFileSync(specPath, content, 'utf-8');
+            console.log(`Updated specs/${specType}.md`);
+          } else {
+            console.log(`Failed to update ${specType}.md`);
+          }
+        } catch (err) {
+          console.error(`Error updating ${specType}.md:`, err.message);
         }
         resolve();
       });
@@ -2010,8 +2029,8 @@ ${templates[specType]}
   }
 
   // Create initial specs from generated code using Gemini (AFTER code generation)
-  async createInitialSpecFromCode(visitorId, projectId, userMessage, dimension, generatedCode) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async createInitialSpecFromCode(userId, projectId, userMessage, dimension, generatedCode) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     console.log('Creating specs from generated code using Gemini...');
@@ -2115,8 +2134,8 @@ ${generatedCode ? generatedCode.substring(0, 8000) : '(コードなし)'}
   }
 
   // Create initial specs (3 files) BEFORE code generation (for new projects) - DEPRECATED
-  async createInitialSpec(visitorId, projectId, userMessage, dimension) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async createInitialSpec(userId, projectId, userMessage, dimension) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     console.log('Creating initial specs (3 files) before code generation...');
@@ -2166,7 +2185,7 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
         output += data.toString();
       });
 
-      claude.on('close', (code) => {
+      claude.on('close', async (code) => {
         try {
           // Extract JSON from response
           const jsonMatch = output.match(/\{[\s\S]*"game"[\s\S]*"mechanics"[\s\S]*"progress"[\s\S]*\}/);
@@ -2364,14 +2383,14 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
   }
 
   // Read SPEC.md for a project (legacy - reads old format or combines new format)
-  readSpec(visitorId, projectId) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  readSpec(userId, projectId) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
     const legacySpecPath = path.join(projectDir, 'SPEC.md');
 
     // Check for new 3-file format first
     if (fs.existsSync(specsDir)) {
-      return this.readSpecs(visitorId, projectId);
+      return this.readSpecs(userId, projectId);
     }
 
     // Fall back to legacy single file
@@ -2382,8 +2401,8 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
   }
 
   // Read STYLE.md for a project (visual style guideline)
-  readStyle(visitorId, projectId) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  readStyle(userId, projectId) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const stylePath = path.join(projectDir, 'STYLE.md');
 
     if (fs.existsSync(stylePath)) {
@@ -2393,8 +2412,8 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
   }
 
   // Read new 3-file spec format and combine
-  readSpecs(visitorId, projectId) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  readSpecs(userId, projectId) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     const specs = {
@@ -2422,16 +2441,16 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
   }
 
   // Read specific spec file for targeted updates
-  readSpecByType(visitorId, projectId, specType) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  readSpecByType(userId, projectId, specType) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
     const filename = `${specType}.md`;
     return this.readSpecFile(specsDir, filename);
   }
 
   // Write a single spec file
-  writeSpecFile(visitorId, projectId, specType, content) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  writeSpecFile(userId, projectId, specType, content) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     if (!fs.existsSync(specsDir)) {
@@ -2444,8 +2463,8 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
   }
 
   // Save specs from Gemini response (no additional API call needed)
-  async saveSpecsFromGemini(visitorId, projectId, specs) {
-    const projectDir = userManager.getProjectDir(visitorId, projectId);
+  async saveSpecsFromGemini(userId, projectId, specs) {
+    const projectDir = userManager.getProjectDir(userId, projectId);
     const specsDir = path.join(projectDir, 'specs');
 
     if (!fs.existsSync(specsDir)) {
@@ -2502,7 +2521,7 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
         output += data.toString();
       });
 
-      claude.on('close', (code) => {
+      claude.on('close', async (code) => {
         try {
           const jsonMatch = output.match(/\[[\s\S]*?\]/);
           if (jsonMatch) {
@@ -2555,10 +2574,10 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
   }
 
   // Auto-rename project if it has default name and game.md has a title
-  async maybeAutoRenameProject(visitorId, projectId) {
+  async maybeAutoRenameProject(userId, projectId) {
     try {
-      // Get current project info
-      const project = db.getProjectById(projectId);
+      // Get current project info (use admin client for background job)
+      const project = await db.getProjectById(supabaseAdmin, projectId);
       if (!project) return null;
 
       // Only auto-rename if project has default name
@@ -2567,7 +2586,7 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
       }
 
       // Read game.md and extract title
-      const projectDir = userManager.getProjectDir(visitorId, projectId);
+      const projectDir = userManager.getProjectDir(userId, projectId);
       const gameSpecPath = path.join(projectDir, 'specs', 'game.md');
 
       if (!fs.existsSync(gameSpecPath)) return null;
@@ -2578,7 +2597,7 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
       if (!title) return null;
 
       // Rename project
-      const renamed = userManager.renameProject(visitorId, projectId, title);
+      const renamed = await userManager.renameProject(null, userId, projectId, title);
       if (renamed) {
         console.log(`Auto-renamed project to: ${title}`);
         return renamed;
