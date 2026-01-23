@@ -1,7 +1,7 @@
 class GameCreatorApp {
   constructor() {
     this.ws = null;
-    this.visitorId = null; // Set by Supabase Auth (session.user.id) for backward compatibility
+    this.userId = null; // Set by Supabase Auth (session.user.id)
     this.currentProjectId = null;
     this.currentProjectName = null;
     this.projects = [];
@@ -282,7 +282,7 @@ class GameCreatorApp {
           }
           this.accessToken = session.access_token;
           this.currentUser = session.user;
-          this.visitorId = session.user.id;
+          this.userId = session.user.id;
           this.isAuthenticated = true;
           this.connectWebSocket();
           this.loadPageData();
@@ -297,7 +297,7 @@ class GameCreatorApp {
       // Use cached session for immediate UI (before SDK loads)
       this.accessToken = cachedSession.access_token;
       this.currentUser = cachedSession.user;
-      this.visitorId = cachedSession.user.id;
+      this.userId = cachedSession.user.id;
       this.isAuthenticated = true;
 
       // Update UI with user info immediately
@@ -437,7 +437,7 @@ class GameCreatorApp {
     this.sessionId = null;
     this.currentUser = null;
     this.accessToken = null;
-    this.visitorId = null;
+    this.userId = null;
     this.isAuthenticated = false;
 
     // Sign out via Supabase Auth (this will redirect to /)
@@ -1575,7 +1575,7 @@ class GameCreatorApp {
     this.zappingLikeCount.textContent = currentGame.likes || 0;
 
     // Create slide with iframe
-    const gameUrl = `/api/projects/${currentGame.id}/preview?visitorId=${currentGame.creatorId}`;
+    const gameUrl = `/api/projects/${currentGame.id}/preview`;
 
     this.zappingContainer.innerHTML = `
       <div class="zapping-slide current">
@@ -1709,8 +1709,8 @@ class GameCreatorApp {
         break;
 
       case 'init':
-        this.visitorId = data.userId;  // Server sends userId, not visitorId
-        localStorage.setItem('gameCreatorVisitorId', this.visitorId);
+        this.userId = data.userId;
+        localStorage.setItem('gameCreatorUserId', this.userId);
         this.projects = data.projects || [];
 
         // Reset streaming state on fresh connection
@@ -3043,14 +3043,14 @@ class GameCreatorApp {
 
   refreshPreview() {
     if (!this.gamePreview) return;
-    if (this.visitorId && this.currentProjectId && this.accessToken) {
+    if (this.userId && this.currentProjectId && this.accessToken) {
       // Show loading status
       this.updateGameStatus('loading', '読み込み中...');
       this.currentErrors = [];
       this.hideErrorPanel();
 
       const timestamp = Date.now();
-      this.gamePreview.src = `/game/${this.visitorId}/${this.currentProjectId}/index.html?t=${timestamp}&access_token=${encodeURIComponent(this.accessToken)}`;
+      this.gamePreview.src = `/game/${this.userId}/${this.currentProjectId}/index.html?t=${timestamp}&access_token=${encodeURIComponent(this.accessToken)}`;
     }
   }
 
@@ -3943,7 +3943,7 @@ class GameCreatorApp {
   }
 
   async uploadFiles() {
-    if (this.pendingUploads.length === 0 || !this.visitorId) return;
+    if (this.pendingUploads.length === 0 || !this.userId) return;
 
     const tags = this.assetTags.value;
     const description = this.assetDescription.value;
@@ -4453,7 +4453,7 @@ class GameCreatorApp {
     if (applyBtn) applyBtn.disabled = true;
 
     try {
-      await this.imageEditor.removeBackground(this.visitorId);
+      await this.imageEditor.removeBackground(this.userId);
       this.updateUndoButton();
       this.selectTool(null);
     } catch (error) {
@@ -5089,7 +5089,7 @@ class ImageEditor {
     this.render();
   }
 
-  async removeBackground(visitorId) {
+  async removeBackground(userId) {
     // Compress image if too large (max 2048px on longest side)
     const MAX_SIZE = 2048;
     let imageToSend = this.currentImage;

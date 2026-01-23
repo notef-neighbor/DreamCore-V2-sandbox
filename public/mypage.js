@@ -6,7 +6,7 @@
 class MyPageApp {
   constructor() {
     this.currentUser = null;
-    this.visitorId = null;
+    this.userId = null;
     this.accessToken = null;
     this.projects = [];
 
@@ -29,7 +29,7 @@ class MyPageApp {
     }
 
     this.currentUser = session.user;
-    this.visitorId = session.user.id;
+    this.userId = session.user.id;
     this.accessToken = session.access_token;
 
     this.setupListeners();

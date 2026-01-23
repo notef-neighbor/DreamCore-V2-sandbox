@@ -141,7 +141,7 @@ USING (owner_id = auth.uid() AND is_deleted = FALSE)
 - ~~`database.js`~~ - 削除済み
 - ~~`initLoginUsers.js`~~ - 削除済み
 - ~~`assets.is_deleted`~~ - マイグレーション実行済み（2026-01-22）
-- ~~`visitorId`言及~~ - serverディレクトリから完全削除（2026-01-22）
+- ~~`visitorId`言及~~ - server/public両方から完全削除（2026-01-23）
 
 ## 開発方針
 

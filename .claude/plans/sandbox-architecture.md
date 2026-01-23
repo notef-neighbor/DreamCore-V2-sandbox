@@ -2,7 +2,7 @@
 
 **プロダクト名:** DreamCore V2
 **ドメイン:** v2.dreamcore.gg（V1: dreamcore.gg）
-**最終更新:** 2026-01-22
+**最終更新:** 2026-01-23
 
 ---
 
@@ -447,12 +447,36 @@ CMD ["node", "/home/sandbox/preview-server.js"]
 - ゲームコードからのXSS防止
 - 親ウィンドウへのアクセス遮断
 - Cookie/LocalStorage隔離
+- **ゲームデータ（スコア、セーブデータ等）のサーバー保存**
 
 ### ドメイン分離
 
 ```
 メインサイト:    v2.dreamcore.gg
 ゲーム配信:      play.v2.dreamcore.gg  ← 完全に別ドメイン（Phase 2で構築）
+```
+
+### アーキテクチャ概要
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  v2.dreamcore.gg (親ウィンドウ)                                  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  認証トークン、ユーザー情報（保護）                        │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                           ▲                                     │
+│                           │ postMessage (制御された通信)         │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  iframe sandbox="allow-scripts"                          │   │
+│  │  src="https://play.v2.dreamcore.gg/games/{gameId}/"     │   │
+│  │                                                          │   │
+│  │  ゲームコード → DreamCore.saveScore(100)                │   │
+│  │              → DreamCore.saveData({level: 5})          │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  親が postMessage を受信 → 検証 → POST /api/games/:id/data     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### iframe実装
@@ -473,23 +497,149 @@ CMD ["node", "/home/sandbox/preview-server.js"]
 |------|------|------|
 | allow-scripts | ✓ | ゲーム実行に必要 |
 | allow-pointer-lock | ✓ | FPSゲームなどに必要 |
-| allow-same-origin | ✗ | 親サイトへのアクセス禁止 |
+| allow-same-origin | ✗ | 親サイトへのアクセス禁止（トークン漏洩防止） |
 | allow-forms | ✗ | フォーム送信禁止 |
 | allow-popups | ✗ | ポップアップ禁止 |
+
+### ゲーム内SDK（iframe内で使用）
+
+```javascript
+// ゲーム内で使える DreamCore API
+const DreamCore = {
+  // スコア保存
+  saveScore: (score) => {
+    parent.postMessage({ type: 'saveScore', score }, '*');
+  },
+
+  // セーブデータ保存
+  saveData: (data) => {
+    parent.postMessage({ type: 'saveData', data }, '*');
+  },
+
+  // セーブデータ読み込み
+  loadData: () => {
+    return new Promise(resolve => {
+      const handler = (e) => {
+        if (e.data.type === 'loadDataResult') {
+          window.removeEventListener('message', handler);
+          resolve(e.data.data);
+        }
+      };
+      window.addEventListener('message', handler);
+      parent.postMessage({ type: 'loadData' }, '*');
+    });
+  },
+
+  // プレイ回数カウント（親が自動で送信）
+  onPlayStart: (callback) => {
+    window.addEventListener('message', (e) => {
+      if (e.data.type === 'playStarted') callback(e.data);
+    });
+  }
+};
+```
+
+### 親ウィンドウ側の postMessage ハンドラ
+
+```javascript
+// v2.dreamcore.gg 側
+window.addEventListener('message', async (event) => {
+  // オリジン検証（play.v2.dreamcore.gg からのみ受け付け）
+  if (event.origin !== 'https://play.v2.dreamcore.gg') return;
+
+  const { type, ...payload } = event.data;
+  const gameId = currentGameId; // 親が管理
+
+  switch (type) {
+    case 'saveScore':
+      await fetch(`/api/games/${gameId}/score`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify({ score: payload.score })
+      });
+      break;
+
+    case 'saveData':
+      await fetch(`/api/games/${gameId}/savedata`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify(payload.data)
+      });
+      break;
+
+    case 'loadData':
+      const res = await fetch(`/api/games/${gameId}/savedata`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const data = await res.json();
+      event.source.postMessage({ type: 'loadDataResult', data }, event.origin);
+      break;
+  }
+});
+```
+
+### CORS設定（アセット配信用）
+
+ゲームが v2.dreamcore.gg のアセットにアクセスするための CORS 設定:
+
+```javascript
+// server/index.js
+// 環境変数: CORS_ALLOWED_ORIGINS=https://play.v2.dreamcore.gg
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);  // 空文字除去
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/user-assets/') ||
+      req.path.startsWith('/global-assets/')) {
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);  // * は使わない
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Vary', 'Origin');  // キャッシュ誤配信防止
+    }
+  }
+  next();
+});
+```
+
+**重要: CORS は `*` ではなくドメイン限定**
+- `*` は将来の仕様変更時に事故リスクが高い
+- Authorization ヘッダーを使う場合、`*` は CORS 仕様で使用不可
+
+### セキュリティまとめ
+
+| 項目 | 対策 |
+|------|------|
+| 認証トークン漏洩 | `allow-same-origin` なし → iframe からアクセス不可 |
+| 悪意あるゲームコード | サブドメイン隔離 + sandbox |
+| ゲームデータ改ざん | postMessage を親が検証してから API 呼び出し |
+| CORS 乱用 | `*` ではなく `play.v2.dreamcore.gg` のみ許可 |
+| レート制限 | サーバー側 API で制御 |
 
 ### CSP設定
 
 ```nginx
+# play.v2.dreamcore.gg の CSP
 add_header Content-Security-Policy "
     default-src 'self';
     script-src 'self' 'unsafe-inline' 'unsafe-eval'
         https://cdn.jsdelivr.net
         https://cdnjs.cloudflare.com
         https://unpkg.com;
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' data: blob: https://storage.googleapis.com;
-    media-src 'self' blob: https://storage.googleapis.com;
-    connect-src 'self' https://storage.googleapis.com;
+    style-src 'self' 'unsafe-inline'
+        https://fonts.googleapis.com;
+    font-src 'self'
+        https://fonts.gstatic.com;
+    img-src 'self' data: blob:
+        https://v2.dreamcore.gg;
+    media-src 'self' blob:
+        https://v2.dreamcore.gg;
+    connect-src 'self'
+        https://v2.dreamcore.gg;
     frame-ancestors https://v2.dreamcore.gg;
 " always;
 ```

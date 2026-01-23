@@ -165,7 +165,9 @@ async function signOut() {
   // Clear all caches
   currentSession = null;
   setCachedSession(null);
-  localStorage.removeItem('visitorId');
+  localStorage.removeItem('visitorId');  // Legacy cleanup
+  localStorage.removeItem('gameCreatorVisitorId');  // Legacy cleanup
+  localStorage.removeItem('gameCreatorUserId');
   localStorage.removeItem('sessionId');
 
   // Redirect to login

@@ -7,7 +7,7 @@ class PublishPage {
   constructor() {
     this.projectId = new URLSearchParams(window.location.search).get('id');
     this.projectData = null;
-    this.visitorId = null;
+    this.userId = null;
     this.accessToken = null;
     this.publishData = {
       title: '',
@@ -41,7 +41,7 @@ class PublishPage {
       return;
     }
 
-    this.visitorId = session.user.id;
+    this.userId = session.user.id;
     this.accessToken = session.access_token;
 
     this.bindElements();

@@ -18,6 +18,11 @@ const IS_PRODUCTION = ENV === 'production';
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
+// CORS: Allowed origins for asset access (Phase 2 subdomain architecture)
+// Production: CORS_ALLOWED_ORIGINS=https://play.dreamcore.gg
+// Development: defaults to http://localhost:3000
+// Multiple origins: comma-separated (e.g., "https://play.dreamcore.gg,https://staging-play.dreamcore.gg")
+
 // ==================== Storage Paths ====================
 
 /**

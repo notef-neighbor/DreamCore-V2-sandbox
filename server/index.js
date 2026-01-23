@@ -66,6 +66,33 @@ const upload = multer({
 // JSON body parser with increased limit for base64 images
 app.use(express.json({ limit: '50mb' }));
 
+// CORS for Phase 2 subdomain architecture (play.dreamcore.gg)
+// Assets need to be accessible from the play subdomain where games run
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3000')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);  // Remove empty strings
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/user-assets/') ||
+      req.path.startsWith('/global-assets/') ||
+      req.path.startsWith('/game/') ||
+      req.path.startsWith('/api/assets/')) {
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Vary', 'Origin');  // Prevent cache poisoning
+    }
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+  }
+  next();
+});
+
 // Serve static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -236,7 +263,7 @@ app.post('/api/generate-image', authenticate, async (req, res) => {
 // ==================== Background Removal API ====================
 
 // Remove background using Replicate API (BRIA RMBG 2.0)
-// Helper: check asset ownership and attach to req
+// Helper: check asset ownership and attach to req (requires authentication)
 const checkAssetOwnership = async (req, res, next) => {
   const assetId = req.params.id;
   if (!isValidUUID(assetId)) {
@@ -248,6 +275,27 @@ const checkAssetOwnership = async (req, res, next) => {
   }
   if (asset.owner_id !== req.user.id) {
     return res.status(403).json({ error: 'Access denied' });
+  }
+  req.asset = asset;
+  next();
+};
+
+// Helper: check asset access for public/owner (optional auth)
+const checkAssetAccess = async (req, res, next) => {
+  const assetId = req.params.id;
+  if (!isValidUUID(assetId)) {
+    return res.status(400).json({ error: 'Invalid asset ID' });
+  }
+  // Use admin client to bypass RLS for public asset check
+  const asset = await db.getAssetByIdAdmin(assetId);
+  if (!asset || asset.is_deleted) {
+    return res.status(404).json({ error: 'Asset not found' });
+  }
+  // Allow access if: owner OR public
+  const isOwner = req.user?.id === asset.owner_id;
+  const isPublic = asset.is_public || asset.is_global;
+  if (!isOwner && !isPublic) {
+    return res.status(404).json({ error: 'Asset not found' });
   }
   req.asset = asset;
   next();
@@ -503,12 +551,9 @@ app.get('/api/assets/search', authenticate, async (req, res) => {
   });
 });
 
-// Get asset file (Phase 1: owner-only)
-app.get('/api/assets/:id', authenticate, checkAssetOwnership, (req, res) => {
-  // req.asset is already verified by checkAssetOwnership
-  if (req.asset.is_deleted) {
-    return res.status(410).json({ error: 'Asset has been deleted' });
-  }
+// Get asset file (public or owner access)
+app.get('/api/assets/:id', optionalAuth, checkAssetAccess, (req, res) => {
+  // req.asset is already verified by checkAssetAccess (including is_deleted check)
 
   // Check if file exists
   if (!fs.existsSync(req.asset.storage_path)) {

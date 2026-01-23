@@ -6,7 +6,7 @@
 class NotificationsApp {
   constructor() {
     this.currentUser = null;
-    this.visitorId = null;
+    this.userId = null;
     this.notifications = [];
     this.currentFilter = 'all';
 
@@ -28,7 +28,7 @@ class NotificationsApp {
     }
 
     this.currentUser = session.user;
-    this.visitorId = session.user.id;
+    this.userId = session.user.id;
 
     this.setupListeners();
     await this.loadNotifications();

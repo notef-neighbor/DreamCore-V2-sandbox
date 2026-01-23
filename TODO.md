@@ -2,17 +2,25 @@
 
 ## 現在の状況
 
-PostgreSQL Table Design レビュー完了。スキーマがベストプラクティスに準拠。
+アーキテクチャ設計レビュー完了。同時実行数制御の実装計画を作成。
 
 ---
 
 ## 残タスク
+
+### 中優先度（100人イベント前に必須）
+
+- [ ] **同時実行数制御の実装** → `.claude/plans/concurrent-execution-control.md`
+  - ユーザーあたり1件制限
+  - システム全体20件制限（環境変数で調整可能）
+  - GCSバックアップ機能（Phase 2）
 
 ### 低優先度（運用後に判断）
 
 - [x] profiles テーブル削除 ✅ 2026-01-23
 - [ ] インデックス冗長整理（`pg_stat_user_indexes` で確認後）
 - [ ] 本番 Redirect URLs に本番URL追加（デプロイ時）
+- [ ] iframe sandbox属性のセキュリティ対策（Phase 2でサブドメイン方式で対応）
 
 ---
 
@@ -25,6 +33,47 @@ PostgreSQL Table Design レビュー完了。スキーマがベストプラク�
 ---
 
 ## 作業履歴
+
+### 2026-01-23: 画像読み込み問題の調査
+
+**詳細:** `.claude/logs/2026-01-23-image-loading-investigation.md`
+
+**調査内容:**
+- `allow-same-origin` 削除を試行 → CDN スクリプトがブロックされゲーム停止
+- CORS ヘッダー追加（アセットエンドポイント用）
+- `/api/assets/:id` を公開アセット対応に変更
+
+**結論:**
+- `allow-same-origin` は Phase 1 では必要（Phase 2 でサブドメイン方式で対応）
+- CORS ヘッダーと公開アセット対応は維持
+
+---
+
+### 2026-01-23: visitorId 完全削除
+
+フロントエンドから `visitorId` 変数名を `userId` にリネーム。
+
+**変更ファイル:**
+- `public/app.js` - 12箇所リネーム、不要クエリパラメータ削除
+- `public/mypage.js`, `notifications.js`, `publish.js` - 各2箇所
+- `public/auth.js` - レガシーキークリーンアップ追加
+- `CLAUDE.md` - 技術的負債更新
+
+---
+
+### 2026-01-23: アーキテクチャ設計レビュー
+
+元のMVPアーキテクチャ設計書（sandbox-architecture.md）との比較を実施。
+
+**確認結果:**
+- ✅ 認証・RLS・データアーキテクチャ: 設計通り
+- ⚠️ 同時実行数制御: 未実装 → 計画作成済み
+- ⚠️ GCSバックアップ: 未実装（Phase 2）
+- ⚠️ iframe allow-same-origin: Phase 2でサブドメイン方式で対応予定
+
+**計画作成:** `.claude/plans/concurrent-execution-control.md`
+
+---
 
 ### 2026-01-23: PostgreSQL Table Design レビュー対応
 
@@ -115,4 +164,4 @@ PostgreSQL Table Design レビュー完了。スキーマがベストプラク�
 
 ---
 
-最終更新: 2026-01-23 (PostgreSQL Table Design レビュー)
+最終更新: 2026-01-23 (アーキテクチャ設計レビュー)

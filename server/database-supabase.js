@@ -371,6 +371,24 @@ const getAssetById = async (client, assetId) => {
 };
 
 /**
+ * Get asset by ID using admin client (bypasses RLS for public asset check)
+ */
+const getAssetByIdAdmin = async (assetId) => {
+  const { data, error } = await supabaseAdmin
+    .from('assets')
+    .select('*')
+    .eq('id', assetId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    console.error('[DB] getAssetByIdAdmin error:', error.message);
+    return null;
+  }
+  return data;
+};
+
+/**
  * Get active asset (not deleted, within availability period)
  */
 const getActiveAsset = async (client, assetId) => {
@@ -1320,6 +1338,7 @@ module.exports = {
   // Asset operations
   getAssetsByOwnerId,
   getAssetById,
+  getAssetByIdAdmin,
   getActiveAsset,
   getAccessibleAssets,
   searchAssets,
