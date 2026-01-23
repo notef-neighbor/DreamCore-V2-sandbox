@@ -265,7 +265,31 @@ class GameCreatorApp {
       const cachedSession = DreamCoreAuth.getSessionSync();
 
       if (!cachedSession) {
-        // No cached session - redirect immediately
+        // Check if this is an OAuth callback
+        const url = new URL(window.location.href);
+        const hasOAuthParams =
+          url.searchParams.has('code') ||
+          url.searchParams.has('error') ||
+          url.searchParams.has('state') ||
+          window.location.hash.includes('access_token=');
+
+        if (hasOAuthParams) {
+          // OAuth callback - wait for Supabase to process
+          const session = await DreamCoreAuth.getSession();
+          if (!session) {
+            window.location.href = '/';
+            return;
+          }
+          this.accessToken = session.access_token;
+          this.currentUser = session.user;
+          this.visitorId = session.user.id;
+          this.isAuthenticated = true;
+          this.connectWebSocket();
+          this.loadPageData();
+          return;
+        }
+
+        // No cached session and not OAuth - redirect immediately
         window.location.href = '/';
         return;
       }

@@ -30,6 +30,10 @@
   <!-- Early auth check + Supabase lazy loader -->
   <script>
     (function() {
+      // Skip early check if this is an OAuth callback (has hash with access_token)
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        return; // Let auth.js handle the OAuth callback
+      }
       var cached = localStorage.getItem('dreamcore_session_cache');
       if (!cached) { window.location.href = '/'; return; }
       try {
