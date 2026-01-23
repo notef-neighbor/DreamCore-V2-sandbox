@@ -1223,7 +1223,11 @@ ${skillInstructions}
       return { job: existingJob, isExisting: true, startProcessing: () => {} };
     }
 
-    // Create new job
+    // Check slot availability before creating job (fail fast)
+    // This throws if slot is not available
+    jobManager.acquireSlot(userId);
+
+    // Create new job (slot already acquired)
     const job = await jobManager.createJob(userId, projectId);
 
     // Return job with a function to start processing (allows caller to subscribe first)
@@ -1231,9 +1235,46 @@ ${skillInstructions}
       job,
       isExisting: false,
       startProcessing: () => {
-        this.processJob(job.id, userId, projectId, userMessage, debugOptions);
+        // Process job with slot management (slot already acquired)
+        this.processJobWithSlot(job.id, userId, projectId, userMessage, debugOptions);
       }
     };
+  }
+
+  // Wrapper that ensures slot is released after job completion
+  async processJobWithSlot(jobId, userId, projectId, userMessage, debugOptions = {}) {
+    const config = require('./config');
+    const timeout = config.RATE_LIMIT.cli.timeout;
+
+    // Create timeout promise
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        console.log(`Job ${jobId} timed out after ${timeout}ms`);
+        // Cancel the job
+        this.cancelJob(jobId).catch(err => {
+          console.error('Failed to cancel timed out job:', err.message);
+        });
+        reject(new Error('JOB_TIMEOUT'));
+      }, timeout);
+    });
+
+    try {
+      // Race between job completion and timeout
+      await Promise.race([
+        this.processJob(jobId, userId, projectId, userMessage, debugOptions),
+        timeoutPromise
+      ]);
+    } catch (err) {
+      if (err.message === 'JOB_TIMEOUT') {
+        await jobManager.failJob(jobId, 'Job timed out after 5 minutes');
+      }
+      // Re-throw other errors (they're already handled in processJob)
+    } finally {
+      // Clear timeout and release slot
+      clearTimeout(timeoutId);
+      jobManager.releaseSlot(userId);
+    }
   }
 
   // Process job (runs in background)

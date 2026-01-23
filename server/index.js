@@ -20,9 +20,10 @@ const { getStyleById } = require('./stylePresets');
 const { getStyleOptionsWithImages } = require('./styleImageCache');
 const { generateVisualGuide, formatGuideForCodeGeneration } = require('./visualGuideGenerator');
 const { authenticate, optionalAuth, verifyWebSocketAuth } = require('./authMiddleware');
-const { isValidUUID, isPathSafe, getProjectPath, getUserAssetsPath, getGlobalAssetsPath, USERS_DIR, GLOBAL_ASSETS_DIR, SUPABASE_URL, SUPABASE_ANON_KEY } = require('./config');
+const { isValidUUID, isPathSafe, isValidGitHash, getProjectPath, getUserAssetsPath, getGlobalAssetsPath, USERS_DIR, GLOBAL_ASSETS_DIR, SUPABASE_URL, SUPABASE_ANON_KEY } = require('./config');
 const crypto = require('crypto');
 const { supabaseAdmin } = require('./supabaseClient');
+const { ErrorCodes, createWsError, sendHttpError } = require('./errorResponse');
 
 const app = express();
 const server = http.createServer(app);
@@ -1272,10 +1273,14 @@ wss.on('connection', (ws) => {
               startProcessing();
 
             } catch (error) {
-              safeSend({
-                type: 'error',
-                message: error.message
-              });
+              // Handle slot limit errors with appropriate codes
+              if (error.code === 'USER_LIMIT_EXCEEDED') {
+                safeSend(createWsError(ErrorCodes.USER_LIMIT_EXCEEDED, error.message));
+              } else if (error.code === 'SYSTEM_LIMIT_EXCEEDED') {
+                safeSend(createWsError(ErrorCodes.SYSTEM_LIMIT_EXCEEDED, error.message));
+              } else {
+                safeSend(createWsError(ErrorCodes.OPERATION_FAILED, error.message));
+              }
             }
           } else {
             // Legacy synchronous processing
@@ -1388,6 +1393,11 @@ wss.on('connection', (ws) => {
         case 'restoreVersion':
           if (!userId || !data.projectId || !data.versionId) {
             safeSend({ type: 'error', message: 'Invalid request' });
+            return;
+          }
+          // Validate versionId format before processing
+          if (!isValidGitHash(data.versionId)) {
+            safeSend({ type: 'error', message: 'Invalid version ID format' });
             return;
           }
           if (!await verifyProjectOwnership(data.projectId)) {

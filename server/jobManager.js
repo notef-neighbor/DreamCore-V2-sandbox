@@ -1,11 +1,93 @@
 const db = require('./database-supabase');
 const EventEmitter = require('events');
+const config = require('./config');
 
 class JobManager extends EventEmitter {
   constructor() {
     super();
     this.runningJobs = new Map(); // jobId -> { process, cancel }
     this.subscribers = new Map(); // jobId -> Set of callbacks
+
+    // Slot management for concurrent process control
+    this.userSlots = new Map(); // userId -> current running count
+    this.totalRunning = 0;
+  }
+
+  /**
+   * Acquire a slot for job execution
+   * @param {string} userId - User ID
+   * @throws {Error} USER_LIMIT_EXCEEDED or SYSTEM_LIMIT_EXCEEDED
+   */
+  acquireSlot(userId) {
+    const { maxConcurrentPerUser, maxConcurrentTotal } = config.RATE_LIMIT.cli;
+    const userCount = this.userSlots.get(userId) || 0;
+
+    if (userCount >= maxConcurrentPerUser) {
+      const err = new Error('Too many concurrent requests. Please wait for the current job to finish.');
+      err.code = 'USER_LIMIT_EXCEEDED';
+      throw err;
+    }
+
+    if (this.totalRunning >= maxConcurrentTotal) {
+      const err = new Error('System is busy. Please try again in a moment.');
+      err.code = 'SYSTEM_LIMIT_EXCEEDED';
+      throw err;
+    }
+
+    // Acquire slot
+    this.userSlots.set(userId, userCount + 1);
+    this.totalRunning++;
+    console.log(`Slot acquired: user=${userId.slice(0, 8)}... (${userCount + 1}/${maxConcurrentPerUser}), total=${this.totalRunning}/${maxConcurrentTotal}`);
+  }
+
+  /**
+   * Release a slot after job completion
+   * Idempotent: safe to call multiple times (guards against going below 0)
+   * @param {string} userId - User ID
+   */
+  releaseSlot(userId) {
+    const { maxConcurrentPerUser, maxConcurrentTotal } = config.RATE_LIMIT.cli;
+    const userCount = this.userSlots.get(userId) || 0;
+
+    // Guard: only decrement if > 0 (idempotent)
+    if (userCount > 0) {
+      this.userSlots.set(userId, userCount - 1);
+      if (userCount - 1 === 0) {
+        this.userSlots.delete(userId);
+      }
+    }
+
+    // Guard: only decrement if > 0 (idempotent)
+    if (this.totalRunning > 0) {
+      this.totalRunning--;
+    }
+
+    console.log(`Slot released: user=${userId.slice(0, 8)}... (${Math.max(0, userCount - 1)}/${maxConcurrentPerUser}), total=${this.totalRunning}/${maxConcurrentTotal}`);
+  }
+
+  /**
+   * Check if user can acquire a slot
+   * @param {string} userId - User ID
+   * @returns {boolean} True if slot available
+   */
+  canAcquireSlot(userId) {
+    const { maxConcurrentPerUser, maxConcurrentTotal } = config.RATE_LIMIT.cli;
+    const userCount = this.userSlots.get(userId) || 0;
+    return userCount < maxConcurrentPerUser && this.totalRunning < maxConcurrentTotal;
+  }
+
+  /**
+   * Get current slot status
+   * @returns {Object} Slot status
+   */
+  getSlotStatus() {
+    const { maxConcurrentPerUser, maxConcurrentTotal } = config.RATE_LIMIT.cli;
+    return {
+      totalRunning: this.totalRunning,
+      maxTotal: maxConcurrentTotal,
+      userSlots: Object.fromEntries(this.userSlots),
+      maxPerUser: maxConcurrentPerUser
+    };
   }
 
   // Create a new job

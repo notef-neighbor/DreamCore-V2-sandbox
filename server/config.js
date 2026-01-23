@@ -122,6 +122,20 @@ const isValidUUID = (id) => {
   return UUID_REGEX.test(id);
 };
 
+/**
+ * Git hash validation regex (7-40 hex characters)
+ */
+const GIT_HASH_REGEX = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Validate Git hash format
+ * @param {string} hash - Hash to validate
+ * @returns {boolean} True if valid Git hash
+ */
+const isValidGitHash = (hash) => {
+  return typeof hash === 'string' && GIT_HASH_REGEX.test(hash);
+};
+
 // ==================== Supabase Settings ====================
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -169,9 +183,9 @@ const USE_GCS_BACKUP = !!GCS_PROJECT_ID;
 const RATE_LIMIT = {
   // Claude CLI execution limits
   cli: {
-    timeout: 5 * 60 * 1000,           // 5 minutes
+    timeout: 10 * 60 * 1000,          // 10 minutes
     maxConcurrentPerUser: 1,
-    maxConcurrentTotal: 10,
+    maxConcurrentTotal: 50,
     maxTokens: 100000,
     maxOutputSize: 1 * 1024 * 1024    // 1MB
   },
@@ -222,6 +236,8 @@ module.exports = {
   isPathSafe,
   isValidUUID,
   UUID_REGEX,
+  isValidGitHash,
+  GIT_HASH_REGEX,
 
   // Supabase
   SUPABASE_URL,

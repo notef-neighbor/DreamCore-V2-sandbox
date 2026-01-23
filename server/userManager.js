@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const db = require('./database-supabase');
 const { supabaseAdmin } = require('./supabaseClient');
 const config = require('./config');
@@ -30,10 +30,20 @@ config.ensureDirectories();
 // Note: Migration from JSON files is no longer needed with Supabase
 // Legacy data migration should be done via SQL scripts or manual import
 
-// Helper to execute git commands
-const execGit = (cmd, cwd) => {
+/**
+ * Execute git commands safely using execFileSync (no shell interpolation)
+ * @param {string[]} args - Git command arguments (e.g., ['commit', '-m', 'message'])
+ * @param {string} cwd - Working directory
+ * @returns {string|null} Command output or null on error
+ */
+const execGitSafe = (args, cwd) => {
   try {
-    return execSync(cmd, { cwd, stdio: 'pipe', encoding: 'utf-8' }).trim();
+    return execFileSync('git', args, {
+      cwd,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      timeout: 30000
+    }).trim();
   } catch (e) {
     return null;
   }
@@ -62,9 +72,9 @@ const ensureProjectDir = (userId, projectId) => {
     fs.mkdirSync(projectDir, { recursive: true });
 
     // Initialize git for the project
-    execGit('git init', projectDir);
-    execGit('git config user.email "gamecreator@local"', projectDir);
-    execGit('git config user.name "Game Creator"', projectDir);
+    execGitSafe(['init'], projectDir);
+    execGitSafe(['config', 'user.email', 'gamecreator@local'], projectDir);
+    execGitSafe(['config', 'user.name', 'Game Creator'], projectDir);
 
     // Create initial index.html - Nintendo × Kashiwa Sato style
     const initialHtml = `<!DOCTYPE html>
@@ -140,8 +150,8 @@ const ensureProjectDir = (userId, projectId) => {
     fs.writeFileSync(path.join(projectDir, 'index.html'), initialHtml);
 
     // Initial commit
-    execGit('git add -A', projectDir);
-    execGit('git commit -m "Initial project setup"', projectDir);
+    execGitSafe(['add', '-A'], projectDir);
+    execGitSafe(['commit', '-m', 'Initial project setup'], projectDir);
 
     console.log('Created project directory:', projectDir);
   }
@@ -162,14 +172,17 @@ const logActivity = async (action, targetType = null, targetId = null, details =
 
 // Commit to project git
 const commitToProject = (projectDir, message) => {
-  const status = execGit('git status --porcelain', projectDir);
+  const status = execGitSafe(['status', '--porcelain'], projectDir);
   if (!status) return null;
 
-  execGit('git add -A', projectDir);
-  const result = execGit(`git commit -m "${message.replace(/"/g, '\\"')}"`, projectDir);
+  // Sanitize message: remove newlines to prevent git commit -m issues
+  const sanitizedMessage = (message || 'Update').replace(/[\r\n]+/g, ' ').trim();
+
+  execGitSafe(['add', '-A'], projectDir);
+  const result = execGitSafe(['commit', '-m', sanitizedMessage], projectDir);
 
   if (result !== null) {
-    const hash = execGit('git rev-parse --short HEAD', projectDir);
+    const hash = execGitSafe(['rev-parse', '--short', 'HEAD'], projectDir);
     return hash;
   }
   return null;
@@ -645,7 +658,7 @@ const getVersions = (userId, projectId, options = {}) => {
     return [];
   }
 
-  const logOutput = execGit('git log --pretty=format:"%h|%s|%ai" -50', projectDir);
+  const logOutput = execGitSafe(['log', '--pretty=format:%h|%s|%ai', '-50'], projectDir);
   if (!logOutput) return [];
 
   // Filter out internal commits
@@ -694,14 +707,20 @@ const getVersions = (userId, projectId, options = {}) => {
  * @returns {Object|null} AI context or null if not found
  */
 const getAIContextForCommit = (projectDir, commitHash) => {
+  // Validate commitHash format to prevent command injection
+  if (!config.isValidGitHash(commitHash)) {
+    console.error('Invalid git hash format:', commitHash);
+    return null;
+  }
+
   try {
     // First try .ai-context/ files
-    const filesOutput = execGit(`git ls-tree --name-only ${commitHash} .ai-context/`, projectDir);
+    const filesOutput = execGitSafe(['ls-tree', '--name-only', commitHash, '.ai-context/'], projectDir);
     if (filesOutput) {
       const files = filesOutput.split('\n').filter(f => f.endsWith('.json')).sort().reverse();
       if (files.length > 0) {
         const latestFile = files[0];
-        const content = execGit(`git show ${commitHash}:${latestFile}`, projectDir);
+        const content = execGitSafe(['show', `${commitHash}:${latestFile}`], projectDir);
         if (content) {
           const parsed = JSON.parse(content);
           if (parsed.edits && parsed.edits.length > 0) {
@@ -712,7 +731,7 @@ const getAIContextForCommit = (projectDir, commitHash) => {
     }
 
     // Fallback: generate edits from git diff
-    const diff = execGit(`git diff ${commitHash}^..${commitHash} -- index.html`, projectDir);
+    const diff = execGitSafe(['diff', `${commitHash}^..${commitHash}`, '--', 'index.html'], projectDir);
     if (diff) {
       return {
         edits: [{ diff }],
@@ -728,6 +747,11 @@ const getAIContextForCommit = (projectDir, commitHash) => {
 };
 
 const restoreVersion = (userId, projectId, versionId) => {
+  // Validate versionId format to prevent command injection
+  if (!config.isValidGitHash(versionId)) {
+    return { success: false, error: 'Invalid version ID format' };
+  }
+
   const projectDir = getProjectDir(userId, projectId);
 
   if (!fs.existsSync(path.join(projectDir, '.git'))) {
@@ -736,13 +760,13 @@ const restoreVersion = (userId, projectId, versionId) => {
 
   // Checkout the specific version's files (no new commit created)
   // This just restores the files to that version's state
-  const result = execGit(`git checkout ${versionId} -- .`, projectDir);
+  const result = execGitSafe(['checkout', versionId, '--', '.'], projectDir);
 
   if (result !== null) {
     // Delete SPEC.md if it wasn't in the restored version
     // (git checkout won't delete files that didn't exist in that commit)
     const specPath = path.join(projectDir, 'SPEC.md');
-    const specInCommit = execGit(`git ls-tree ${versionId} --name-only SPEC.md`, projectDir);
+    const specInCommit = execGitSafe(['ls-tree', versionId, '--name-only', 'SPEC.md'], projectDir);
     if (!specInCommit && fs.existsSync(specPath)) {
       fs.unlinkSync(specPath);
       console.log('Deleted SPEC.md (not in restored version)');
@@ -820,8 +844,8 @@ const remixProject = async (client, userId, sourceProjectId) => {
   }
 
   // Commit the remix
-  execGit('git add -A', targetDir);
-  execGit(`git commit -m "Remixed from ${sourceProjectId}"`, targetDir);
+  execGitSafe(['add', '-A'], targetDir);
+  execGitSafe(['commit', '-m', `Remixed from ${sourceProjectId}`], targetDir);
 
   logActivity('remix', 'project', newProject.id, `from ${sourceProjectId}`, userId);
 
