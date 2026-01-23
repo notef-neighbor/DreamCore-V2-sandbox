@@ -1200,6 +1200,94 @@ const migrateFromJsonFiles = async () => {
   return { migrated: 0 };
 };
 
+// ==================== V2 Asset Functions ====================
+
+/**
+ * Check if an alias exists for a given owner
+ * @param {string} ownerId - Owner user ID
+ * @param {string} alias - Alias to check
+ * @returns {Promise<boolean>} True if alias exists
+ */
+const aliasExists = async (ownerId, alias) => {
+  const { data } = await supabaseAdmin
+    .from('assets')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .eq('alias', alias)
+    .eq('is_deleted', false)
+    .single();
+  return !!data;
+};
+
+/**
+ * Get asset by alias (service_role, bypasses RLS)
+ * @param {string} ownerId - Owner user ID
+ * @param {string} alias - Asset alias
+ * @returns {Promise<Object|null>} Asset or null
+ */
+const getAssetByAliasAdmin = async (ownerId, alias) => {
+  const { data } = await supabaseAdmin
+    .from('assets')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .eq('alias', alias)
+    .single();
+  return data;
+};
+
+/**
+ * Get global asset by category and alias (service_role)
+ * @param {string} category - Asset category
+ * @param {string} alias - Asset alias
+ * @returns {Promise<Object|null>} Asset or null
+ */
+const getGlobalAssetAdmin = async (category, alias) => {
+  const { data } = await supabaseAdmin
+    .from('assets')
+    .select('*')
+    .eq('is_global', true)
+    .eq('category', category)
+    .eq('alias', alias)
+    .single();
+  return data;
+};
+
+/**
+ * Create asset with V2 fields (alias, hash, etc.)
+ * @param {Object} assetData - Asset data
+ * @returns {Promise<Object>} Created asset
+ */
+const createAssetV2 = async (client, assetData) => {
+  const { data, error } = await client
+    .from('assets')
+    .insert([{
+      owner_id: assetData.owner_id,
+      alias: assetData.alias,
+      filename: assetData.filename,
+      original_name: assetData.original_name,
+      storage_path: assetData.storage_path,
+      mime_type: assetData.mime_type,
+      size: assetData.size,
+      hash: assetData.hash,
+      original_asset_id: assetData.original_asset_id || null,
+      created_in_project_id: assetData.created_in_project_id || null,
+      is_public: assetData.is_public || false,
+      is_remix_allowed: assetData.is_remix_allowed || false,
+      is_global: assetData.is_global || false,
+      category: assetData.category || null,
+      tags: assetData.tags || null,
+      description: assetData.description || null
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[DB] createAssetV2 error:', error);
+    throw error;
+  }
+  return data;
+};
+
 // ==================== Exports ====================
 
 module.exports = {
@@ -1291,6 +1379,12 @@ module.exports = {
   getPublishDraft,
   savePublishDraft,
   deletePublishDraft,
+
+  // V2 Asset operations
+  aliasExists,
+  getAssetByAliasAdmin,
+  getGlobalAssetAdmin,
+  createAssetV2,
 
   // Admin client for special cases
   supabaseAdmin

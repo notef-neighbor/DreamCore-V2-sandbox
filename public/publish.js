@@ -775,12 +775,12 @@ class PublishPage {
   }
 
   /**
-   * Add access_token to URL for authenticated image loading
+   * @deprecated V2: No longer needed - assets served via /user-assets/{userId}/{alias}
+   * Kept for backward compatibility during transition
    */
   getAuthenticatedUrl(url) {
-    if (!url || !this.accessToken) return url;
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
+    // V2: Return URL as-is (no token needed for new endpoints)
+    return url;
   }
 }
 

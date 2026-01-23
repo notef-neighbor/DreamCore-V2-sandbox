@@ -20,7 +20,8 @@ const { getStyleById } = require('./stylePresets');
 const { getStyleOptionsWithImages } = require('./styleImageCache');
 const { generateVisualGuide, formatGuideForCodeGeneration } = require('./visualGuideGenerator');
 const { authenticate, optionalAuth, verifyWebSocketAuth } = require('./authMiddleware');
-const { isValidUUID, isPathSafe, getProjectPath, SUPABASE_URL, SUPABASE_ANON_KEY } = require('./config');
+const { isValidUUID, isPathSafe, getProjectPath, getUserAssetsPathV2, getGlobalAssetsPath, USERS_DIR, GLOBAL_ASSETS_DIR, SUPABASE_URL, SUPABASE_ANON_KEY } = require('./config');
+const crypto = require('crypto');
 const { supabaseAdmin } = require('./supabaseClient');
 
 const app = express();
@@ -365,10 +366,11 @@ app.post('/api/assets/remove-background', authenticate, async (req, res) => {
 
 // ==================== Asset API Endpoints ====================
 
-// Upload asset
+// Upload asset (V2: alias + hash)
 app.post('/api/assets/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
     const { projectId, originalName } = req.body;
+    const userId = req.user.id;
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -380,7 +382,7 @@ app.post('/api/assets/upload', authenticate, upload.single('file'), async (req, 
         return res.status(400).json({ error: 'Invalid project ID' });
       }
       const project = await db.getProjectById(req.supabase, projectId);
-      if (!project || project.user_id !== req.user.id) {
+      if (!project || project.user_id !== userId) {
         return res.status(403).json({ error: 'Access denied to project' });
       }
     }
@@ -388,18 +390,58 @@ app.post('/api/assets/upload', authenticate, upload.single('file'), async (req, 
     // Use originalName from body if provided (preserves UTF-8 encoding)
     const displayName = originalName || req.file.originalname;
 
-    const asset = await db.createAsset(
-      req.supabase,
-      req.user.id,
-      req.file.filename,
-      displayName,
-      req.file.path,
-      req.file.mimetype,
-      req.file.size,
-      false,  // isPublic
-      req.body.tags || null,
-      req.body.description || null
-    );
+    // V2: Calculate hash
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    const hashShort = hash.slice(0, 8);
+
+    // V2: Generate unique alias (collision avoidance)
+    const ext = path.extname(displayName).toLowerCase();
+    const baseName = path.basename(displayName, ext)
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 32);
+
+    let alias = `${baseName}${ext}`;
+    let counter = 2;
+    while (await db.aliasExists(userId, alias)) {
+      alias = `${baseName}_${counter}${ext}`;
+      counter++;
+    }
+
+    // V2: Generate physical filename with hash
+    const aliasBase = path.basename(alias, ext);
+    const filename = `${aliasBase}_${hashShort}${ext}`;
+
+    // V2: Move to user assets directory
+    const userAssetsDir = getUserAssetsPathV2(userId);
+    if (!fs.existsSync(userAssetsDir)) {
+      fs.mkdirSync(userAssetsDir, { recursive: true });
+    }
+    const storagePath = path.join(userAssetsDir, filename);
+
+    // Move file (or skip if same hash exists)
+    if (!fs.existsSync(storagePath)) {
+      fs.renameSync(req.file.path, storagePath);
+    } else {
+      fs.unlinkSync(req.file.path);  // Remove temp file
+    }
+
+    // V2: Create asset with new fields
+    // Note: is_public=true by default for simplicity (can be restricted later)
+    const asset = await db.createAssetV2(req.supabase, {
+      owner_id: userId,
+      alias,
+      filename,
+      original_name: displayName,
+      storage_path: storagePath,
+      mime_type: req.file.mimetype,
+      size: req.file.size,
+      hash,
+      created_in_project_id: projectId || null,
+      is_public: true,  // V2: Public by default (game assets are meant to be published)
+      tags: req.body.tags || null,
+      description: req.body.description || null
+    });
 
     // Link asset to current project if projectId provided
     if (projectId) {
@@ -410,10 +452,11 @@ app.post('/api/assets/upload', authenticate, upload.single('file'), async (req, 
       success: true,
       asset: {
         id: asset.id,
+        alias: asset.alias,
         filename: asset.original_name,
         mimeType: asset.mime_type,
         size: asset.size,
-        url: `/api/assets/${asset.id}`
+        url: `/user-assets/${userId}/${asset.alias}`
       }
     });
   } catch (error) {
@@ -440,13 +483,14 @@ app.get('/api/assets/search', authenticate, async (req, res) => {
       .map(a => ({
         id: a.id,
         filename: a.original_name,
+        alias: a.alias,
         mimeType: a.mime_type,
         size: a.size,
         isPublic: !!a.is_public,
         isOwner: true,
         tags: a.tags,
         description: a.description,
-        url: `/api/assets/${a.id}`
+        url: `/user-assets/${a.owner_id}/${a.alias}`  // V2: alias-based URL
       }))
   });
 });
@@ -472,13 +516,14 @@ app.get('/api/assets/:id/meta', authenticate, checkAssetOwnership, (req, res) =>
   res.json({
     id: req.asset.id,
     filename: req.asset.original_name,
+    alias: req.asset.alias,
     mimeType: req.asset.mime_type,
     size: req.asset.size,
     isPublic: !!req.asset.is_public,
     tags: req.asset.tags,
     description: req.asset.description,
     createdAt: req.asset.created_at,
-    url: `/api/assets/${req.asset.id}`
+    url: `/user-assets/${req.asset.owner_id}/${req.asset.alias}`  // V2: alias-based URL
   });
 });
 
@@ -500,12 +545,13 @@ app.get('/api/assets', authenticate, async (req, res) => {
     return {
       id: a.id,
       filename: a.original_name,
+      alias: a.alias,
       mimeType: a.mime_type,
       size: a.size,
       isPublic: !!a.is_public,
       tags: a.tags,
       description: a.description,
-      url: `/api/assets/${a.id}`,
+      url: `/user-assets/${a.owner_id}/${a.alias}`,  // V2: alias-based URL
       projects,
       createdAt: a.created_at
     };
@@ -570,6 +616,85 @@ app.delete('/api/assets/:id', authenticate, checkAssetOwnership, async (req, res
       ? `Asset deleted. It was used in ${usageCount} project(s) - they will now see a placeholder.`
       : 'Asset deleted.'
   });
+});
+
+// ==================== V2 Asset Endpoints ====================
+
+// Serve user assets by alias
+// GET /user-assets/:userId/:alias
+app.get('/user-assets/:userId/:alias', optionalAuth, async (req, res) => {
+  const { userId, alias } = req.params;
+
+  // Validate userId format
+  if (!isValidUUID(userId)) {
+    return res.status(404).send('Not found');
+  }
+
+  // Get asset by alias (service_role, bypasses RLS)
+  const asset = await db.getAssetByAliasAdmin(userId, alias);
+
+  // Check: exists and not deleted
+  if (!asset || asset.is_deleted) {
+    return res.status(404).send('Not found');
+  }
+
+  // Check: availability period (for global assets)
+  const now = new Date();
+  if (asset.available_from && new Date(asset.available_from) > now) {
+    return res.status(404).send('Not found');
+  }
+  if (asset.available_until && new Date(asset.available_until) < now) {
+    return res.status(404).send('Not found');
+  }
+
+  // Check: authorization
+  const isOwner = req.user?.id === userId;
+  const isPublic = asset.is_public || asset.is_global;
+
+  if (!isOwner && !isPublic) {
+    return res.status(404).send('Not found');
+  }
+
+  // Serve file
+  const filePath = asset.storage_path;
+  if (!fs.existsSync(filePath)) {
+    console.error(`[user-assets] File not found: ${filePath}`);
+    return res.status(404).send('Not found');
+  }
+
+  res.sendFile(filePath);
+});
+
+// Serve global assets by category and alias
+// GET /global-assets/:category/:alias
+app.get('/global-assets/:category/:alias', async (req, res) => {
+  const { category, alias } = req.params;
+
+  // Get global asset (service_role)
+  const asset = await db.getGlobalAssetAdmin(category, alias);
+
+  // Check: exists and not deleted
+  if (!asset || asset.is_deleted) {
+    return res.status(404).send('Not found');
+  }
+
+  // Check: availability period
+  const now = new Date();
+  if (asset.available_from && new Date(asset.available_from) > now) {
+    return res.status(404).send('Not found');
+  }
+  if (asset.available_until && new Date(asset.available_until) < now) {
+    return res.status(404).send('Not found');
+  }
+
+  // Serve file
+  const filePath = asset.storage_path;
+  if (!fs.existsSync(filePath)) {
+    console.error(`[global-assets] File not found: ${filePath}`);
+    return res.status(404).send('Not found');
+  }
+
+  res.sendFile(filePath);
 });
 
 // ==================== Public Games API ====================
@@ -749,15 +874,7 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
           content = ERROR_DETECTION_SCRIPT + content;
         }
 
-        // Add access_token to asset URLs for authenticated image loading
-        if (req.accessToken) {
-          const encodedToken = encodeURIComponent(req.accessToken);
-          // Replace /api/assets/{uuid} with /api/assets/{uuid}?access_token={token}
-          content = content.replace(
-            /\/api\/assets\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi,
-            `/api/assets/$1?access_token=${encodedToken}`
-          );
-        }
+        // V2: Token injection removed - assets served via /user-assets/{userId}/{alias}
       }
 
       res.send(content);
@@ -1681,10 +1798,28 @@ app.post('/api/projects/:projectId/upload-thumbnail', authenticate, checkProject
 });
 
 // Get thumbnail image
-// Phase 1: Owner-only thumbnail access
-app.get('/api/projects/:projectId/thumbnail', authenticate, checkProjectOwnership, (req, res) => {
+// V2: Public access (no auth required) - thumbnail is meant to be shown
+app.get('/api/projects/:projectId/thumbnail', async (req, res) => {
   try {
-    const projectDir = getProjectPath(req.user.id, req.params.projectId);
+    const { projectId } = req.params;
+
+    // Validate projectId format
+    if (!isValidUUID(projectId)) {
+      return res.status(404).send('Not found');
+    }
+
+    // Get project owner from DB (service_role to bypass RLS)
+    const { data: project } = await supabaseAdmin
+      .from('projects')
+      .select('user_id')
+      .eq('id', projectId)
+      .single();
+
+    if (!project) {
+      return res.status(404).send('Not found');
+    }
+
+    const projectDir = getProjectPath(project.user_id, projectId);
 
     // Check for webp first (uploaded), then png (generated)
     const webpPath = path.join(projectDir, 'thumbnail.webp');
@@ -1695,11 +1830,11 @@ app.get('/api/projects/:projectId/thumbnail', authenticate, checkProjectOwnershi
     } else if (fs.existsSync(pngPath)) {
       res.type('image/png').sendFile(pngPath);
     } else {
-      res.status(404).send('Thumbnail not found');
+      res.status(404).send('Not found');
     }
   } catch (error) {
     console.error('Error serving thumbnail:', error);
-    res.status(500).json({ error: error.message });
+    res.status(404).send('Not found');  // Hide errors as 404
   }
 });
 

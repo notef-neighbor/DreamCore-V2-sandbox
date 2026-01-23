@@ -841,14 +841,12 @@ class GameCreatorApp {
   }
 
   /**
-   * Add access_token to asset URL for authenticated image loading
-   * @param {string} url - Asset URL (e.g., /api/assets/{id})
-   * @returns {string} URL with access_token query parameter
+   * @deprecated V2: No longer needed - assets served via /user-assets/{userId}/{alias}
+   * Kept for backward compatibility during transition
    */
   getAuthenticatedAssetUrl(url) {
-    if (!url || !this.accessToken) return url;
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
+    // V2: Return URL as-is (no token needed for new endpoints)
+    return url;
   }
 
   renameProjectFromList(projectId) {
@@ -4118,7 +4116,7 @@ class GameCreatorApp {
         this.attachedAssetsList.push({
           id: asset.id,
           name: asset.name,
-          url: `/api/assets/${asset.id}`
+          url: asset.url  // V2: Use asset's own URL
         });
         addedCount++;
       }

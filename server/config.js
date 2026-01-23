@@ -36,15 +36,21 @@ const PROJECTS_DIR = IS_PRODUCTION
   ? path.join(DATA_DIR, 'projects')
   : path.join(DATA_DIR, 'users');  // Legacy compatibility
 
-// Assets directory (uploaded images, audio, etc.)
+// Assets directory (legacy - flat structure)
 const ASSETS_DIR = path.join(DATA_DIR, 'assets');
+
+// V2: Users directory (user assets + projects)
+const USERS_DIR = path.join(DATA_DIR, 'users');
+
+// V2: Global assets directory
+const GLOBAL_ASSETS_DIR = path.join(DATA_DIR, 'assets', 'global');
 
 // Database directory (SQLite files)
 const DB_DIR = path.join(DATA_DIR, 'data');
 
 // Ensure directories exist
 const ensureDirectories = () => {
-  const dirs = [PROJECTS_DIR, ASSETS_DIR, DB_DIR];
+  const dirs = [PROJECTS_DIR, ASSETS_DIR, USERS_DIR, GLOBAL_ASSETS_DIR, DB_DIR];
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -75,12 +81,41 @@ const getUserPath = (userId) => {
 };
 
 /**
- * Get the assets directory path for a user
+ * Get the assets directory path for a user (legacy - flat structure)
  * @param {string} userId - User ID
  * @returns {string} Absolute path to user's assets directory
+ * @deprecated Use getUserAssetsPathV2 instead
  */
 const getUserAssetsPath = (userId) => {
   return path.join(ASSETS_DIR, userId);
+};
+
+/**
+ * V2: Get the assets directory path for a user
+ * @param {string} userId - User ID
+ * @returns {string} Absolute path to user's assets directory
+ */
+const getUserAssetsPathV2 = (userId) => {
+  return path.join(USERS_DIR, userId, 'assets');
+};
+
+/**
+ * V2: Get the project directory path for a user
+ * @param {string} userId - User ID
+ * @param {string} projectId - Project ID
+ * @returns {string} Absolute path to project directory
+ */
+const getProjectPathV2 = (userId, projectId) => {
+  return path.join(USERS_DIR, userId, 'projects', projectId);
+};
+
+/**
+ * V2: Get the global assets directory path for a category
+ * @param {string} category - Category (e.g., 'seasonal', 'characters')
+ * @returns {string} Absolute path to global assets category directory
+ */
+const getGlobalAssetsPath = (category) => {
+  return path.join(GLOBAL_ASSETS_DIR, category);
 };
 
 /**
@@ -200,11 +235,16 @@ module.exports = {
   DATA_DIR,
   PROJECTS_DIR,
   ASSETS_DIR,
+  USERS_DIR,
+  GLOBAL_ASSETS_DIR,
   DB_DIR,
   ensureDirectories,
   getProjectPath,
   getUserPath,
   getUserAssetsPath,
+  getUserAssetsPathV2,
+  getProjectPathV2,
+  getGlobalAssetsPath,
   isPathSafe,
   isValidUUID,
   UUID_REGEX,
