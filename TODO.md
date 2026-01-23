@@ -1,43 +1,77 @@
 # TODO - DreamCore V2
 
-## 優先度高（技術的負債）
+## 現在の状況
 
-- [x] `assets.is_deleted` に NOT NULL + DEFAULT FALSE 制約追加
-  - マイグレーション: `supabase/migrations/002_assets_is_deleted_not_null.sql`
-  - ✅ Supabase Dashboardで実行済み (2026-01-22)
-- [x] `database.js`（SQLite版レガシー）削除
-- [x] `initLoginUsers.js` 削除（Supabase Auth移行済み）
-
-## Phase 2 準備
-
-- [ ] 公開機能の設計
-  - is_public フラグの活用
-  - RLSポリシー拡張（public読み取り許可）
-- [ ] `/discover` ページ実装（現在は静的「準備中」表示）
-- [ ] `/api/public-games` エンドポイント復活（Phase 2用）
-
-## 検討事項
-
-- [ ] 削除済みアセットのレスポンスコード検討（現在404、410にするか？）
-  - 現設計: `checkAssetOwnership` → RLSで隠れる → 404固定
-  - 410にする場合は参照クライアント/順序の再設計が必要
-
-## 完了済み（参考）
-
-- [x] Supabase Auth一本化
-- [x] RLSポリシー実装・検証
-- [x] テストスイート作成（48+テスト）
-- [x] Phase 1 owner-only モード確認
-- [x] `.claude/plans/` をgit管理対象に追加
-- [x] フロントエンドSupabase Auth対応（Google Sign-In）
-- [x] API呼び出しをauthFetch化（Authorization Bearer）
-- [x] `profiles` → `users` テーブル修正（FK制約対応）
-- [x] プレビューiframe認証（access_token query param）
-- [x] visitorId言及をserverディレクトリから完全削除
-- [x] Phase 1 全テスト検証完了（RLS, WebSocket, Assets, Project CRUD）
+003_sync_schema.sql の本番適用が完了。Phase 1 基盤整備は一段落。
 
 ---
 
-最終更新: 2026-01-22
-**Phase 1 完了**
-詳細は `CLAUDE.md` および `.claude/plans/` を参照
+## 残タスク
+
+### 低優先度（運用後に判断）
+
+- [ ] profiles テーブル削除（レガシー、コードで未参照）
+- [ ] インデックス冗長整理（`pg_stat_user_indexes` で確認後）
+- [ ] 本番 Redirect URLs に本番URL追加（デプロイ時）
+
+---
+
+## Phase 2 準備（基盤整備後に着手）
+
+- [ ] 公開機能の設計
+- [ ] `/discover` ページ実装
+- [ ] `/api/public-games` エンドポイント復活
+
+---
+
+## 作業履歴
+
+### 2026-01-23: 003_sync_schema.sql 本番適用完了
+
+**詳細:** `.claude/logs/2026-01-23-supabase-003-migration.md`
+
+**実施内容:**
+- 003_sync_schema.sql 作成・本番適用
+- RLS 最適化（`(SELECT auth.uid())`）
+- TO authenticated 追加（全29ポリシー）
+- WITH CHECK 明示追加（UPDATE 6箇所）
+- games ポリシー統一（owner-only）
+- FK インデックス追加（10個）
+- OAuth コールバックバグ修正
+
+**発見した問題:**
+- Supabase Redirect URLs が空だった
+- OAuth 後の早期リダイレクト問題
+
+---
+
+### 2026-01-23: 本番調査完了・計画確定
+
+**詳細:** `.claude/plans/supabase-refactoring.md`
+
+**本番調査結果:**
+- users: 5件, profiles: 11件
+- RLS ポリシー重複（assets/projects 各4ペア）
+- 全ポリシーが `{public}` + `auth.uid()` 直書き
+
+---
+
+### 2026-01-22: Phase 1 完了
+
+- Supabase Auth 一本化完了
+- 全テストスイート実行・検証完了
+- 技術的負債の解消
+
+---
+
+## 関連ドキュメント
+
+| ファイル | 内容 |
+|----------|------|
+| `CLAUDE.md` | プロジェクト全体のルール・方針 |
+| `.claude/plans/supabase-refactoring.md` | リファクタリング計画 |
+| `.claude/logs/` | 作業ログ（日付別） |
+
+---
+
+最終更新: 2026-01-23

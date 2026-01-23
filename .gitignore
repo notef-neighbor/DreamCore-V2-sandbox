@@ -58,3 +58,5 @@ analyze_classification.js
 .claude/*
 !.claude/plans/
 !.claude/skills/
+!.claude/docs/
+!.claude/logs/

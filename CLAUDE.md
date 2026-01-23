@@ -57,6 +57,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 - `server/config.js` - 設定・起動チェック
 - `server/supabaseClient.js` - Supabaseクライアント
 - `server/database-supabase.js` - Supabase DB操作（現在使用中）
+- `.claude/docs/database-schema.md` - DBスキーマ設計詳細
 
 ## Phase 1 スコープ
 
@@ -154,3 +155,45 @@ USING (owner_id = auth.uid() AND is_deleted = FALSE)
 ### サブエージェント並列実行
 
 調査・実装タスクではサブエージェント（Task tool）を**複数並列**で実行する。1つで済ませようとせず、観点ごとに分けて並列起動すること。
+
+### 作業記録
+
+ユーザーが作業の記録を依頼した場合（「作業を記録して」「履歴を更新して」「やったことをメモして」等）：
+
+**1. 詳細ログを作成:** `.claude/logs/YYYY-MM-DD-タスク名.md`
+- 実施内容の詳細
+- 発見した問題と対応
+- 専門家レビュー対応
+- 変更ファイル一覧
+- 学び・注意点
+
+**2. TODO.md を更新:** 概要 + ログへの参照
+- 日付と作業タイトル
+- `**詳細:** .claude/logs/ファイル名.md` で参照
+- 実施内容（箇条書きで簡潔に）
+- 発見した問題（あれば）
+
+**ファイル構成:**
+```
+.claude/logs/          ← 詳細な作業ログ（日付別）
+.claude/plans/         ← 計画ファイル
+TODO.md                ← 概要 + 参照リンク
+```
+
+## パフォーマンス最適化 (2026-01-23)
+
+### バックエンド
+
+- **JWT ローカル検証**: `jose` + JWKS で Supabase API 呼び出しゼロ（`server/supabaseClient.js`）
+- `/game/*` エンドポイント: DB クエリ削除、ファイルシステムのみで応答
+
+### フロントエンド
+
+- **Supabase SDK 遅延読み込み**: 初期 JS 346KB → 186KB（`window.__loadSupabase()`）
+- **早期 auth リダイレクト**: SDK ロード前に localStorage チェック
+- **セッションキャッシュ**: localStorage 5分 TTL（`auth.js`）
+- **フォント非ブロッキング**: `@import` 削除 → `preconnect` + `media="print" onload`
+- **静的ウェルカム**: HTML に直接配置、サジェスト部分のみ JS で更新
+- **スケルトンカード**: create.html でプロジェクト一覧の即時表示
+- **iframe 遅延表示**: 新規プロジェクトでは非表示（HTTP リクエスト削減）
+- **画像 WebP 化**: PNG → WebP で約 90% サイズ削減
