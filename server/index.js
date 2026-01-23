@@ -403,9 +403,17 @@ app.post('/api/assets/upload', authenticate, upload.single('file'), async (req, 
 
     let alias = `${baseName}${ext}`;
     let counter = 2;
+    let hadCollision = false;
     while (await db.aliasExists(userId, alias)) {
+      if (!hadCollision) {
+        console.log(`[assets] alias collision: user=${userId.slice(0, 8)}... base=${baseName} tried=${alias}`);
+        hadCollision = true;
+      }
       alias = `${baseName}_${counter}${ext}`;
       counter++;
+    }
+    if (hadCollision) {
+      console.log(`[assets] alias resolved: user=${userId.slice(0, 8)}... final=${alias}`);
     }
 
     // V2: Generate physical filename with hash

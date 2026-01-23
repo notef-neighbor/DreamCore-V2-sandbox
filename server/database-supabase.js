@@ -1204,9 +1204,11 @@ const migrateFromJsonFiles = async () => {
 
 /**
  * Check if an alias exists for a given owner
+ * NOTE: Does NOT filter by is_deleted to avoid UNIQUE constraint collision
+ * when reusing deleted aliases
  * @param {string} ownerId - Owner user ID
  * @param {string} alias - Alias to check
- * @returns {Promise<boolean>} True if alias exists
+ * @returns {Promise<boolean>} True if alias exists (including deleted)
  */
 const aliasExists = async (ownerId, alias) => {
   const { data } = await supabaseAdmin
@@ -1214,7 +1216,6 @@ const aliasExists = async (ownerId, alias) => {
     .select('id')
     .eq('owner_id', ownerId)
     .eq('alias', alias)
-    .eq('is_deleted', false)
     .single();
   return !!data;
 };

@@ -442,11 +442,33 @@ const saveGeneratedImage = async (client, userId, projectId, filename, base64Dat
 
   // V2: Calculate SHA256 hash for deduplication
   const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+  const hashShort = hash.substring(0, 8);
 
-  // V2: Generate unique filename with hash prefix
-  const ext = path.extname(filename) || '.png';
-  const baseName = path.basename(filename, ext);
-  const storageName = `${hash.substring(0, 8)}_${baseName}${ext}`;
+  // V2: Sanitize baseName (same as upload endpoint)
+  const ext = (path.extname(filename) || '.png').toLowerCase();
+  const baseName = path.basename(filename, path.extname(filename))
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 32) || 'image';
+
+  // V2: Generate alias with collision avoidance
+  let alias = `${baseName}${ext}`;
+  let counter = 2;
+  let hadCollision = false;
+  while (await db.aliasExists(userId, alias)) {
+    if (!hadCollision) {
+      console.log(`[assets] alias collision: user=${userId.slice(0, 8)}... base=${baseName} tried=${alias}`);
+      hadCollision = true;
+    }
+    alias = `${baseName}_${counter}${ext}`;
+    counter++;
+  }
+  if (hadCollision) {
+    console.log(`[assets] alias resolved: user=${userId.slice(0, 8)}... final=${alias}`);
+  }
+
+  // V2: Generate physical filename with hash
+  const aliasBase = path.basename(alias, ext);
+  const storageName = `${aliasBase}_${hashShort}${ext}`;
   const storagePath = path.join(userAssetsDir, storageName);
 
   // Save file
@@ -460,34 +482,39 @@ const saveGeneratedImage = async (client, userId, projectId, filename, base64Dat
     '.gif': 'image/gif',
     '.webp': 'image/webp'
   };
-  const mimeType = mimeTypes[ext.toLowerCase()] || 'image/png';
-
-  // V2: Generate alias with collision avoidance
-  let alias = `${baseName}${ext}`;
-  let counter = 1;
-  while (await db.aliasExists(userId, alias)) {
-    alias = `${baseName}_${counter}${ext}`;
-    counter++;
-  }
+  const mimeType = mimeTypes[ext] || 'image/png';
 
   // V2: Create asset record with new fields
-  const asset = await db.createAssetV2(c, {
-    owner_id: userId,
-    alias: alias,
-    filename: storageName,
-    original_name: filename,
-    storage_path: storagePath,
-    mime_type: mimeType,
-    size: buffer.length,
-    hash: hash,
-    created_in_project_id: projectId,
-    is_public: true,  // V2: Public by default for game assets
-    is_remix_allowed: false,
-    is_global: false,
-    category: null,
-    tags: null,
-    description: null
-  });
+  // Wrap in try-catch to clean up orphan file on DB failure
+  let asset;
+  try {
+    asset = await db.createAssetV2(c, {
+      owner_id: userId,
+      alias: alias,
+      filename: storageName,
+      original_name: filename,
+      storage_path: storagePath,
+      mime_type: mimeType,
+      size: buffer.length,
+      hash: hash,
+      created_in_project_id: projectId,
+      is_public: true,  // V2: Public by default for game assets
+      is_remix_allowed: false,
+      is_global: false,
+      category: null,
+      tags: null,
+      description: null
+    });
+  } catch (dbError) {
+    // Clean up orphan file on DB failure
+    try {
+      fs.unlinkSync(storagePath);
+      console.error(`[saveGeneratedImage] DB failed, cleaned up: ${storagePath}`);
+    } catch (cleanupError) {
+      console.error(`[saveGeneratedImage] Failed to cleanup: ${storagePath}`);
+    }
+    throw dbError;
+  }
 
   // Link asset to project
   await db.linkAssetToProject(c, projectId, asset.id, 'image');
