@@ -1856,12 +1856,22 @@ ${skillInstructions}
     // Get diff from git (last commit vs current)
     let diff = '';
     try {
-      const { execSync } = require('child_process');
-      diff = execSync('git diff HEAD~1 HEAD -- index.html 2>/dev/null || git diff HEAD -- index.html 2>/dev/null || echo ""', {
-        cwd: projectDir,
-        encoding: 'utf-8',
-        timeout: 5000
-      }).trim();
+      const { execFileSync } = require('child_process');
+      // Try diff between last commit and current
+      try {
+        diff = execFileSync('git', ['diff', 'HEAD~1', 'HEAD', '--', 'index.html'], {
+          cwd: projectDir,
+          encoding: 'utf-8',
+          timeout: 5000
+        }).trim();
+      } catch {
+        // Fallback: diff of staged/unstaged changes
+        diff = execFileSync('git', ['diff', 'HEAD', '--', 'index.html'], {
+          cwd: projectDir,
+          encoding: 'utf-8',
+          timeout: 5000
+        }).trim();
+      }
     } catch (e) {
       console.log('[updateSpec] Could not get git diff:', e.message);
     }

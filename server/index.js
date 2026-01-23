@@ -22,8 +22,33 @@ const { generateVisualGuide, formatGuideForCodeGeneration } = require('./visualG
 const { authenticate, optionalAuth, verifyWebSocketAuth } = require('./authMiddleware');
 const { isValidUUID, isPathSafe, isValidGitHash, getProjectPath, getUserAssetsPath, getGlobalAssetsPath, USERS_DIR, GLOBAL_ASSETS_DIR, SUPABASE_URL, SUPABASE_ANON_KEY } = require('./config');
 const crypto = require('crypto');
+const { execFile } = require('child_process');
 const { supabaseAdmin } = require('./supabaseClient');
 const { ErrorCodes, createWsError, sendHttpError } = require('./errorResponse');
+
+/**
+ * Safe async git commit (no shell interpolation)
+ * @param {string} cwd - Working directory
+ * @param {string} message - Commit message
+ * @param {string[]} files - Files to add (default: ['-A'] for all)
+ */
+const gitCommitAsync = (cwd, message, files = ['-A']) => {
+  // First: git add
+  execFile('git', ['add', ...files], { cwd }, (addErr) => {
+    if (addErr) {
+      console.log(`[Git] Add failed: ${addErr.message}`);
+      return;
+    }
+    // Then: git commit
+    execFile('git', ['commit', '-m', message, '--allow-empty'], { cwd }, (commitErr) => {
+      if (commitErr) {
+        console.log(`[Git] Commit skipped: ${commitErr.message}`);
+      } else {
+        console.log(`[Git] Committed: ${message}`);
+      }
+    });
+  });
+};
 
 const app = express();
 const server = http.createServer(app);
@@ -1522,17 +1547,8 @@ app.put('/api/projects/:projectId/publish-draft', authenticate, checkProjectOwne
     };
     fs.writeFileSync(publishPath, JSON.stringify(publishData, null, 2), 'utf-8');
 
-    // Commit to Git (non-blocking)
-    const { exec } = require('child_process');
-    exec('git add PUBLISH.json && git commit -m "Update publish info" --allow-empty', {
-      cwd: projectDir
-    }, (err) => {
-      if (err) {
-        console.log('[Publish] Git commit skipped or failed:', err.message);
-      } else {
-        console.log('[Publish] Committed PUBLISH.json');
-      }
-    });
+    // Commit to Git (non-blocking, safe)
+    gitCommitAsync(projectDir, 'Update publish info', ['PUBLISH.json']);
 
     res.json({ success: true });
   } catch (error) {
@@ -1782,17 +1798,8 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
             console.error('[Thumbnail] WebP conversion failed, keeping PNG:', convErr.message);
           }
 
-          // Commit thumbnail to Git (non-blocking)
-          const { exec } = require('child_process');
-          exec('git add -A && git commit -m "Update thumbnail" --allow-empty', {
-            cwd: projectDir
-          }, (err) => {
-            if (err) {
-              console.log('[Thumbnail] Git commit skipped or failed:', err.message);
-            } else {
-              console.log('[Thumbnail] Committed thumbnail');
-            }
-          });
+          // Commit thumbnail to Git (non-blocking, safe)
+          gitCommitAsync(projectDir, 'Update thumbnail');
 
           // Return URL to the generated thumbnail
           const thumbnailUrl = `/api/projects/${projectId}/thumbnail?t=${Date.now()}`;
@@ -1839,17 +1846,8 @@ app.post('/api/projects/:projectId/upload-thumbnail', authenticate, checkProject
     fs.copyFileSync(req.file.path, thumbnailPath);
     fs.unlinkSync(req.file.path); // Remove temp file
 
-    // Commit to git
-    const { exec } = require('child_process');
-    exec('git add -A && git commit -m "Upload thumbnail" --allow-empty', {
-      cwd: projectDir
-    }, (err) => {
-      if (err) {
-        console.log('[Thumbnail] Git commit skipped:', err.message);
-      } else {
-        console.log('[Thumbnail] Committed uploaded thumbnail');
-      }
-    });
+    // Commit to git (non-blocking, safe)
+    gitCommitAsync(projectDir, 'Upload thumbnail');
 
     const thumbnailUrl = `/api/projects/${projectId}/thumbnail?t=${Date.now()}`;
     res.json({ success: true, thumbnailUrl });
@@ -2139,11 +2137,8 @@ export const RemotionRoot = () => {
         if (renderCode === 0 && fs.existsSync(outputPath)) {
           console.log('[Movie] Render successful!');
 
-          // Git commit (non-blocking)
-          const { exec } = require('child_process');
-          exec('git add -A && git commit -m "Generate demo movie" --allow-empty', {
-            cwd: projectDir
-          });
+          // Git commit (non-blocking, safe)
+          gitCommitAsync(projectDir, 'Generate demo movie');
 
           const movieUrl = `/api/projects/${projectId}/movie?t=${Date.now()}`;
           res.json({ success: true, movieUrl, duration: 7 });

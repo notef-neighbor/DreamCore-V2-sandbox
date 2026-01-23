@@ -2,8 +2,7 @@
  * Claude Chat Client for handling chat mode with Claude Haiku
  * Uses Claude CLI (same as skill detection)
  */
-const { spawn } = require('child_process');
-const { execSync } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -14,7 +13,7 @@ class ClaudeChat {
 
   checkAvailability() {
     try {
-      execSync('which claude', { encoding: 'utf-8' });
+      execFileSync('which', ['claude'], { encoding: 'utf-8' });
       console.log('Claude Chat client initialized (using Claude CLI)');
       return true;
     } catch {
@@ -96,10 +95,11 @@ class ClaudeChat {
       }
 
       // Get recent commits (last 10)
-      const log = execSync(
-        `git log --oneline -10 --format="%h %s" 2>/dev/null || echo ""`,
-        { cwd: projectDir, encoding: 'utf-8', timeout: 5000 }
-      ).trim();
+      const log = execFileSync('git', ['log', '--oneline', '-10', '--format=%h %s'], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        timeout: 5000
+      }).trim();
 
       return log || '';
     } catch (error) {
@@ -119,13 +119,16 @@ class ClaudeChat {
         return '';
       }
 
-      // Get diff of last commit
-      const diff = execSync(
-        `git diff HEAD~1 HEAD --stat 2>/dev/null | head -20 || echo ""`,
-        { cwd: projectDir, encoding: 'utf-8', timeout: 5000 }
-      ).trim();
+      // Get diff of last commit (limit to 20 lines in JS instead of shell pipe)
+      const diff = execFileSync('git', ['diff', 'HEAD~1', 'HEAD', '--stat'], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        timeout: 5000
+      }).trim();
 
-      return diff || '';
+      // Limit to 20 lines
+      const lines = diff.split('\n').slice(0, 20);
+      return lines.join('\n') || '';
     } catch (error) {
       return '';
     }
