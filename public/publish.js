@@ -266,7 +266,7 @@ class PublishPage {
         if (result.thumbnailUrl) {
           this.publishData.thumbnailUrl = result.thumbnailUrl;
           // キャッシュバスターを追加して強制リロード
-          this.thumbnailImage.src = result.thumbnailUrl + '?t=' + Date.now();
+          this.thumbnailImage.src = this.getAuthenticatedUrl(result.thumbnailUrl + '?t=' + Date.now());
           this.thumbnailImage.classList.remove('hidden');
           if (placeholder) placeholder.classList.add('hidden');
           // Save immediately (not debounced) to persist thumbnail
@@ -309,7 +309,7 @@ class PublishPage {
 
     // Thumbnail
     if (this.publishData.thumbnailUrl) {
-      this.thumbnailImage.src = this.publishData.thumbnailUrl;
+      this.thumbnailImage.src = this.getAuthenticatedUrl(this.publishData.thumbnailUrl);
       this.thumbnailImage.classList.remove('hidden');
       this.thumbnailPreview.querySelector('.thumbnail-placeholder').classList.add('hidden');
     }
@@ -686,7 +686,7 @@ class PublishPage {
         const result = await response.json();
         if (result.thumbnailUrl) {
           this.publishData.thumbnailUrl = result.thumbnailUrl;
-          this.thumbnailImage.src = result.thumbnailUrl + '?t=' + Date.now();
+          this.thumbnailImage.src = this.getAuthenticatedUrl(result.thumbnailUrl + '?t=' + Date.now());
           this.thumbnailImage.classList.remove('hidden');
           if (placeholder) placeholder.classList.add('hidden');
           await this.savePublishData();
@@ -772,6 +772,15 @@ class PublishPage {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /**
+   * Add access_token to URL for authenticated image loading
+   */
+  getAuthenticatedUrl(url) {
+    if (!url || !this.accessToken) return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
   }
 }
 

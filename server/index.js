@@ -748,6 +748,16 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
           // No head tag, prepend to content
           content = ERROR_DETECTION_SCRIPT + content;
         }
+
+        // Add access_token to asset URLs for authenticated image loading
+        if (req.accessToken) {
+          const encodedToken = encodeURIComponent(req.accessToken);
+          // Replace /api/assets/{uuid} with /api/assets/{uuid}?access_token={token}
+          content = content.replace(
+            /\/api\/assets\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi,
+            `/api/assets/$1?access_token=${encodedToken}`
+          );
+        }
       }
 
       res.send(content);

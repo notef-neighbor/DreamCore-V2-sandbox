@@ -840,6 +840,17 @@ class GameCreatorApp {
     return div.innerHTML;
   }
 
+  /**
+   * Add access_token to asset URL for authenticated image loading
+   * @param {string} url - Asset URL (e.g., /api/assets/{id})
+   * @returns {string} URL with access_token query parameter
+   */
+  getAuthenticatedAssetUrl(url) {
+    if (!url || !this.accessToken) return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
+  }
+
   renameProjectFromList(projectId) {
     const project = this.projects.find(p => p.id === projectId);
     if (!project) return;
@@ -2497,7 +2508,7 @@ class GameCreatorApp {
         thumbsDiv.innerHTML = assetsToShow.map((asset, index) => `
           <div class="message-asset-thumb">
             <span class="message-asset-number">【${index + 1}】</span>
-            <img src="${asset.url}" alt="${asset.name}" />
+            <img src="${this.getAuthenticatedAssetUrl(asset.url)}" alt="${asset.name}" />
           </div>
         `).join('');
         messageDiv.insertBefore(thumbsDiv, messageDiv.firstChild);
@@ -3690,7 +3701,7 @@ class GameCreatorApp {
 
   getAssetThumb(asset) {
     if (asset.mimeType?.startsWith('image/')) {
-      return `<img src="${asset.url}" alt="${asset.filename}">`;
+      return `<img src="${this.getAuthenticatedAssetUrl(asset.url)}" alt="${asset.filename}">`;
     } else if (asset.mimeType?.startsWith('audio/')) {
       return `<span class="audio-icon">🎵</span>`;
     } else {
@@ -4133,7 +4144,7 @@ class GameCreatorApp {
     this.attachedAssetsContainer.innerHTML = this.attachedAssetsList.map((asset, index) => `
       <div class="attached-asset-item" data-id="${asset.id}">
         <span class="attached-asset-number">【${index + 1}】</span>
-        <img src="${asset.url}" alt="${asset.name}" />
+        <img src="${this.getAuthenticatedAssetUrl(asset.url)}" alt="${asset.name}" />
         <button class="attached-asset-remove" data-id="${asset.id}" title="削除">×</button>
       </div>
     `).join('');
