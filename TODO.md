@@ -35,6 +35,18 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ## 作業履歴
 
+### 2026-01-25: sandbox-runtime 導入
+
+**詳細:** `.claude/logs/2026-01-25-sandbox-runtime.md`
+
+**実施内容:**
+- Claude CLI 実行に sandbox-runtime を適用（OS ネイティブ隔離）
+- 全呼び出しを spawnClaudeAsync() に移行（10箇所）
+- 初期化 Promise 共有、シェルエスケープ安全化、動的 allowWrite
+- 動作検証完了（初期化・実行・ゲーム生成すべて正常）
+
+---
+
 ### 2026-01-23: Phase 1 リファクタリング（セキュリティ・安定性）
 
 **詳細:** `.claude/logs/2026-01-23-phase1-refactoring.md`
