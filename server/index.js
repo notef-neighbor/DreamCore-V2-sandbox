@@ -13,7 +13,7 @@ const fs = require('fs');
 const multer = require('multer');
 const sharp = require('sharp');
 const userManager = require('./userManager');
-const { claudeRunner, jobManager } = require('./claudeRunner');
+const { claudeRunner, jobManager, spawnClaudeAsync } = require('./claudeRunner');
 const db = require('./database-supabase');
 const geminiClient = require('./geminiClient');
 const { getStyleById } = require('./stylePresets');
@@ -1733,13 +1733,11 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
       const rawOutput = imagePrompt.trim();
       console.log('[Thumbnail] Raw Claude output:', rawOutput);
 
-      // シンプルなパース: 余計な記号だけ除去
       imagePrompt = rawOutput
-        .replace(/^["'`]+|["'`]+$/g, '')  // 引用符除去
-        .replace(/^\*+|\*+$/g, '')         // アスタリスク除去
+        .replace(/^["'`]+|["'`]+$/g, '')
+        .replace(/^\*+|\*+$/g, '')
         .trim();
 
-      // プロンプトが短すぎる場合は生の出力を使用
       if (imagePrompt.length < 20) {
         imagePrompt = rawOutput;
       }
@@ -1749,10 +1747,10 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
 
       // Step 2: Generate image with Nano Banana
       const outputPath = path.join(projectDir, 'thumbnail.png');
-      // Use project's .claude/skills instead of HOME (for GCE deployment)
-      const nanoBananaScript = path.join(__dirname, '..', '.claude/skills/nanobanana/generate.py');
+      const nanoBananaScript = path.join(__dirname, '..', '.claude', 'skills', 'nanobanana', 'generate.py');
+      const nanoBananaVenvPython = path.join(__dirname, '..', '.claude', 'skills', 'nanobanana', '.venv', 'bin', 'python');
+      const nanoBananaPython = fs.existsSync(nanoBananaVenvPython) ? nanoBananaVenvPython : 'python3';
 
-      // Build command args with reference images
       const nanoBananaArgs = [
         nanoBananaScript,
         imagePrompt,
@@ -1760,12 +1758,11 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
         '-o', outputPath
       ];
 
-      // Add reference images if available
       if (limitedAssetPaths.length > 0) {
         nanoBananaArgs.push('--refs', ...limitedAssetPaths);
       }
 
-      const nanoBanana = spawn('python3', nanoBananaArgs, {
+      const nanoBanana = spawn(nanoBananaPython, nanoBananaArgs, {
         cwd: process.cwd(),
         env: { ...process.env }
       });
@@ -1803,7 +1800,7 @@ ${limitedAssetPaths.length > 0 ? `- 参照画像が${limitedAssetPaths.length}�
 
           // Return URL to the generated thumbnail
           const thumbnailUrl = `/api/projects/${projectId}/thumbnail?t=${Date.now()}`;
-          res.json({ success: true, thumbnailUrl, prompt: imagePrompt });
+          res.json({ success: true, thumbnailUrl });
         } else {
           res.status(500).json({ error: 'Failed to generate thumbnail', output: nbOutput });
         }

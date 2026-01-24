@@ -9,7 +9,11 @@
       "fonts.googleapis.com",
       "fonts.gstatic.com",
       "unpkg.com",
-      "esm.sh"
+      "esm.sh",
+      "generativelanguage.googleapis.com",
+      "*.googleapis.com",
+      "pypi.org",
+      "files.pythonhosted.org"
     ],
     "deniedDomains": [],
     "allowLocalBinding": false,
@@ -28,7 +32,8 @@
     ],
     "allowWrite": [
       "./data",
-      "/tmp"
+      "/tmp",
+      "~/.claude"
     ],
     "denyWrite": [
       ".env",

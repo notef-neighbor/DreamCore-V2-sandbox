@@ -99,6 +99,12 @@ function getSandboxOverrides(options = {}) {
   if (options.cwd) {
     allowWrite.add(path.resolve(options.cwd));
   }
+  if (Array.isArray(options.allowWritePaths)) {
+    for (const p of options.allowWritePaths) {
+      if (!p) continue;
+      allowWrite.add(path.resolve(p));
+    }
+  }
   if (process.env.DATA_DIR) {
     allowWrite.add(path.resolve(process.env.DATA_DIR));
   }
@@ -2879,5 +2885,6 @@ ${dimension === '3d' ? '3D' : dimension === '2d' ? '2D' : '未指定'}
 
 module.exports = {
   claudeRunner: new ClaudeRunner(),
-  jobManager
+  jobManager,
+  spawnClaudeAsync
 };
