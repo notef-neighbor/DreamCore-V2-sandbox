@@ -1,35 +1,52 @@
-# DreamCore-V2 → Next.js + Modal 移行計画
+# DreamCore-V2 → Modal 移行計画（Express + WebSocket維持）
 
 作成日: 2026-01-27
 更新日: 2026-01-27
 ベース: DreamCore-V2（Supabase Auth + RLS 移行済み）
-参考: DreamCore-V2-modal エンジニア実装
 
 ---
 
 ## 目的
 
-- **UXは完全維持**: 画面デザイン・操作フローをDreamCore-V2と同一に保つ
-- **フロントエンド**: Express静的配信 → Next.js (Vercel)
-- **通信方式**: WebSocket → SSE (Server-Sent Events)
-- **バックエンド**: Node.js → Modal Sandbox (gVisor)
+- **UXは完全維持**: 画面・フロー・WebSocket通信をDreamCore-V2と同一に保つ
+- **裏側のみModal化**: 生成処理・ファイルI/OをModal Sandbox (gVisor)へ移行
 - **セキュリティ強化**: VM級隔離 + 4層防御アーキテクチャ
+
+---
+
+## 方針
+
+```
+┌──────────────────┬─────────────────────────────────────┐
+│       項目       │                内容                 │
+├──────────────────┼─────────────────────────────────────┤
+│ UX               │ 完全維持（WebSocket そのまま）      │
+├──────────────────┼─────────────────────────────────────┤
+│ サンドボックス   │ Modal gVisor で実現                 │
+├──────────────────┼─────────────────────────────────────┤
+│ スケール         │ Modal 側が自動対応                  │
+├──────────────────┼─────────────────────────────────────┤
+│ Express サーバー │ 中継のみ（100人余裕）               │
+├──────────────────┼─────────────────────────────────────┤
+│ コスト           │ サーバー $5〜20/月 + Modal 従量課金 │
+└──────────────────┴─────────────────────────────────────┘
+```
 
 ---
 
 ## 現状 vs 移行後
 
-| 項目 | 現状 (V2) | 移行後 (Next.js + Modal) |
-|------|-----------|--------------------------|
-| **フロントエンド** | Express静的配信 | Next.js (Vercel) |
-| **リアルタイム通信** | WebSocket | SSE (Server-Sent Events) |
+| 項目 | 現状 (V2) | 移行後 (Modal) |
+|------|-----------|----------------|
+| **フロントエンド** | Express静的配信 | Express静的配信（変更なし） |
+| **リアルタイム通信** | WebSocket | WebSocket（変更なし） |
 | **認証** | Supabase Auth | Supabase Auth（変更なし） |
 | **DB** | Supabase PostgreSQL | Supabase PostgreSQL（変更なし） |
+| **アセット管理** | Supabase + /api/assets | Supabase + /api/assets（変更なし） |
 | **ゲーム生成** | ローカル Claude CLI | Modal Sandbox (gVisor) |
 | **画像生成** | ローカル Gemini API | Modal Function |
 | **ファイル保存** | ローカル `/data/` | Modal Volume |
-| **サーバー管理** | 必要（EC2等） | 不要（サーバーレス） |
-| **スケーリング** | 手動 | 自動 |
+| **Expressの役割** | 全処理 | 中継・オーケストレーション |
 
 ---
 
@@ -39,26 +56,27 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              User's Browser                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  React/Next.js App                                                   │   │
+│  │  DreamCore-V2 フロントエンド（変更なし）                             │   │
 │  │  - Chat Interface                                                    │   │
-│  │  - Game Preview (iframe sandbox="allow-scripts")                    │   │
+│  │  - Game Preview (iframe)                                            │   │
 │  │  - Project Management                                                │   │
-│  │  - SSE (EventSource) for streaming                                  │   │
+│  │  - WebSocket for streaming                                          │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └────────────────────────────────────┬────────────────────────────────────────┘
-                                     │ HTTPS + JWT
+                                     │ WebSocket + JWT
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Vercel Edge Network                                  │
+│                    Express Server（中継・オーケストレーション）              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  Next.js API Routes                                                  │   │
-│  │  - /api/generate      → ゲーム生成オーケストレーション (SSE)        │   │
-│  │  - /api/preview/[id]  → セキュアファイル配信                        │   │
-│  │  - /api/projects      → プロジェクトCRUD                            │   │
-│  │  - /api/assets        → アセット管理                                │   │
+│  │  server/index.js                                                     │   │
+│  │  - WebSocket Handler（変更なし）                                     │   │
+│  │  - REST API（変更なし）                                              │   │
+│  │  - authMiddleware.js（変更なし）                                     │   │
+│  │  - database-supabase.js（変更なし）                                  │   │
+│  │  - modalClient.js [NEW] ← Modal API呼び出し                         │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └────────────────────────────────────┬────────────────────────────────────────┘
-                                     │ X-Modal-Secret (Internal Auth)
+                                     │ HTTP + X-Modal-Secret
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Modal Cloud                                        │
@@ -91,11 +109,10 @@
                                      │
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        Supabase (PostgreSQL + Auth)                          │
-│  - User authentication (Google OAuth)                                        │
-│  - Project metadata                                                          │
-│  - Chat history                                                              │
-│  - RLS policies for data isolation                                           │
+│                        Supabase（変更なし）                                  │
+│  - Auth (Google OAuth)                                                       │
+│  - PostgreSQL (projects, assets, chat_history, jobs)                        │
+│  - RLS policies                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,24 +145,27 @@
 
 ---
 
-## 移行範囲
+## 変更するもの / しないもの
 
-### 移行するもの
+### 変更しないもの（UX完全維持）
 
-| カテゴリ | 移行内容 |
-|---------|----------|
-| **フロントエンド** | Express静的配信 → Next.js App Router |
-| **リアルタイム通信** | WebSocket → SSE (EventSource) |
-| **ゲーム生成** | claudeRunner.js → Modal generate_game |
-| **画像生成** | geminiClient.js → Modal generate_gemini |
-| **ファイルI/O** | userManager.js → Modal Volume |
-| **API** | Express routes → Next.js API Routes |
+| カテゴリ | 内容 |
+|---------|------|
+| **フロントエンド** | public/*.html, public/*.js - 一切変更なし |
+| **WebSocket通信** | メッセージ形式・イベント - 一切変更なし |
+| **REST API** | エンドポイント・レスポンス形式 - 一切変更なし |
+| **認証** | Supabase Auth, JWT検証 - 一切変更なし |
+| **DB** | テーブル構造, RLS - 一切変更なし |
+| **アセット管理** | /api/assets/:id, assetsテーブル, replaceAssetReferences() |
 
-### 移行しないもの（Supabase維持）
+### 変更するもの（裏側のみ）
 
-- Supabase Auth (Google OAuth)
-- Supabase PostgreSQL（テーブル構造・RLS）
-- 認証フロー（JWT検証ロジック）
+| カテゴリ | Before | After |
+|---------|--------|-------|
+| **claudeRunner.js** | ローカルClaude CLI実行 | Modal API呼び出し |
+| **geminiClient.js** | ローカルGemini API | Modal API呼び出し |
+| **userManager.js** | ローカルファイルI/O | Modal Volume経由 |
+| **新規追加** | - | modalClient.js（Modal API クライアント） |
 
 ---
 
@@ -154,21 +174,16 @@
 ### Phase 0: 準備（1週間）
 
 - [ ] Modalアカウント作成・設定
-- [ ] Next.jsプロジェクト初期化
-- [ ] Vercelプロジェクト作成
 - [ ] Modal Secrets設定
-- [ ] Modal Volumes作成（dreamcore-data, dreamcore-global）
-- [ ] スキルアップロードスクリプト作成
+  - [ ] `anthropic-api-key`
+  - [ ] `modal-internal-secret`
+  - [ ] `gemini-api-key`
+- [ ] Modal Volumes作成
+  - [ ] `dreamcore-data`
+  - [ ] `dreamcore-global`
+- [ ] スキルアップロードスクリプト作成・実行
 
-### Phase 1: Next.js基盤構築（1週間）
-
-- [ ] Next.js App Router構成
-- [ ] Supabase Auth統合（既存ロジック移植）
-- [ ] 基本ページ移植（ログイン、プロジェクト一覧）
-- [ ] JWT検証ミドルウェア実装
-- [ ] Vercelデプロイ設定
-
-### Phase 2: Modal Backend構築（2週間）
+### Phase 1: Modal Backend構築（2週間）
 
 - [ ] Modal app.py 実装
   - [ ] generate_game（Claude CLI + SSE）
@@ -178,106 +193,89 @@
 - [ ] gVisor Sandbox設定
 - [ ] X-Modal-Secret認証実装
 - [ ] SSEストリーミング実装
+- [ ] 単体テスト
 
-### Phase 3: フロントエンド移植（2週間）
+### Phase 2: Express連携（1週間）
 
-- [ ] エディタページ（project.html → /project/[id]）
-- [ ] SSEクライアント実装（WebSocket置き換え）
-- [ ] プレビューページ（play.html → /play/[id]）
-- [ ] 公開ページ（publish.html → /publish/[id]）
-- [ ] アセット管理UI
+- [ ] modalClient.js 実装（Modal API クライアント）
+- [ ] claudeRunner.js 改修
+  - [ ] ローカル実行 → Modal呼び出しに変更
+  - [ ] SSE → WebSocketブリッジ実装
+- [ ] userManager.js 改修
+  - [ ] ローカルI/O → Modal Volume経由に変更
+- [ ] geminiClient.js 改修
+  - [ ] Modal経由に変更
 
-### Phase 4: API Routes実装（1週間）
+### Phase 3: アセット管理移行（1週間）
 
-- [ ] /api/generate（SSEオーケストレーション）
-- [ ] /api/projects（CRUD）
-- [ ] /api/assets（アップロード・取得・削除）
-- [ ] /api/preview/[projectId]/[...path]（セキュアファイル配信）
+- [ ] /api/assets/:id をModal Volume対応
+- [ ] replaceAssetReferences() の維持確認
+- [ ] アセットアップロード → Modal Volume保存
+- [ ] アセットメタデータ → Supabase維持
 
-### Phase 5: 統合・テスト（1週間）
+### Phase 4: Git・バージョン管理（1週間）
 
-- [ ] E2Eテスト実装
+- [ ] Modal Volume上でのGit操作実装
+- [ ] getVersions() のModal対応
+- [ ] restoreVersion() のModal対応
+- [ ] createVersionSnapshot() のModal対応
+
+### Phase 5: 統合テスト（1週間）
+
+- [ ] E2Eテスト
+  - [ ] ゲーム生成フロー
+  - [ ] アセットアップロード・参照
+  - [ ] バージョン履歴・リストア
+  - [ ] Publish/Remix/autoFix
 - [ ] パフォーマンステスト
 - [ ] セキュリティテスト
-- [ ] ステージング環境検証
 
 ### Phase 6: 本番切り替え（1週間）
 
-- [ ] DNS切り替え
+- [ ] ステージング環境検証
+- [ ] 本番デプロイ
 - [ ] モニタリング設定
 - [ ] ロールバック手順確認
 - [ ] ドキュメント更新
 
 ---
 
-## WebSocket → SSE 変更
+## Expressサーバーの役割変更
 
-### Before (WebSocket)
+### Before（現状）
 
 ```javascript
-// public/app.js
-const ws = new WebSocket('wss://api.dreamcore.com/ws');
-
-ws.onopen = () => {
-  ws.send(JSON.stringify({ type: 'init', access_token: token }));
-};
-
-ws.onmessage = (e) => {
-  const msg = JSON.parse(e.data);
-  if (msg.type === 'stream') handleStream(msg.content);
-  if (msg.type === 'gameUpdated') handleGameUpdated();
-};
-
-// ゲーム生成リクエスト
-ws.send(JSON.stringify({ type: 'message', projectId, message: userInput }));
+// claudeRunner.js - 重い処理をローカルで実行
+const child = spawn('claude', [...], { cwd: projectDir });
 ```
 
-### After (SSE)
+### After（Modal化後）
 
 ```javascript
-// app/components/ChatInterface.tsx
-const generateGame = async (projectId: string, message: string) => {
-  const response = await fetch('/api/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ projectId, message }),
+// claudeRunner.js - Modal APIを呼び出すだけ
+const modalClient = require('./modalClient');
+
+async function runClaudeAsJob(userId, projectId, message, options) {
+  const job = await jobManager.createJob(userId, projectId);
+
+  // Modal API呼び出し（SSEストリーム）
+  const stream = await modalClient.generateGame({
+    user_id: userId,
+    project_id: projectId,
+    message,
+    skills: options.skills,
   });
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n');
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.slice(6));
-        if (data.type === 'stream') handleStream(data.content);
-        if (data.type === 'done') handleGameUpdated();
-      }
+  // SSE → WebSocketブリッジ
+  for await (const event of stream) {
+    if (event.type === 'stream') {
+      jobManager.emit(job.id, 'stream', { content: event.content });
+    } else if (event.type === 'done') {
+      jobManager.completeJob(job.id, event.result);
     }
   }
-};
+}
 ```
-
----
-
-## SSE Event Types
-
-| Type | Description | Example |
-|------|-------------|---------|
-| `stream` | Claude出力チャンク | `{"type":"stream","content":"..."}` |
-| `result` | 生成ファイル | `{"type":"result","html":"..."}` |
-| `question` | Dimension/Style選択 | `{"type":"question","question_type":"dimension"}` |
-| `done` | 完了シグナル | `{"type":"done","exit_code":0}` |
-| `error` | エラー | `{"type":"error","message":"..."}` |
 
 ---
 
@@ -290,10 +288,11 @@ dreamcore-data/                      ← ユーザーデータ（読み書き可
         ├── projects/
         │   └── {projectId}/
         │       ├── index.html
-        │       ├── style.css
+        │       ├── spec.md
+        │       ├── STYLE.md
         │       ├── assets/
-        │       └── .claude/
-        └── assets/                  ← ユーザーグローバルアセット
+        │       └── .git/
+        └── assets/                  ← ユーザーアセット
 
 dreamcore-global/                    ← グローバルリソース（読み取り専用）
 ├── .claude/
@@ -308,24 +307,41 @@ dreamcore-global/                    ← グローバルリソース（読み取
 
 ---
 
+## アセット管理（必須維持）
+
+### 維持するもの
+
+| 項目 | 説明 |
+|------|------|
+| `assets`テーブル | Supabase PostgreSQL（メタデータ管理） |
+| `/api/assets/:id` | アセット取得エンドポイント |
+| `/api/assets/upload` | アセットアップロード |
+| `replaceAssetReferences()` | コード内のアセット参照置換 |
+
+### 変更点
+
+| 項目 | Before | After |
+|------|--------|-------|
+| ファイル保存先 | `/data/users/{userId}/assets/` | Modal Volume `dreamcore-data` |
+| メタデータ | Supabase | Supabase（変更なし） |
+
+---
+
 ## 環境変数
 
-### Vercel (Next.js)
+### Express Server
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+# 既存（変更なし）
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-# Modal Endpoints
+# 新規追加
 MODAL_ENDPOINT=https://xxx--dreamcore-generate-game.modal.run
 MODAL_GET_FILE_ENDPOINT=https://xxx--dreamcore-get-file.modal.run
-MODAL_GEMINI_ENDPOINT=https://xxx--dreamcore-generate-gemini.modal.run
-
-# Secrets
 MODAL_INTERNAL_SECRET=<random-hex-64>
-PREVIEW_SIGNING_SECRET=<random-hex-64>
+USE_MODAL=true  # false でローカルフォールバック
 ```
 
 ### Modal Secrets
@@ -341,18 +357,18 @@ modal secret create gemini-api-key GEMINI_API_KEY=...
 ## ロールバック計画
 
 ### トリガー条件
-- 本番切り替え後に重大なエラー
-- パフォーマンス著しく低下
 - Modal障害
+- 重大なバグ発見
+- パフォーマンス著しく低下
 
 ### 手順
-1. DNS を旧サーバー（Express版）に切り替え
-2. 旧サーバー起動確認
-3. データ同期確認（Volume → ローカル）
+1. 環境変数 `USE_MODAL=false` に変更
+2. Expressサーバー再起動
+3. ローカル実行にフォールバック
 
 ### 事前準備
-- 旧Express版サーバーを1週間維持
-- データ同期スクリプト準備
+- ローカル実行コードは削除せず、条件分岐で保持
+- `/data/` ディレクトリは定期的にModal Volumeと同期
 
 ---
 
@@ -360,16 +376,20 @@ modal secret create gemini-api-key GEMINI_API_KEY=...
 
 | 項目 | 基準 |
 |------|------|
-| **UXパリティ** | 画面・操作がV2と同一 |
-| **レイテンシ** | 初回生成がV2比+30%以内 |
+| **UXパリティ** | 画面・操作がV2と完全に同一 |
+| **API互換性** | リクエスト/レスポンス形式が100%一致 |
+| **WebSocket互換性** | メッセージ形式が100%一致 |
+| **レイテンシ** | ゲーム生成時間がV2比+30%以内 |
 | **可用性** | 99.5%以上 |
 | **隔離性** | ユーザー間でファイルアクセス不可 |
-| **コスト** | サーバー費用削減（従量課金化） |
 
 ---
 
 ## 参考ドキュメント
 
-- `/Users/admin/DreamCore-V2-modal/docs/modal-architecture/ENGINEER-BRIEFING.md`
-- `/Users/admin/DreamCore-V2-modal/docs/modal-architecture/MODAL-SANDBOX-ARCHITECTURE.md`
-- `/Users/admin/DreamCore-V2-modal/docs/modal-architecture/QUICK-REFERENCE.md`
+| ドキュメント | 説明 |
+|-------------|------|
+| `/Users/admin/DreamCore-V2-sandbox/docs/ARCHITECTURE-V2.md` | DreamCore-V2現状アーキテクチャ |
+| `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-DESIGN.md` | Modal技術設計 |
+| `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/MODAL-SANDBOX-ARCHITECTURE.md` | Modal汎用アーキテクチャパターン |
+| `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/QUICK-REFERENCE.md` | Modalコマンド・運用チェック |

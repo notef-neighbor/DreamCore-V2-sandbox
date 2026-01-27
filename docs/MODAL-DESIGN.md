@@ -1,24 +1,303 @@
-# Modal + Next.js 技術設計書
+# Modal 技術設計書（Express + WebSocket維持）
 
 作成日: 2026-01-27
 更新日: 2026-01-27
-参考: DreamCore-V2-modal エンジニア実装
 
 ---
 
 ## システム概要
 
 ```
-Browser ──JWT──▶ Vercel (Next.js) ──X-Modal-Secret──▶ Modal ──▶ gVisor Sandbox
-                       │                                              │
-                       ▼                                              ▼
-                  Supabase                                      Claude CLI
-                  (Auth + DB)                                   (Code Gen)
+Browser ──WebSocket──▶ Express Server ──HTTP/SSE──▶ Modal ──▶ gVisor Sandbox
+              │               │                                      │
+              │               ▼                                      ▼
+              │          Supabase                              Claude CLI
+              │          (Auth + DB)                           (Code Gen)
+              │               │
+              └───────────────┘
+                   JWT検証
+```
+
+**ポイント:**
+- フロントエンド・WebSocket通信は一切変更なし
+- ExpressサーバーはModalへの中継役に徹する
+- 重い処理（Claude CLI、画像生成）はModal Sandboxで実行
+
+---
+
+## 1. Express Server（中継・オーケストレーション）
+
+### 役割変更
+
+| 項目 | Before | After |
+|------|--------|-------|
+| Claude CLI実行 | ローカルで実行 | Modal API呼び出し |
+| Gemini API | ローカルで呼び出し | Modal API呼び出し |
+| ファイルI/O | ローカルFS | Modal Volume経由 |
+| WebSocket | 処理 + 配信 | 中継 + 配信（変更なし） |
+| REST API | 処理 + 応答 | 中継 + 応答（変更なし） |
+
+### 新規追加ファイル
+
+```
+server/
+├── modalClient.js    [NEW] Modal API クライアント
+└── ... (既存ファイルは改修のみ)
 ```
 
 ---
 
-## 1. Modal Sandbox設計
+## 2. modalClient.js 設計
+
+```javascript
+// server/modalClient.js
+const MODAL_ENDPOINT = process.env.MODAL_ENDPOINT;
+const MODAL_GET_FILE_ENDPOINT = process.env.MODAL_GET_FILE_ENDPOINT;
+const MODAL_INTERNAL_SECRET = process.env.MODAL_INTERNAL_SECRET;
+
+class ModalClient {
+  constructor() {
+    this.headers = {
+      'Content-Type': 'application/json',
+      'X-Modal-Secret': MODAL_INTERNAL_SECRET,
+    };
+  }
+
+  /**
+   * ゲーム生成（SSEストリーム）
+   */
+  async *generateGame({ user_id, project_id, message, skills }) {
+    const response = await fetch(MODAL_ENDPOINT, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ user_id, project_id, message, skills }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          yield JSON.parse(line.slice(6));
+        }
+      }
+    }
+  }
+
+  /**
+   * Gemini生成（SSEストリーム）
+   */
+  async *generateGemini({ user_id, project_id, message, skills }) {
+    const response = await fetch(process.env.MODAL_GEMINI_ENDPOINT, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ user_id, project_id, message, skills }),
+    });
+    // 同様のストリーム処理
+  }
+
+  /**
+   * ファイル取得
+   */
+  async getFile(user_id, project_id, path) {
+    const url = new URL(MODAL_GET_FILE_ENDPOINT);
+    url.searchParams.set('user_id', user_id);
+    url.searchParams.set('project_id', project_id);
+    url.searchParams.set('path', path);
+
+    const response = await fetch(url, { headers: this.headers });
+    const { content } = await response.json();
+    return content;
+  }
+
+  /**
+   * ファイル一覧
+   */
+  async listFiles(user_id, project_id, path = '') {
+    const response = await fetch(process.env.MODAL_LIST_FILES_ENDPOINT, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ user_id, project_id, path }),
+    });
+    const { files } = await response.json();
+    return files;
+  }
+
+  /**
+   * ファイル書き込み
+   */
+  async writeFile(user_id, project_id, path, content) {
+    const response = await fetch(process.env.MODAL_WRITE_FILE_ENDPOINT, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ user_id, project_id, path, content }),
+    });
+    return response.ok;
+  }
+
+  /**
+   * Intent検出
+   */
+  async detectIntent(message) {
+    const response = await fetch(process.env.MODAL_DETECT_INTENT_ENDPOINT, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ message }),
+    });
+    const { intent } = await response.json();
+    return intent;
+  }
+
+  /**
+   * スキル検出
+   */
+  async detectSkills(message, dimension) {
+    const response = await fetch(process.env.MODAL_DETECT_SKILLS_ENDPOINT, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ message, dimension }),
+    });
+    const { skills } = await response.json();
+    return skills;
+  }
+}
+
+module.exports = new ModalClient();
+```
+
+---
+
+## 3. claudeRunner.js 改修
+
+### Before
+
+```javascript
+// ローカルでClaude CLI実行
+async function runClaudeAsJob(userId, projectId, message, options) {
+  const projectDir = getProjectPath(userId, projectId);
+  const child = spawn('claude', [
+    '--model', 'opus',
+    '--output-format', 'stream-json',
+    '--dangerously-skip-permissions',
+  ], { cwd: projectDir });
+
+  child.stdout.on('data', (data) => {
+    jobManager.emit(jobId, 'stream', { content: data.toString() });
+  });
+  // ...
+}
+```
+
+### After
+
+```javascript
+const modalClient = require('./modalClient');
+const USE_MODAL = process.env.USE_MODAL === 'true';
+
+async function runClaudeAsJob(userId, projectId, message, options) {
+  const job = await jobManager.createJob(userId, projectId);
+
+  if (USE_MODAL) {
+    // Modal経由
+    await runClaudeOnModal(job.id, userId, projectId, message, options);
+  } else {
+    // ローカルフォールバック（既存コード）
+    await runClaudeLocal(job.id, userId, projectId, message, options);
+  }
+}
+
+async function runClaudeOnModal(jobId, userId, projectId, message, options) {
+  try {
+    const stream = modalClient.generateGame({
+      user_id: userId,
+      project_id: projectId,
+      message,
+      skills: options.skills || [],
+    });
+
+    // SSE → WebSocketブリッジ
+    for await (const event of stream) {
+      switch (event.type) {
+        case 'stream':
+          jobManager.emit(jobId, 'stream', { content: event.content });
+          break;
+        case 'status':
+          jobManager.updateProgress(jobId, event.progress, event.message);
+          break;
+        case 'done':
+          jobManager.completeJob(jobId, event.result);
+          break;
+        case 'error':
+          jobManager.failJob(jobId, event.message);
+          break;
+      }
+    }
+  } catch (error) {
+    jobManager.failJob(jobId, error.message);
+  }
+}
+
+async function runClaudeLocal(jobId, userId, projectId, message, options) {
+  // 既存のローカル実行コード（フォールバック用に保持）
+}
+```
+
+---
+
+## 4. userManager.js 改修
+
+### Before
+
+```javascript
+// ローカルファイルI/O
+async function readProjectFile(userId, projectId, filename) {
+  const filePath = path.join(getProjectPath(userId, projectId), filename);
+  return fs.readFileSync(filePath, 'utf-8');
+}
+
+async function writeProjectFile(userId, projectId, filename, content) {
+  const filePath = path.join(getProjectPath(userId, projectId), filename);
+  fs.writeFileSync(filePath, content);
+}
+```
+
+### After
+
+```javascript
+const modalClient = require('./modalClient');
+const USE_MODAL = process.env.USE_MODAL === 'true';
+
+async function readProjectFile(userId, projectId, filename) {
+  if (USE_MODAL) {
+    return modalClient.getFile(userId, projectId, filename);
+  } else {
+    const filePath = path.join(getProjectPath(userId, projectId), filename);
+    return fs.readFileSync(filePath, 'utf-8');
+  }
+}
+
+async function writeProjectFile(userId, projectId, filename, content) {
+  if (USE_MODAL) {
+    return modalClient.writeFile(userId, projectId, filename, content);
+  } else {
+    const filePath = path.join(getProjectPath(userId, projectId), filename);
+    fs.writeFileSync(filePath, content);
+  }
+}
+```
+
+---
+
+## 5. Modal Sandbox設計
 
 ### Sandbox Image構成
 
@@ -44,74 +323,9 @@ sandbox_image = modal.Image.debian_slim(python_version="3.11")
 | `user` | claude (UID 1000) | 非root実行 |
 | `isolation` | gVisor | VM級隔離 |
 
-### gVisor隔離の特徴
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Host Kernel                                             │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │  gVisor Sentry (User-space Kernel)                  ││
-│  │  - System call interception                         ││
-│  │  - Kernel attack surface minimization               ││
-│  │  ┌─────────────────────────────────────────────────┐││
-│  │  │  Sandbox Container                              │││
-│  │  │  - Claude Code CLI                              │││
-│  │  │  - User's generated code (isolated)             │││
-│  │  └─────────────────────────────────────────────────┘││
-│  └─────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────┘
-```
-
 ---
 
-## 2. Modal Volume設計
-
-### Volume構成
-
-```
-dreamcore-data/                      ← ユーザーデータ（読み書き可能）
-└── users/
-    └── {userId}/                    ← UUID形式のみ許可
-        ├── projects/
-        │   └── {projectId}/
-        │       ├── index.html
-        │       ├── style.css
-        │       ├── script.js
-        │       ├── assets/
-        │       │   ├── player.png
-        │       │   └── enemy.png
-        │       └── .claude/
-        │           └── skills/      ← プロジェクト固有スキル
-        └── assets/                  ← ユーザーグローバルアセット
-
-dreamcore-global/                    ← グローバルリソース（読み取り専用）
-├── .claude/
-│   └── skills/                      ← 共有スキル
-│       ├── p5js-setup/
-│       ├── threejs-setup/
-│       ├── kawaii-colors/
-│       └── ...
-└── scripts/
-    └── generate_image.py
-```
-
-### Volume作成
-
-```bash
-# Modal CLI で作成
-modal volume create dreamcore-data
-modal volume create dreamcore-global
-
-# スキルアップロード
-cd modal
-modal run upload_skills.py
-```
-
----
-
-## 3. Modal Endpoints設計
-
-### FastAPI Endpoints
+## 6. Modal Endpoints設計
 
 ```python
 # modal/app.py
@@ -133,12 +347,24 @@ secrets = [
     modal.Secret.from_name("gemini-api-key"),
 ]
 
+def validate_secret(x_modal_secret: str):
+    if x_modal_secret != os.environ["MODAL_INTERNAL_SECRET"]:
+        raise HTTPException(status_code=401, detail="Invalid secret")
+
+def validate_uuid(value: str):
+    import re
+    UUID_REGEX = re.compile(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        re.IGNORECASE
+    )
+    if not UUID_REGEX.match(value):
+        raise HTTPException(status_code=400, detail=f"Invalid UUID: {value}")
+
 @web_app.post("/generate_game")
 async def generate_game(
     request: GenerateRequest,
     x_modal_secret: str = Header(...),
 ):
-    """Claude CLIでゲーム生成（SSE）"""
     validate_secret(x_modal_secret)
     validate_uuid(request.user_id)
     validate_uuid(request.project_id)
@@ -148,323 +374,7 @@ async def generate_game(
         media_type="text/event-stream",
     )
 
-@web_app.post("/generate_gemini")
-async def generate_gemini(
-    request: GenerateRequest,
-    x_modal_secret: str = Header(...),
-):
-    """Gemini APIで高速生成（SSE）"""
-    validate_secret(x_modal_secret)
-    return StreamingResponse(
-        gemini_stream(request),
-        media_type="text/event-stream",
-    )
-
-@web_app.get("/get_file")
-async def get_file(
-    user_id: str,
-    project_id: str,
-    path: str,
-    x_modal_secret: str = Header(...),
-):
-    """プロジェクトファイル取得"""
-    validate_secret(x_modal_secret)
-    validate_uuid(user_id)
-    validate_uuid(project_id)
-    validate_path(path)
-
-    file_path = f"/data/users/{user_id}/projects/{project_id}/{path}"
-    with data_volume.open(file_path, "r") as f:
-        return {"content": f.read()}
-
-@web_app.post("/detect_intent")
-async def detect_intent(
-    request: IntentRequest,
-    x_modal_secret: str = Header(...),
-):
-    """ユーザー意図検出（Haiku）"""
-    validate_secret(x_modal_secret)
-    # Claude Haiku で intent 判定
-    intent = await detect_with_haiku(request.message)
-    return {"intent": intent}
-
-@web_app.post("/detect_skills")
-async def detect_skills(
-    request: SkillRequest,
-    x_modal_secret: str = Header(...),
-):
-    """必要スキル検出（Haiku）"""
-    validate_secret(x_modal_secret)
-    skills = await detect_skills_with_haiku(
-        request.message,
-        request.dimension,
-    )
-    return {"skills": skills}
-```
-
-### Endpoint一覧
-
-| Endpoint | Method | Purpose | Auth |
-|----------|--------|---------|------|
-| `/generate_game` | POST | Claude CLIでゲーム生成（SSE） | X-Modal-Secret |
-| `/generate_gemini` | POST | Gemini APIで高速生成（SSE） | X-Modal-Secret |
-| `/get_file` | GET | プロジェクトファイル取得 | X-Modal-Secret |
-| `/list_files` | GET | プロジェクトファイル一覧 | X-Modal-Secret |
-| `/apply_files` | POST | 外部生成ファイル適用 | X-Modal-Secret |
-| `/detect_intent` | POST | ユーザー意図検出（Haiku） | X-Modal-Secret |
-| `/detect_skills` | POST | 必要スキル検出（Haiku） | X-Modal-Secret |
-| `/get_skill_content` | POST | スキルMDコンテンツ取得 | X-Modal-Secret |
-
----
-
-## 4. Next.js API Routes設計
-
-### ディレクトリ構成
-
-```
-next/src/app/
-├── api/
-│   ├── generate/
-│   │   └── route.ts          # SSEオーケストレーション
-│   ├── projects/
-│   │   ├── route.ts          # 一覧・作成
-│   │   └── [id]/
-│   │       └── route.ts      # 詳細・更新・削除
-│   ├── assets/
-│   │   ├── route.ts          # アップロード・一覧
-│   │   └── [id]/
-│   │       └── route.ts      # 取得・削除
-│   ├── preview/
-│   │   └── [projectId]/
-│   │       └── [...path]/
-│   │           └── route.ts  # セキュアファイル配信
-│   └── chat/
-│       └── save/
-│           └── route.ts      # チャット履歴保存
-├── (auth)/
-│   ├── login/
-│   │   └── page.tsx
-│   └── callback/
-│       └── route.ts
-├── create/
-│   └── page.tsx              # プロジェクト一覧
-├── project/
-│   └── [id]/
-│       └── page.tsx          # エディタ
-├── play/
-│   └── [id]/
-│       └── page.tsx          # プレビュー
-└── publish/
-    └── [id]/
-        └── page.tsx          # 公開設定
-```
-
-### /api/generate/route.ts
-
-```typescript
-// next/src/app/api/generate/route.ts
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest } from 'next/server';
-
-export async function POST(request: NextRequest) {
-  // 1. JWT検証
-  const supabase = createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const { projectId, message } = await request.json();
-
-  // 2. プロジェクト所有権チェック
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!project) {
-    return new Response('Not Found', { status: 404 });
-  }
-
-  // 3. Modal呼び出し（SSEプロキシ）
-  const modalResponse = await fetch(process.env.MODAL_ENDPOINT!, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Modal-Secret': process.env.MODAL_INTERNAL_SECRET!,
-    },
-    body: JSON.stringify({
-      user_id: user.id,
-      project_id: projectId,
-      message,
-    }),
-  });
-
-  // 4. SSEストリームを転送
-  return new Response(modalResponse.body, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
-}
-```
-
-### /api/preview/[projectId]/[...path]/route.ts
-
-```typescript
-// セキュアファイル配信
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest } from 'next/server';
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { projectId: string; path: string[] } }
-) {
-  const { projectId, path } = params;
-  const filePath = path.join('/');
-
-  // 署名付きURL検証 or JWT検証
-  const signature = request.nextUrl.searchParams.get('sig');
-  if (signature) {
-    const isValid = verifySignature(projectId, filePath, signature);
-    if (!isValid) {
-      return new Response('Invalid signature', { status: 403 });
-    }
-  } else {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response('Unauthorized', { status: 401 });
-    }
-
-    // 所有権チェック
-    const { data: project } = await supabase
-      .from('projects')
-      .select('user_id')
-      .eq('id', projectId)
-      .single();
-
-    if (!project || project.user_id !== user.id) {
-      return new Response('Not Found', { status: 404 });
-    }
-  }
-
-  // Modalからファイル取得
-  const response = await fetch(
-    `${process.env.MODAL_GET_FILE_ENDPOINT}?user_id=${userId}&project_id=${projectId}&path=${filePath}`,
-    {
-      headers: {
-        'X-Modal-Secret': process.env.MODAL_INTERNAL_SECRET!,
-      },
-    }
-  );
-
-  const { content } = await response.json();
-  const contentType = getContentType(filePath);
-
-  return new Response(content, {
-    headers: { 'Content-Type': contentType },
-  });
-}
-```
-
----
-
-## 5. 認証フロー
-
-```
-┌──────────┐     ┌──────────────┐     ┌─────────────┐     ┌─────────────────┐
-│  Browser │────▶│  Next.js API │────▶│  Modal      │────▶│  Sandbox        │
-│          │     │  (Vercel)    │     │  Backend    │     │  (gVisor)       │
-└──────────┘     └──────────────┘     └─────────────┘     └─────────────────┘
-      │                 │                    │                    │
-      │  1. JWT Token   │                    │                    │
-      │  (Authorization │                    │                    │
-      │   Header)       │                    │                    │
-      │────────────────▶│                    │                    │
-      │                 │                    │                    │
-      │                 │  2. JWT Verify     │                    │
-      │                 │  (JWKS, local)     │                    │
-      │                 │──────────┐         │                    │
-      │                 │          │         │                    │
-      │                 │◀─────────┘         │                    │
-      │                 │                    │                    │
-      │                 │  3. Project Owner  │                    │
-      │                 │  Check (Supabase)  │                    │
-      │                 │──────────┐         │                    │
-      │                 │          │         │                    │
-      │                 │◀─────────┘         │                    │
-      │                 │                    │                    │
-      │                 │  4. X-Modal-Secret │                    │
-      │                 │────────────────────▶                    │
-      │                 │                    │                    │
-      │                 │                    │  5. UUID Validate  │
-      │                 │                    │──────────┐         │
-      │                 │                    │          │         │
-      │                 │                    │◀─────────┘         │
-      │                 │                    │                    │
-      │                 │                    │  6. Sandbox Create │
-      │                 │                    │───────────────────▶│
-      │                 │                    │                    │
-      │  7. SSE Stream  │◀───────────────────│◀───────────────────│
-      │◀────────────────│                    │                    │
-```
-
-### 認証レイヤー
-
-| レイヤー | 方式 | 検証内容 |
-|---------|------|----------|
-| Browser → Next.js | JWT (Supabase Auth) | ユーザー認証 |
-| Next.js → Modal | X-Modal-Secret | 内部サービス間認証 |
-| Modal内部 | UUID検証 | パストラバーサル防止 |
-| Supabase | RLS | 所有権チェック（補完的） |
-
----
-
-## 6. UUID検証
-
-```python
-# modal/app.py
-import re
-
-UUID_REGEX = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-    re.IGNORECASE
-)
-
-def validate_uuid(value: str) -> None:
-    """UUID形式を検証。パストラバーサル攻撃を防止。"""
-    if not UUID_REGEX.match(value):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid UUID format: {value}"
-        )
-
-def validate_path(path: str) -> None:
-    """ファイルパスを検証。"""
-    if '..' in path:
-        raise HTTPException(status_code=400, detail="Invalid path: contains ..")
-    if path.startswith('/'):
-        raise HTTPException(status_code=400, detail="Invalid path: absolute path")
-    if path.startswith(('/etc', '/proc', '/dev')):
-        raise HTTPException(status_code=400, detail="Invalid path: system path")
-```
-
----
-
-## 7. SSEストリーミング
-
-### Modal側（Python）
-
-```python
-# modal/app.py
-async def generate_stream(request: GenerateRequest):
-    """Claude CLI出力をSSEでストリーム"""
+async def generate_stream(request):
     project_dir = f"/data/users/{request.user_id}/projects/{request.project_id}"
 
     with modal.Sandbox.create(
@@ -473,103 +383,146 @@ async def generate_stream(request: GenerateRequest):
         secrets=secrets,
         timeout=600,
     ) as sb:
-        # Claude CLI実行
         proc = sb.exec(
             "bash", "-c",
-            f"cd {project_dir} && echo '{request.prompt}' | claude --output-format stream-json"
+            f"cd {project_dir} && echo '{request.message}' | claude --output-format stream-json"
         )
 
-        # 出力をSSEとしてストリーム
         for line in proc.stdout:
             yield f"data: {json.dumps({'type': 'stream', 'content': line})}\n\n"
 
         exit_code = proc.wait()
         yield f"data: {json.dumps({'type': 'done', 'exit_code': exit_code})}\n\n"
+
+@web_app.get("/get_file")
+async def get_file(
+    user_id: str,
+    project_id: str,
+    path: str,
+    x_modal_secret: str = Header(...),
+):
+    validate_secret(x_modal_secret)
+    validate_uuid(user_id)
+    validate_uuid(project_id)
+
+    if '..' in path or path.startswith('/'):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    file_path = f"/data/users/{user_id}/projects/{project_id}/{path}"
+    try:
+        with data_volume.open(file_path, "r") as f:
+            return {"content": f.read()}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
 ```
 
-### Next.js側（TypeScript）
+### Endpoint一覧
 
-```typescript
-// クライアント側でSSEを受信
-async function* streamGenerate(projectId: string, message: string) {
-  const response = await fetch('/api/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ projectId, message }),
-  });
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/generate_game` | POST | Claude CLIでゲーム生成（SSE） |
+| `/generate_gemini` | POST | Gemini APIで高速生成（SSE） |
+| `/get_file` | GET | プロジェクトファイル取得 |
+| `/list_files` | POST | プロジェクトファイル一覧 |
+| `/write_file` | POST | ファイル書き込み |
+| `/detect_intent` | POST | ユーザー意図検出（Haiku） |
+| `/detect_skills` | POST | 必要スキル検出（Haiku） |
+| `/git_operation` | POST | Git操作（commit, log, restore） |
 
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
+---
 
-  let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+## 7. SSE → WebSocketブリッジ
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+ExpressサーバーがModalからのSSEをWebSocketに変換：
 
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.slice(6));
-        yield data;
-      }
-    }
-  }
-}
-
-// 使用例
-for await (const event of streamGenerate(projectId, message)) {
-  if (event.type === 'stream') {
-    appendToChat(event.content);
-  } else if (event.type === 'done') {
-    refreshPreview();
-  }
-}
+```
+Modal (SSE)                Express                    Browser (WebSocket)
+     │                          │                              │
+     │  data: {"type":"stream"} │                              │
+     │─────────────────────────▶│                              │
+     │                          │  ws.send({type:"stream"})    │
+     │                          │─────────────────────────────▶│
+     │                          │                              │
+     │  data: {"type":"done"}   │                              │
+     │─────────────────────────▶│                              │
+     │                          │  ws.send({type:"gameUpdated"})│
+     │                          │─────────────────────────────▶│
 ```
 
 ---
 
-## 8. 環境変数
+## 8. Volume構造
 
-### Vercel (Next.js)
+```
+dreamcore-data/                      ← ユーザーデータ（読み書き可能）
+└── users/
+    └── {userId}/                    ← UUID形式のみ許可
+        ├── projects/
+        │   └── {projectId}/
+        │       ├── index.html
+        │       ├── spec.md
+        │       ├── STYLE.md
+        │       ├── assets/
+        │       └── .git/
+        └── assets/                  ← ユーザーアセット
+
+dreamcore-global/                    ← グローバルリソース（読み取り専用）
+├── .claude/
+│   └── skills/
+└── scripts/
+```
+
+---
+
+## 9. 環境変数
+
+### Express Server
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+# 既存（変更なし）
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-# Modal Endpoints
+# 新規追加
 MODAL_ENDPOINT=https://xxx--dreamcore-generate-game.modal.run
-MODAL_GET_FILE_ENDPOINT=https://xxx--dreamcore-get-file.modal.run
 MODAL_GEMINI_ENDPOINT=https://xxx--dreamcore-generate-gemini.modal.run
-MODAL_SKILL_CONTENT_ENDPOINT=https://xxx--dreamcore-get-skill-content.modal.run
-
-# Secrets
+MODAL_GET_FILE_ENDPOINT=https://xxx--dreamcore-get-file.modal.run
+MODAL_WRITE_FILE_ENDPOINT=https://xxx--dreamcore-write-file.modal.run
+MODAL_LIST_FILES_ENDPOINT=https://xxx--dreamcore-list-files.modal.run
+MODAL_DETECT_INTENT_ENDPOINT=https://xxx--dreamcore-detect-intent.modal.run
+MODAL_DETECT_SKILLS_ENDPOINT=https://xxx--dreamcore-detect-skills.modal.run
+MODAL_GIT_OPERATION_ENDPOINT=https://xxx--dreamcore-git-operation.modal.run
 MODAL_INTERNAL_SECRET=<random-hex-64>
-PREVIEW_SIGNING_SECRET=<random-hex-64>
-
-# Optional
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://dreamcore.gg
+USE_MODAL=true
 ```
 
 ### Modal Secrets
 
 ```bash
-# 作成コマンド
 modal secret create anthropic-api-key ANTHROPIC_API_KEY=sk-ant-...
-modal secret create modal-internal-secret MODAL_INTERNAL_SECRET=$(openssl rand -hex 32)
+modal secret create modal-internal-secret MODAL_INTERNAL_SECRET=...
 modal secret create gemini-api-key GEMINI_API_KEY=...
 ```
 
 ---
 
-## 9. デプロイ手順
+## 10. フォールバック設計
+
+```javascript
+// USE_MODAL=false でローカル実行にフォールバック
+const USE_MODAL = process.env.USE_MODAL === 'true';
+
+if (USE_MODAL) {
+  // Modal経由
+} else {
+  // ローカル実行（既存コード）
+}
+```
+
+---
+
+## 11. デプロイ手順
 
 ### 初期セットアップ
 
@@ -590,13 +543,11 @@ modal run upload_skills.py
 # 4. Modalアプリデプロイ
 modal deploy app.py
 
-# 5. Vercel環境変数設定（ダッシュボードまたはCLI）
-vercel env add MODAL_ENDPOINT
-vercel env add MODAL_INTERNAL_SECRET
-# ...
+# 5. Express環境変数設定
+# .envに新規変数追加
 
-# 6. Vercelデプロイ
-vercel --prod
+# 6. Expressサーバーデプロイ
+# 既存のデプロイフローを使用
 ```
 
 ### 更新時
@@ -608,49 +559,27 @@ cd modal && modal run upload_skills.py
 # Modalアプリ変更時
 cd modal && modal deploy app.py
 
-# Next.js変更時
-vercel --prod
+# Expressサーバー変更時
+# 既存のデプロイフローを使用
 ```
 
 ---
 
-## 10. モニタリング
-
-### Modalログ
-
-```bash
-# リアルタイム監視
-modal logs dreamcore --follow
-
-# 特定エンドポイントのみ
-modal logs dreamcore --filter="generate_game"
-```
-
-### テスト
-
-```bash
-cd modal/tests
-
-# 全テスト実行
-python run_all.py
-
-# 個別テスト
-python test_sandbox_io.py   # Sandbox I/O
-python test_gvisor.py       # 隔離確認
-python test_stream.py       # SSEストリーミング
-python test_volume.py       # Volume永続化
-python test_auth.py         # 認証
-```
-
----
-
-## 11. トラブルシューティング
+## 12. トラブルシューティング
 
 | Issue | Check |
 |-------|-------|
 | 401 on Modal | X-Modal-Secret matches? |
-| 401 on Next.js | JWT expired? |
 | Files not persisting | `volume.commit()` called? |
 | Skills not loading | `modal run upload_skills.py` run? |
 | Sandbox timeout | Check complexity, increase timeout |
-| SSE not streaming | Check Content-Type header |
+| WebSocket not receiving | SSE→WS bridge working? |
+
+---
+
+## 13. 参考ドキュメント
+
+| ドキュメント | 説明 |
+|-------------|------|
+| `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/MODAL-SANDBOX-ARCHITECTURE.md` | Modal汎用アーキテクチャパターン |
+| `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/QUICK-REFERENCE.md` | Modalコマンド・運用チェック |
