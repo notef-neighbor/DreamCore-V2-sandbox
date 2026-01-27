@@ -26,7 +26,7 @@
 │   - Modal呼び出し                                                │
 └─────────────────────┬───────────────────────────────────────────┘
                       │ HTTP + SSE
-                      │ X-Modal-Secret ヘッダー
+                      │ X-Modal-Internal-Secret ヘッダー
                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Modal Sandbox                                 │
@@ -42,7 +42,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Modal Volume                                  │
 │     dreamcore-data: /data/users/{user_id}/projects/              │
-│     dreamcore-global: /skills/ (共有・読み取り専用)               │
+│     dreamcore-global: /global (共有・読み取り専用)                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,23 +57,50 @@
 | サンドボックス | Modal gVisor で実現 |
 | スケール | Modal側が自動対応 |
 
+### 守るべき前提
+
+- 既存のWSメッセージ形式を維持（`{ type: ... }`）
+- エンドポイント/パス/レスポンス構造は現状のまま
+- SSE→WS変換をExpress側で吸収（UIにはSSEを見せない）
+- Modalは"実行だけ"（UI/UXに触れない）
+
+### 安全策
+
+- `USE_MODAL=true/false` で即ロールバック可能
+- UIは一切改修不要
+
 ---
 
 ## 2. SSE → WebSocket 変換ルール（固定）
 
-Modal（SSE）から Express が受信したイベントを WebSocket メッセージに変換する際のマッピング:
+### SSEイベント形式（DreamCore-V2-modal 実装準拠）
 
-| SSE event | WS message type | 備考 |
-|-----------|-----------------|------|
-| `event: status` | `{ type: 'progress', message: ... }` | 進捗表示用 |
-| `event: stream` | `{ type: 'stream', content: ... }` | ストリーミング出力 |
-| `event: done` | `{ type: 'completed', result: ... }` | 正常完了 |
-| `event: error` | `{ type: 'failed', error: ... }` | エラー終了 |
+Modal からの SSE は以下の形式で送信される（`event:` 行なし、`data:` 行のみ）:
+
+```
+data: {"type":"status","message":"Starting generation..."}
+
+data: {"type":"stream","content":"生成されたコード..."}
+
+data: {"type":"done","success":true}
+
+data: {"type":"error","error":"エラーメッセージ"}
+```
+
+### 変換マッピング
+
+| SSE data.type | WS message type | 備考 |
+|---------------|-----------------|------|
+| `status` | `{ type: 'progress', message: ... }` | 進捗表示用 |
+| `stream` | `{ type: 'stream', content: ... }` | ストリーミング出力 |
+| `done` | `{ type: 'completed', result: ... }` | 正常完了 |
+| `error` | `{ type: 'failed', error: ... }` | エラー終了 |
 
 **実装例（Express側）**:
 ```javascript
 // modalClient.js
-function convertSseToWsEvent(sseEvent) {
+function convertSseToWsEvent(sseData) {
+  // sseData = { type: 'stream', content: '...' }
   const mapping = {
     'status': 'progress',
     'stream': 'stream',
@@ -81,8 +108,8 @@ function convertSseToWsEvent(sseEvent) {
     'error': 'failed'
   };
   return {
-    type: mapping[sseEvent.event] || sseEvent.event,
-    ...sseEvent.data
+    ...sseData,
+    type: mapping[sseData.type] || sseData.type
   };
 }
 ```
@@ -106,15 +133,21 @@ function convertSseToWsEvent(sseEvent) {
 | Modalアーキテクチャ | `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/MODAL-SANDBOX-ARCHITECTURE.md` | Modal側の設計パターン、セキュリティ、I/O |
 | クイックリファレンス | `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/QUICK-REFERENCE.md` | Modalコマンド、SSEヘッダー、デバッグシグナル |
 
-### 現行実装の参照（DreamCore-V2本体）
+### 現行実装の参照（DreamCore-V2-sandbox）
 
 | ファイル | パス | 参照理由 |
 |----------|------|----------|
-| Claude実行 | `/Users/admin/DreamCore-V2/server/claudeRunner.js` | Modal統合の改修対象 |
-| ジョブ管理 | `/Users/admin/DreamCore-V2/server/jobManager.js` | ジョブキュー・状態管理 |
-| 認証 | `/Users/admin/DreamCore-V2/server/authMiddleware.js` | JWT検証ロジック |
-| 設定 | `/Users/admin/DreamCore-V2/server/config.js` | 環境変数・レート制限 |
-| DB操作 | `/Users/admin/DreamCore-V2/server/database-supabase.js` | Supabase操作（Express側で維持） |
+| Claude実行 | `/Users/admin/DreamCore-V2-sandbox/server/claudeRunner.js` | Modal統合の改修対象 |
+| ジョブ管理 | `/Users/admin/DreamCore-V2-sandbox/server/jobManager.js` | ジョブキュー・状態管理 |
+| 認証 | `/Users/admin/DreamCore-V2-sandbox/server/authMiddleware.js` | JWT検証ロジック |
+| 設定 | `/Users/admin/DreamCore-V2-sandbox/server/config.js` | 環境変数・レート制限 |
+| DB操作 | `/Users/admin/DreamCore-V2-sandbox/server/database-supabase.js` | Supabase操作（Express側で維持） |
+
+### 既存Modal実装（再利用）
+
+| ファイル | パス | 備考 |
+|----------|------|------|
+| Modal App | `/Users/admin/DreamCore-V2-modal/modal/app.py` | **これを再利用する** |
 
 ---
 
@@ -172,39 +205,35 @@ function convertSseToWsEvent(sseEvent) {
 
 ## 6. 実装すべきコンポーネント
 
-### 6.1 Modal側（Python）
+### 6.1 Modal側（Python）- 既存実装を再利用
 
-**ファイル**: `modal_app/sandbox.py`（新規作成）
+**ファイル**: `/Users/admin/DreamCore-V2-modal/modal/app.py`（既存・再利用）
 
 ```python
-# エンドポイント
+# 既存のエンドポイントをそのまま使用
 @app.function()
 @modal.web_endpoint(method="POST")
 async def generate(request: Request):
-    # 1. X-Modal-Secret 検証
+    # 1. X-Modal-Internal-Secret 検証
     # 2. リクエストパラメータ検証（UUID形式）
     # 3. Sandbox作成・実行
     # 4. SSEストリーム返却
 ```
 
-**SSEイベント形式**:
+**SSEイベント形式（既存実装準拠）**:
 ```
-event: status
-data: {"message": "Starting generation..."}
+data: {"type":"status","message":"Starting generation..."}
 
-event: stream
-data: {"content": "生成されたコード..."}
+data: {"type":"stream","content":"生成されたコード..."}
 
-event: done
-data: {"success": true}
+data: {"type":"done","success":true}
 
-event: error
-data: {"error": "エラーメッセージ"}
+data: {"type":"error","error":"エラーメッセージ"}
 ```
 
 ### 6.2 Express側（JavaScript）
 
-**ファイル**: `/Users/admin/DreamCore-V2/server/modalClient.js`（新規作成）
+**ファイル**: `/Users/admin/DreamCore-V2-sandbox/server/modalClient.js`（新規作成）
 
 ```javascript
 // SSEストリームを受信してイベントを返すジェネレーター
@@ -213,16 +242,17 @@ async function* streamFromModal(params) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Modal-Secret': process.env.MODAL_SECRET,
+      'X-Modal-Internal-Secret': process.env.MODAL_INTERNAL_SECRET,
     },
     body: JSON.stringify(params),
   });
 
-  // SSEパース → yield イベント
+  // SSEパース（data: {"type":"...","content":"..."} 形式）
+  // → yield { type: '...', content: '...' }
 }
 
 // SSE→WS変換
-function convertSseToWsEvent(sseEvent) {
+function convertSseToWsEvent(sseData) {
   const mapping = {
     'status': 'progress',
     'stream': 'stream',
@@ -230,13 +260,13 @@ function convertSseToWsEvent(sseEvent) {
     'error': 'failed'
   };
   return {
-    type: mapping[sseEvent.event] || sseEvent.event,
-    ...sseEvent.data
+    ...sseData,
+    type: mapping[sseData.type] || sseData.type
   };
 }
 ```
 
-**ファイル**: `/Users/admin/DreamCore-V2/server/claudeRunner.js`（修正）
+**ファイル**: `/Users/admin/DreamCore-V2-sandbox/server/claudeRunner.js`（修正）
 
 ```javascript
 const USE_MODAL = process.env.USE_MODAL === 'true';
@@ -257,8 +287,8 @@ async function runClaudeOnModal(jobId, userId, projectId, message, options) {
     skills: options.skills,
   });
 
-  for await (const event of stream) {
-    const wsEvent = convertSseToWsEvent(event);
+  for await (const sseData of stream) {
+    const wsEvent = convertSseToWsEvent(sseData);
     switch (wsEvent.type) {
       case 'stream':
         jobManager.notifySubscribers(jobId, { type: 'stream', content: wsEvent.content });
@@ -281,7 +311,7 @@ async function runClaudeOnModal(jobId, userId, projectId, message, options) {
 | 層 | 実装箇所 | 検証内容 |
 |----|----------|----------|
 | 1. Express認証 | `authMiddleware.js` | JWT検証、Supabase Auth |
-| 2. Modal内部認証 | `X-Modal-Secret` | 共有シークレット検証 |
+| 2. Modal内部認証 | `X-Modal-Internal-Secret` | 共有シークレット検証 |
 | 3. パス検証 | Modal sandbox | UUID形式、パストラバーサル防止 |
 | 4. gVisor隔離 | Modal Sandbox | VM レベル隔離 |
 
@@ -299,9 +329,9 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 ```bash
 # Modal統合
-USE_MODAL=true                    # Modal使用フラグ（false=ローカル実行）
+USE_MODAL=true                           # Modal使用フラグ（false=ローカル実行）
 MODAL_ENDPOINT=https://xxx.modal.run/generate
-MODAL_SECRET=your-shared-secret   # X-Modal-Secretヘッダー用
+MODAL_INTERNAL_SECRET=your-shared-secret # X-Modal-Internal-Secretヘッダー用
 ```
 
 ### Modal側
@@ -311,7 +341,7 @@ MODAL_SECRET=your-shared-secret   # X-Modal-Secretヘッダー用
 # ※ Supabase認証情報は含めない（DB操作はExpress側で行う）
 modal secret create dreamcore-secrets \
   ANTHROPIC_API_KEY=sk-ant-xxx \
-  MODAL_SECRET=your-shared-secret
+  MODAL_INTERNAL_SECRET=your-shared-secret
 ```
 
 **重要**: `SUPABASE_URL` や `SUPABASE_SERVICE_ROLE_KEY` は Modal に渡さない。DB操作は Express 側に集約する。
@@ -326,8 +356,8 @@ modal volume create dreamcore-data
 modal volume create dreamcore-global
 
 # マウント構成
-dreamcore-data    → /data        # ユーザーデータ（読み書き）
-dreamcore-global  → /skills      # 共有スキル（読み取り専用）
+dreamcore-data    → /data     # ユーザーデータ（読み書き）
+dreamcore-global  → /global   # 共有スキル・スクリプト（読み取り専用）
 ```
 
 ### パス構造
@@ -342,8 +372,14 @@ dreamcore-global  → /skills      # 共有スキル（読み取り専用）
                 ├── game.js
                 └── assets/
 
-/skills/
-└── (共有スキルファイル)
+/global/
+├── .claude/
+│   └── skills/
+│       ├── p5js-setup/
+│       ├── threejs-setup/
+│       └── ...
+└── scripts/
+    └── generate_image.py
 ```
 
 ---
@@ -354,7 +390,7 @@ dreamcore-global  → /skills      # 共有スキル（読み取り専用）
 
 ```bash
 # Modal CLIでローカルテスト（有効なUUID形式を使用）
-modal run modal_app/sandbox.py::generate --input '{
+modal run modal/app.py::generate --input '{
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
   "project_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
   "message": "hello"
@@ -396,7 +432,7 @@ const USE_MODAL = process.env.USE_MODAL === 'true';
 
 | 優先度 | タスク | 状態 | 担当 |
 |--------|--------|------|------|
-| 1 | Modal sandbox.py 基本実装 | ✅ 動作確認済み | Modal側 |
+| 1 | Modal app.py 基本実装 | ✅ 動作確認済み | Modal側 |
 | 2 | modalClient.js 実装 | 未着手 | Express側 |
 | 3 | claudeRunner.js 統合 | 未着手 | Express側 |
 | 4 | SSE→WS変換テスト | 未着手 | 統合 |
@@ -406,12 +442,24 @@ const USE_MODAL = process.env.USE_MODAL === 'true';
 
 ---
 
-## 13. 質問・連絡先
+## 13. 命名規則（DreamCore-V2-modal に統一）
+
+| 項目 | 本ドキュメント | 備考 |
+|------|---------------|------|
+| Modal ファイル | `modal/app.py` | 既存実装を再利用 |
+| 環境変数 | `MODAL_INTERNAL_SECRET` | `X-Modal-Internal-Secret` ヘッダー用 |
+| Volume マウント | `/global` | 共有スキル・スクリプト用 |
+| SSE イベント | `data: {"type":"..."}` | `event:` 行なし |
+
+---
+
+## 14. 質問・連絡先
 
 不明点があれば以下を参照:
 - 移行計画の詳細: `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-MIGRATION-PLAN.md`
 - 技術設計の詳細: `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-DESIGN.md`
 - Modal固有の知識: `/Users/admin/DreamCore-V2-sandbox/docs/modal-architecture/`
+- 既存Modal実装: `/Users/admin/DreamCore-V2-modal/modal/app.py`
 
 ---
 
@@ -422,3 +470,5 @@ const USE_MODAL = process.env.USE_MODAL === 'true';
 3. **Modalは実行専用** - Claude CLI / Python / Git / ファイルI/O のみ
 4. **DB操作はExpress集約** - ModalにSupabase認証情報を渡さない
 5. **SSE→WS変換は固定マッピング** - status→progress, stream→stream, done→completed, error→failed
+6. **既存Modal実装を再利用** - `modal/app.py` をそのまま使用、新規作成しない
+7. **命名はDreamCore-V2-modalに統一** - `MODAL_INTERNAL_SECRET`, `/global`, `data: {"type":"..."}`
