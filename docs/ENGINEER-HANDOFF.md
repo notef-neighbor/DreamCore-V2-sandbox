@@ -1,6 +1,7 @@
 # Modal Sandbox 実装 - エンジニア引き継ぎ文書
 
 **作成日**: 2026-01-27
+**最終更新**: 2026-01-27
 **対象プロジェクト**: DreamCore-V2 Modal Sandbox 化
 
 ---
@@ -16,16 +17,25 @@
                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Express Server                                │
-│         (認証・WS管理・SSE→WS変換・中継のみ)                      │
-│                   $5-20/月で100ユーザー対応可能                    │
+│   【UX/API契約の本体】                                            │
+│   - 認証（JWT検証・Supabase Auth）                                │
+│   - WebSocket管理                                                │
+│   - DB操作（Supabase）                                           │
+│   - アセット管理（/api/assets）                                   │
+│   - SSE→WS変換                                                   │
+│   - Modal呼び出し                                                │
 └─────────────────────┬───────────────────────────────────────────┘
                       │ HTTP + SSE
                       │ X-Modal-Secret ヘッダー
                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Modal Sandbox                                 │
-│              (gVisor隔離・Claude CLI実行)                         │
-│                    従量課金・自動スケール                          │
+│   【実行専用】                                                    │
+│   - Claude CLI 実行 ✅ 動作確認済み                               │
+│   - Python 実行 ✅ 動作確認済み                                   │
+│   - Git 操作 ✅ 動作確認済み                                      │
+│   - ファイル I/O                                                  │
+│   ※ DB操作は行わない                                             │
 └─────────────────────┬───────────────────────────────────────────┘
                       │
                       ▼
@@ -41,15 +51,45 @@
 | 項目 | 決定内容 |
 |------|----------|
 | UX | **完全維持**（WebSocketそのまま、フロントエンド変更なし） |
+| Express | **UX/API契約の本体**（中継だけでなくDB・認証・アセット管理を担当） |
+| Modal | **実行専用**（Claude CLI / Python / Git / ファイルI/O のみ） |
+| DB操作 | **Express側に集約**（ModalにはSupabase認証情報を渡さない） |
 | サンドボックス | Modal gVisor で実現 |
 | スケール | Modal側が自動対応 |
-| Expressサーバー | 中継のみ（重い処理はModal） |
-| コスト | サーバー $5-20/月 + Modal従量課金 |
-| 将来計画 | Next.js移行はPhase 2として保留 |
 
 ---
 
-## 2. 参照ドキュメント
+## 2. SSE → WebSocket 変換ルール（固定）
+
+Modal（SSE）から Express が受信したイベントを WebSocket メッセージに変換する際のマッピング:
+
+| SSE event | WS message type | 備考 |
+|-----------|-----------------|------|
+| `event: status` | `{ type: 'progress', message: ... }` | 進捗表示用 |
+| `event: stream` | `{ type: 'stream', content: ... }` | ストリーミング出力 |
+| `event: done` | `{ type: 'completed', result: ... }` | 正常完了 |
+| `event: error` | `{ type: 'failed', error: ... }` | エラー終了 |
+
+**実装例（Express側）**:
+```javascript
+// modalClient.js
+function convertSseToWsEvent(sseEvent) {
+  const mapping = {
+    'status': 'progress',
+    'stream': 'stream',
+    'done': 'completed',
+    'error': 'failed'
+  };
+  return {
+    type: mapping[sseEvent.event] || sseEvent.event,
+    ...sseEvent.data
+  };
+}
+```
+
+---
+
+## 3. 参照ドキュメント
 
 ### 移行計画・設計書（実装時に必ず参照）
 
@@ -72,15 +112,67 @@
 |----------|------|----------|
 | Claude実行 | `/Users/admin/DreamCore-V2/server/claudeRunner.js` | Modal統合の改修対象 |
 | ジョブ管理 | `/Users/admin/DreamCore-V2/server/jobManager.js` | ジョブキュー・状態管理 |
-| WebSocket | `/Users/admin/DreamCore-V2/server/websocket.js` | WS→SSE変換の統合先 |
 | 認証 | `/Users/admin/DreamCore-V2/server/authMiddleware.js` | JWT検証ロジック |
 | 設定 | `/Users/admin/DreamCore-V2/server/config.js` | 環境変数・レート制限 |
+| DB操作 | `/Users/admin/DreamCore-V2/server/database-supabase.js` | Supabase操作（Express側で維持） |
 
 ---
 
-## 3. 実装すべきコンポーネント
+## 4. Modal化対象と対象外
 
-### 3.1 Modal側（Python）
+### Modal化対象（実行をModalに移行）
+
+| 機能 | 状態 | 備考 |
+|------|------|------|
+| Claude CLI 実行 | ✅ 動作確認済み | sandbox.exec() で実行 |
+| Python スクリプト | ✅ 動作確認済み | subprocess または sandbox.exec() |
+| Git 操作 | ✅ 動作確認済み | Volume内で実行 |
+| ファイル I/O | ✅ 動作確認済み | Modal Volume に永続化 |
+
+### Modal化対象外（Express側で維持）
+
+| 機能 | 理由 |
+|------|------|
+| `/api/assets/*` | DB操作を伴うため |
+| `/api/projects/*` | DB操作を伴うため |
+| 認証・JWT検証 | セキュリティ上の理由 |
+| WebSocket管理 | UX契約維持のため |
+| Supabase操作 | DB操作はExpress集約方針 |
+
+---
+
+## 5. アセット管理（製品版必須）
+
+アセット管理はExpress側で維持し、以下を復活させる:
+
+### 必須コンポーネント
+
+| コンポーネント | 説明 |
+|---------------|------|
+| `assets` テーブル | Supabase PostgreSQL でメタデータ管理 |
+| `project_assets` テーブル | プロジェクトとアセットの関連付け |
+| `/api/assets/:id` | アセット取得エンドポイント |
+| `replaceAssetReferences()` | 生成コード内のアセット参照を解決 |
+
+### アセットの流れ
+
+```
+1. ユーザーがアセットをアップロード
+   → Express: /api/assets (POST)
+   → Supabase Storage に保存
+   → assets テーブルにメタデータ登録
+
+2. ゲーム生成時
+   → Modal: Claude CLI がコード生成
+   → Express: replaceAssetReferences() でアセットURLを解決
+   → ブラウザ: 正しいURLでアセット取得
+```
+
+---
+
+## 6. 実装すべきコンポーネント
+
+### 6.1 Modal側（Python）
 
 **ファイル**: `modal_app/sandbox.py`（新規作成）
 
@@ -110,7 +202,7 @@ event: error
 data: {"error": "エラーメッセージ"}
 ```
 
-### 3.2 Express側（JavaScript）
+### 6.2 Express側（JavaScript）
 
 **ファイル**: `/Users/admin/DreamCore-V2/server/modalClient.js`（新規作成）
 
@@ -127,6 +219,20 @@ async function* streamFromModal(params) {
   });
 
   // SSEパース → yield イベント
+}
+
+// SSE→WS変換
+function convertSseToWsEvent(sseEvent) {
+  const mapping = {
+    'status': 'progress',
+    'stream': 'stream',
+    'done': 'completed',
+    'error': 'failed'
+  };
+  return {
+    type: mapping[sseEvent.event] || sseEvent.event,
+    ...sseEvent.data
+  };
 }
 ```
 
@@ -152,16 +258,16 @@ async function runClaudeOnModal(jobId, userId, projectId, message, options) {
   });
 
   for await (const event of stream) {
-    // SSEイベント → WebSocketメッセージに変換
-    switch (event.type) {
+    const wsEvent = convertSseToWsEvent(event);
+    switch (wsEvent.type) {
       case 'stream':
-        jobManager.sendProgress(jobId, event.data.content);
+        jobManager.notifySubscribers(jobId, { type: 'stream', content: wsEvent.content });
         break;
-      case 'done':
-        jobManager.completeJob(jobId, event.data);
+      case 'completed':
+        jobManager.completeJob(jobId, wsEvent.result);
         break;
-      case 'error':
-        jobManager.failJob(jobId, event.data.error);
+      case 'failed':
+        jobManager.failJob(jobId, wsEvent.error);
         break;
     }
   }
@@ -170,7 +276,7 @@ async function runClaudeOnModal(jobId, userId, projectId, message, options) {
 
 ---
 
-## 4. セキュリティ要件（4層防御）
+## 7. セキュリティ要件（4層防御）
 
 | 層 | 実装箇所 | 検証内容 |
 |----|----------|----------|
@@ -187,7 +293,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 ---
 
-## 5. 環境変数
+## 8. 環境変数
 
 ### Express側（追加）
 
@@ -202,16 +308,17 @@ MODAL_SECRET=your-shared-secret   # X-Modal-Secretヘッダー用
 
 ```bash
 # Modal Secrets として設定
+# ※ Supabase認証情報は含めない（DB操作はExpress側で行う）
 modal secret create dreamcore-secrets \
   ANTHROPIC_API_KEY=sk-ant-xxx \
-  MODAL_SECRET=your-shared-secret \
-  SUPABASE_URL=https://xxx.supabase.co \
-  SUPABASE_SERVICE_ROLE_KEY=xxx
+  MODAL_SECRET=your-shared-secret
 ```
+
+**重要**: `SUPABASE_URL` や `SUPABASE_SERVICE_ROLE_KEY` は Modal に渡さない。DB操作は Express 側に集約する。
 
 ---
 
-## 6. Modal Volume 設定
+## 9. Modal Volume 設定
 
 ```bash
 # ボリューム作成
@@ -241,13 +348,17 @@ dreamcore-global  → /skills      # 共有スキル（読み取り専用）
 
 ---
 
-## 7. テスト計画
+## 10. テスト計画
 
 ### Phase 1: Modal単体テスト
 
 ```bash
-# Modal CLIでローカルテスト
-modal run modal_app/sandbox.py::generate --input '{"user_id":"test","project_id":"test","message":"hello"}'
+# Modal CLIでローカルテスト（有効なUUID形式を使用）
+modal run modal_app/sandbox.py::generate --input '{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "project_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+  "message": "hello"
+}'
 ```
 
 ### Phase 2: 統合テスト
@@ -265,7 +376,7 @@ modal run modal_app/sandbox.py::generate --input '{"user_id":"test","project_id"
 
 ---
 
-## 8. ロールバック計画
+## 11. ロールバック計画
 
 ```javascript
 // config.js
@@ -281,20 +392,21 @@ const USE_MODAL = process.env.USE_MODAL === 'true';
 
 ---
 
-## 9. 実装優先順位
+## 12. 実装優先順位
 
-| 優先度 | タスク | 担当 |
-|--------|--------|------|
-| 1 | Modal sandbox.py 基本実装 | Modal側 |
-| 2 | modalClient.js 実装 | Express側 |
-| 3 | claudeRunner.js 統合 | Express側 |
-| 4 | SSE→WS変換テスト | 統合 |
-| 5 | Volume永続化テスト | Modal側 |
-| 6 | 本番デプロイ・監視設定 | 両方 |
+| 優先度 | タスク | 状態 | 担当 |
+|--------|--------|------|------|
+| 1 | Modal sandbox.py 基本実装 | ✅ 動作確認済み | Modal側 |
+| 2 | modalClient.js 実装 | 未着手 | Express側 |
+| 3 | claudeRunner.js 統合 | 未着手 | Express側 |
+| 4 | SSE→WS変換テスト | 未着手 | 統合 |
+| 5 | Volume永続化テスト | 未着手 | Modal側 |
+| 6 | アセット管理復活 | 未着手 | Express側 |
+| 7 | 本番デプロイ・監視設定 | 未着手 | 両方 |
 
 ---
 
-## 10. 質問・連絡先
+## 13. 質問・連絡先
 
 不明点があれば以下を参照:
 - 移行計画の詳細: `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-MIGRATION-PLAN.md`
@@ -303,4 +415,10 @@ const USE_MODAL = process.env.USE_MODAL === 'true';
 
 ---
 
-**重要**: フロントエンドは一切変更しません。WebSocket通信はそのまま維持し、Express側でSSE→WebSocket変換を行います。
+## 重要ポイント（まとめ）
+
+1. **フロントエンドは一切変更しない** - WebSocket通信はそのまま維持
+2. **ExpressはUX/API契約の本体** - 中継だけでなくDB・認証・アセット管理を担当
+3. **Modalは実行専用** - Claude CLI / Python / Git / ファイルI/O のみ
+4. **DB操作はExpress集約** - ModalにSupabase認証情報を渡さない
+5. **SSE→WS変換は固定マッピング** - status→progress, stream→stream, done→completed, error→failed
