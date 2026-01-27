@@ -372,9 +372,9 @@ getActiveJob(projectId)  // アクティブジョブ取得
 
 ---
 
-## Phase 1 スコープ
+## 機能スコープ
 
-- **Creator機能のみ**（ゲーム作成・プレビュー・保存）
-- **公開機能なし**
-- `/play/:projectId` - owner-onlyプレビュー
-- `/discover` - 静的ページ（Phase 2準備中表示）
+**DreamCore-V2 の現状仕様に完全に従う。機能削減はしない。**
+
+各エンドポイント・ページの挙動は DreamCore-V2 の実装をそのまま引き継ぐ。
+参照: `/Users/admin/DreamCore-V2/`
