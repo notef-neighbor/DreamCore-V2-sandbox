@@ -903,6 +903,12 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
     return res.status(403).json({ error: 'Access denied' });
   }
 
+  // Path traversal protection (applies to both Modal and local modes)
+  // Reject paths containing .. or starting with /
+  if (filename.includes('..') || filename.startsWith('/')) {
+    return res.status(400).json({ error: 'Invalid file path' });
+  }
+
   const ext = path.extname(filename).toLowerCase();
   const contentTypes = {
     '.html': 'text/html',
