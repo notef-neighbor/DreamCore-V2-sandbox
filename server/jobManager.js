@@ -195,7 +195,9 @@ class JobManager extends EventEmitter {
   // Cancel a job
   async cancelJob(jobId) {
     const runningJob = this.runningJobs.get(jobId);
+    console.log(`[cancelJob] jobId=${jobId}, found in runningJobs: ${!!runningJob}, hasCancel: ${!!(runningJob && runningJob.cancel)}`);
     if (runningJob && runningJob.cancel) {
+      console.log(`[cancelJob] Calling abort for job ${jobId}`);
       runningJob.cancel();
     }
 
@@ -209,6 +211,7 @@ class JobManager extends EventEmitter {
 
   // Register a running process for a job
   registerProcess(jobId, process, cancelFn, options = {}) {
+    console.log(`[registerProcess] Registering job ${jobId} with cancel function`);
     this.runningJobs.set(jobId, {
       process,
       cancel: cancelFn,
