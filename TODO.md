@@ -33,6 +33,32 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ---
 
+## 将来の機能拡張（調査済み・計画中）
+
+**計画書:** `.claude/docs/session-persistence-plan.md`
+
+**参照リポジトリ:**
+- [claudex](https://github.com/Mng-dev-ai/claudex) - Multi-provider、スキルシステム
+- [modal-claude-agent-sdk](https://github.com/sshh12/modal-claude-agent-sdk-python) - セキュリティパターン
+- [claude-slack-gif-creator](https://github.com/modal-projects/claude-slack-gif-creator) - 永続 Sandbox、セッション管理
+
+### 高優先度（Phase 3）
+- [ ] **CIDR Allowlist** - ネットワーク制限改善（Anthropic API のみ許可）
+- [ ] **Idle Timeout** - 未使用 Sandbox 自動終了（20分、コスト削減）
+- [ ] **エラー分類改善** - exit_code 追跡、エラータイプ分類
+
+### 中優先度（Phase 4）
+- [ ] **セッション永続化** - Claude が会話履歴を記憶（`resume` パラメータ）
+- [ ] **API キープロキシ** - Sandbox に API キーを渡さないセキュリティ強化
+- [ ] **永続 Sandbox** - ユーザー/プロジェクト単位で Sandbox を維持
+
+### 低優先度（将来）
+- [ ] カスタムスキル ZIP 配布（ゲームテンプレート）
+- [ ] Host Tools パターン（Express 側でのアセット検索）
+- [ ] Multi-Provider 抽象化（Modal 以外への切り替え）
+
+---
+
 ## 作業履歴
 
 ### 2026-01-28: ローカルキャッシュ実装（プレビュー高速化）
@@ -350,6 +376,7 @@ cron: */5 * * * *
 |----------|------|
 | `CLAUDE.md` | プロジェクト全体のルール・方針 |
 | `.claude/plans/supabase-refactoring.md` | リファクタリング計画 |
+| `.claude/docs/session-persistence-plan.md` | セッション永続化計画（将来機能） |
 | `.claude/logs/` | 作業ログ（日付別） |
 
 ---

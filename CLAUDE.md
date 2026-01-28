@@ -78,6 +78,10 @@ DreamCore-V2 のユーザーが、何の違和感もなく使える状態
 - `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-MIGRATION-PLAN.md`
 - `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-DESIGN.md`
 
+## 将来の機能拡張
+
+計画書: `.claude/docs/session-persistence-plan.md`（セッション永続化、CIDR Allowlist 等）
+
 ---
 
 ## Supabase 設定（DreamCore-V2 と共有）
