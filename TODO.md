@@ -44,13 +44,14 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ### 高優先度（Phase 3）
 - [ ] **CIDR Allowlist** - ネットワーク制限改善（Anthropic API のみ許可）
-- [ ] **Idle Timeout** - 未使用 Sandbox 自動終了（20分、コスト削減）
+- [x] **Idle Timeout** - 未使用 Sandbox 自動終了（20分、コスト削減）✅ 2026-01-28
 - [ ] **エラー分類改善** - exit_code 追跡、エラータイプ分類
 
 ### 中優先度（Phase 4）
 - [ ] **セッション永続化** - Claude が会話履歴を記憶（`resume` パラメータ）
 - [ ] **API キープロキシ** - Sandbox に API キーを渡さないセキュリティ強化
-- [ ] **永続 Sandbox** - ユーザー/プロジェクト単位で Sandbox を維持
+- [x] **Sandbox 再利用** - プロジェクト単位で Sandbox を維持（20分 TTL）✅ 2026-01-28
+- [ ] **Sandbox 上限** - ユーザーあたり最大3個の制限（Phase 2）
 
 ### 低優先度（将来）
 - [ ] カスタムスキル ZIP 配布（ゲームテンプレート）
@@ -60,6 +61,30 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 ---
 
 ## 作業履歴
+
+### 2026-01-28: Sandbox 再利用機能（リクエスト高速化）
+
+**詳細:** `.claude/logs/2026-01-28-sandbox-reuse-implementation.md`
+
+**問題:** 毎リクエストで Sandbox を作成→破棄するため、コールドスタート（約10秒）が毎回発生
+
+**実装内容:**
+- Named Sandbox パターン: `from_name()` で既存 Sandbox を取得、なければ `create()`
+- 命名規則: `dreamcore-{sha256(user_id:project_id)[:12]}`
+- `idle_timeout=20分`: アイドル時に自動終了
+- `timeout=5時間`: 最大寿命
+- `terminate()` 削除: Sandbox は自動終了に任せる
+- `sandbox_reused` フラグ: debug イベントで warm/cold を報告
+
+**設計判断:**
+- Sandbox 上限（3個）は Phase 2 で実装（TTL で十分、列挙 API なし）
+- Skills はコピー方式維持（`CLAUDE_SKILLS_PATH` 未検証のため安全側を優先）
+
+**効果:**
+- 初回: 26秒（変わらず）
+- 2回目以降: 15秒（約10秒短縮）
+
+---
 
 ### 2026-01-28: ローカルキャッシュ実装（プレビュー高速化）
 
