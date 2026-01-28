@@ -35,6 +35,37 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ## 作業履歴
 
+### 2026-01-28: Modal generate_game volumes 修正
+
+**詳細:** `.claude/logs/2026-01-28-modal-volumes-fix.md`
+
+**問題:** バグフィックス時に Claude Code CLI がエラー「Modal function has no attached volumes」
+
+**原因:** `generate_game` 関数のデコレータに `volumes=` パラメータが欠落
+
+**修正箇所:**
+- `/Users/admin/DreamCore-V2-modal/modal/app.py`: `generate_game` に volumes 追加
+
+**解決:** Modal 再デプロイで修正完了
+
+---
+
+### 2026-01-28: Modal await 不足修正
+
+**詳細:** `.claude/logs/2026-01-28-modal-await-fix.md`
+
+**問題:** 既存プロジェクトで追加プロンプトを送ると、毎回「2D/3D」選択が表示される
+
+**原因:** `listProjectFiles` / `readProjectFile` が Modal 環境で Promise を返すが、呼び出し側で await していなかった
+
+**修正箇所:**
+- `server/index.js`: 2箇所
+- `server/claudeRunner.js`: 9箇所（map内は `Promise.all` に変更）
+
+**解決:** 既存プロジェクトで2D/3D選択が出なくなった
+
+---
+
 ### 2026-01-28: Modal ウォームアップ設定
 
 **詳細:** `.claude/logs/2026-01-28-modal-warmup-setup.md`
@@ -286,4 +317,4 @@ cron: */5 * * * *
 
 ---
 
-最終更新: 2026-01-28 (Modal ウォームアップ設定)
+最終更新: 2026-01-28 (Modal generate_game volumes 修正)

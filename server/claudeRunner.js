@@ -1863,7 +1863,10 @@ ${skillInstructions}
 
       // Process result
       if (exitCode === 0 || exitCode === null) {
-        // Read updated file from Modal
+        // Sync files from Modal to local for fast preview
+        await userManager.syncFromModal(userId, projectId);
+
+        // Read updated file (now from local)
         const currentHtml = await userManager.readProjectFile(userId, projectId, 'index.html');
 
         // Use collected assistant text or default message

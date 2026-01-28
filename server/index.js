@@ -934,7 +934,35 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
   const binaryExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.wav', '.ogg', '.woff', '.woff2', '.ttf'];
   const isBinary = binaryExtensions.includes(ext);
 
-  // USE_MODAL=true: Serve files from Modal Volume
+  // Try local filesystem first (fast path after sync)
+  const projectDir = getProjectPath(userId, projectId);
+  const localFilePath = path.join(projectDir, filename);
+
+  // Check if file exists locally
+  if (fs.existsSync(localFilePath) && isPathSafe(projectDir, localFilePath)) {
+    res.type(contentTypes[ext] || 'application/octet-stream');
+
+    if (isBinary) {
+      return res.sendFile(localFilePath);
+    }
+
+    let content = fs.readFileSync(localFilePath, 'utf-8');
+
+    // Inject error detection script into HTML files
+    if (ext === '.html' && filename === 'index.html') {
+      if (content.includes('<head>')) {
+        content = content.replace('<head>', '<head>' + ERROR_DETECTION_SCRIPT);
+      } else if (content.includes('<HEAD>')) {
+        content = content.replace('<HEAD>', '<HEAD>' + ERROR_DETECTION_SCRIPT);
+      } else {
+        content = ERROR_DETECTION_SCRIPT + content;
+      }
+    }
+
+    return res.send(content);
+  }
+
+  // Fallback to Modal if file not found locally and USE_MODAL=true
   if (config.USE_MODAL) {
     try {
       const client = getModalClient();
@@ -947,7 +975,6 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
       res.type(contentTypes[ext] || 'application/octet-stream');
 
       if (isBinary) {
-        // Binary content is already a Buffer
         res.send(content);
       } else {
         let textContent = content;
@@ -965,55 +992,15 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
 
         res.send(textContent);
       }
+      return;
     } catch (err) {
       console.error('[Modal getFile error]', err.message);
       return res.status(500).json({ error: 'Failed to fetch file from Modal' });
     }
-    return;
   }
 
-  // USE_MODAL=false: Serve files from local filesystem
-  const projectDir = getProjectPath(userId, projectId);
-  if (!fs.existsSync(projectDir)) {
-    return res.status(404).json({ error: 'Project not found' });
-  }
-
-  const filePath = path.join(projectDir, filename);
-
-  // Path traversal protection
-  if (!isPathSafe(projectDir, filePath)) {
-    return res.status(400).json({ error: 'Invalid file path' });
-  }
-
-  if (fs.existsSync(filePath)) {
-    res.type(contentTypes[ext] || 'application/octet-stream');
-
-    if (isBinary) {
-      // Send binary files directly
-      res.sendFile(filePath);
-    } else {
-      let content = fs.readFileSync(filePath, 'utf-8');
-
-      // Inject error detection script into HTML files
-      if (ext === '.html' && filename === 'index.html') {
-        // Inject right after <head> tag
-        if (content.includes('<head>')) {
-          content = content.replace('<head>', '<head>' + ERROR_DETECTION_SCRIPT);
-        } else if (content.includes('<HEAD>')) {
-          content = content.replace('<HEAD>', '<HEAD>' + ERROR_DETECTION_SCRIPT);
-        } else {
-          // No head tag, prepend to content
-          content = ERROR_DETECTION_SCRIPT + content;
-        }
-
-        // V2: Token injection removed - assets served via /user-assets/{userId}/{alias}
-      }
-
-      res.send(content);
-    }
-  } else {
-    res.status(404).send('File not found');
-  }
+  // File not found locally and Modal not enabled
+  return res.status(404).send('File not found');
 });
 
 // ==================== WebSocket Connection Handling ====================
@@ -1484,6 +1471,9 @@ wss.on('connection', (ws) => {
           }
           const restoreResult = await userManager.restoreVersion(userId, data.projectId, data.versionId);
           if (restoreResult.success) {
+            // Sync restored files from Modal to local for fast preview
+            await userManager.syncFromModal(userId, data.projectId);
+
             safeSend({
               type: 'versionRestored',
               projectId: data.projectId,

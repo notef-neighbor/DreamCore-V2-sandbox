@@ -470,6 +470,68 @@ const readProjectFileModal = async (userId, projectId, filename) => {
 };
 
 /**
+ * Sync project files from Modal Volume to local filesystem
+ * Call this after Modal operations (Claude, Gemini, restore) to enable fast preview
+ * @param {string} userId - User ID (Supabase Auth UUID)
+ * @param {string} projectId - Project ID
+ * @returns {Promise<number>} Number of files synced
+ */
+const syncFromModal = async (userId, projectId) => {
+  if (!config.USE_MODAL) {
+    return 0;  // No-op when not using Modal
+  }
+
+  const startTime = Date.now();
+  const projectDir = ensureProjectDir(userId, projectId);
+  const client = getModalClient();
+
+  try {
+    // List all files from Modal
+    const files = await client.listFiles(userId, projectId);
+    if (!files || files.length === 0) {
+      console.log(`[syncFromModal] No files to sync for project ${projectId}`);
+      return 0;
+    }
+
+    let syncedCount = 0;
+
+    // Download and write each file
+    for (const filename of files) {
+      try {
+        const content = await client.getFile(userId, projectId, filename);
+        if (content === null) continue;
+
+        const filePath = path.join(projectDir, filename);
+        const fileDir = path.dirname(filePath);
+
+        // Ensure subdirectory exists
+        if (!fs.existsSync(fileDir)) {
+          fs.mkdirSync(fileDir, { recursive: true });
+        }
+
+        // Write file (Buffer for binary, string for text)
+        if (Buffer.isBuffer(content)) {
+          fs.writeFileSync(filePath, content);
+        } else {
+          fs.writeFileSync(filePath, content, 'utf-8');
+        }
+
+        syncedCount++;
+      } catch (fileErr) {
+        console.error(`[syncFromModal] Failed to sync ${filename}:`, fileErr.message);
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[syncFromModal] Synced ${syncedCount}/${files.length} files in ${elapsed}ms`);
+    return syncedCount;
+  } catch (err) {
+    console.error(`[syncFromModal] Error:`, err.message);
+    return 0;
+  }
+};
+
+/**
  * Write a file to a project directory
  * @param {Object} client - Supabase client with user's JWT (optional, uses admin if null)
  * @param {string} userId - User ID (from Supabase Auth)
@@ -1199,6 +1261,7 @@ module.exports = {
   readProjectFile,
   writeProjectFile,        // async, requires client param
   saveGeneratedImage,      // async, requires client param
+  syncFromModal,           // async, sync Modal Volume -> local FS
 
   // Chat operations (async, require client param)
   getConversationHistory,
