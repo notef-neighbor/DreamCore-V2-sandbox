@@ -1428,11 +1428,12 @@ wss.on('connection', (ws) => {
             safeSend({ type: 'error', message: 'Access denied' });
             return;
           }
-          const versions = await userManager.getVersions(userId, data.projectId);
+          const versionResult = await userManager.getVersions(userId, data.projectId);
           safeSend({
             type: 'versionsList',
             projectId: data.projectId,
-            versions
+            versions: versionResult.versions,
+            currentHead: versionResult.currentHead
           });
           break;
 

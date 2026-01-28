@@ -829,6 +829,9 @@ const createVersionSnapshot = (userId, projectId, message = '', aiContext = null
   const hash = commitToProject(projectDir, message || 'Update');
 
   if (hash) {
+    // Clear current version tracking (latest commit is now "current")
+    setCurrentVersion(projectDir, null);
+
     // Log activity
     logActivity('update', 'project', projectId, message);
     return { id: hash, message };
@@ -837,13 +840,51 @@ const createVersionSnapshot = (userId, projectId, message = '', aiContext = null
   return null;
 };
 
+// ==================== Current Version Tracking ====================
+
+/**
+ * Get the currently displayed version for a project
+ * (Tracks which version was last restored or is being viewed)
+ * @param {string} projectDir - Project directory path
+ * @returns {string|null} Version hash or null if not set (defaults to latest)
+ */
+const getCurrentVersion = (projectDir) => {
+  const versionFile = path.join(projectDir, '.current-version');
+  try {
+    if (fs.existsSync(versionFile)) {
+      return fs.readFileSync(versionFile, 'utf8').trim();
+    }
+  } catch (e) {
+    // Ignore read errors
+  }
+  return null;
+};
+
+/**
+ * Set the currently displayed version for a project
+ * @param {string} projectDir - Project directory path
+ * @param {string|null} versionHash - Version hash to set, or null to clear
+ */
+const setCurrentVersion = (projectDir, versionHash) => {
+  const versionFile = path.join(projectDir, '.current-version');
+  try {
+    if (versionHash) {
+      fs.writeFileSync(versionFile, versionHash, 'utf8');
+    } else if (fs.existsSync(versionFile)) {
+      fs.unlinkSync(versionFile);
+    }
+  } catch (e) {
+    console.warn('[setCurrentVersion] Error:', e.message);
+  }
+};
+
 /**
  * Get version history for a project
  * @param {string} userId - User ID
  * @param {string} projectId - Project ID
  * @param {Object} [options={}] - Options
  * @param {boolean} [options.includeEdits] - Include edit diffs
- * @returns {Array|Promise<Array>} Array of version objects
+ * @returns {Object|Promise<Object>} { versions: Array, currentHead: string|null }
  *
  * Note: Returns Promise when USE_MODAL=true
  */
@@ -862,11 +903,11 @@ const getVersionsLocal = (userId, projectId, options = {}) => {
   const projectDir = getProjectDir(userId, projectId);
 
   if (!fs.existsSync(path.join(projectDir, '.git'))) {
-    return [];
+    return { versions: [], currentHead: null };
   }
 
   const logOutput = execGitSafe(['log', '--pretty=format:%h|%s|%ai', '-50'], projectDir);
-  if (!logOutput) return [];
+  if (!logOutput) return { versions: [], currentHead: null };
 
   // Filter out internal commits
   const restorePatterns = ['Before restore', 'Restored to', 'Initial project setup', 'Migration from'];
@@ -904,11 +945,17 @@ const getVersionsLocal = (userId, projectId, options = {}) => {
     }
   }
 
-  return versions.slice(0, 20);
+  const finalVersions = versions.slice(0, 20);
+  // Get current version from tracking file, or default to latest
+  const currentHead = getCurrentVersion(projectDir) || (finalVersions[0]?.id || null);
+
+  return { versions: finalVersions, currentHead };
 };
 
 // Modal git log
 const getVersionsModal = async (userId, projectId, options = {}) => {
+  const projectDir = getProjectDir(userId, projectId);
+
   try {
     const client = getModalClient();
     const commits = await client.gitLog(userId, projectId, 50);
@@ -950,10 +997,14 @@ const getVersionsModal = async (userId, projectId, options = {}) => {
       }
     }
 
-    return versions.slice(0, 20);
+    const finalVersions = versions.slice(0, 20);
+    // Get current version from local tracking file, or default to latest
+    const currentHead = getCurrentVersion(projectDir) || (finalVersions[0]?.id || null);
+
+    return { versions: finalVersions, currentHead };
   } catch (err) {
     console.error('[getVersionsModal] Error:', err.message);
-    return [];
+    return { versions: [], currentHead: null };
   }
 };
 
@@ -1049,6 +1100,9 @@ const restoreVersionLocal = (userId, projectId, versionId) => {
       console.log('Deleted SPEC.md (not in restored version)');
     }
 
+    // Track which version is now being displayed
+    setCurrentVersion(projectDir, versionId);
+
     // Don't create a new commit - just restore the files
     // User's history remains clean with only their actual changes
     return { success: true, versionId, needsSpecRegeneration: true };
@@ -1059,11 +1113,16 @@ const restoreVersionLocal = (userId, projectId, versionId) => {
 
 // Modal git restore
 const restoreVersionModal = async (userId, projectId, versionId) => {
+  const projectDir = getProjectDir(userId, projectId);
+
   try {
     const client = getModalClient();
     const result = await client.gitRestore(userId, projectId, versionId);
 
     if (result.success) {
+      // Track which version is now being displayed (in local cache)
+      setCurrentVersion(projectDir, versionId);
+
       return {
         success: true,
         versionId,

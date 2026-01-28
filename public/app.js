@@ -2005,7 +2005,11 @@ class GameCreatorApp {
         break;
 
       case 'versionsList':
-        console.log('versionsList received, pendingRestore:', this.pendingRestore, 'versions:', data.versions?.length);
+        console.log('versionsList received, pendingRestore:', this.pendingRestore, 'versions:', data.versions?.length, 'currentHead:', data.currentHead);
+        // Set current version from server (persisted across page reloads)
+        if (data.currentHead) {
+          this.currentVersionId = data.currentHead;
+        }
         // Check if we have a pending restore request
         if (this.pendingRestore && data.versions && data.versions.length >= 2) {
           this.pendingRestore = false;
