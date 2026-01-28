@@ -99,6 +99,8 @@ class GameCreatorApp {
     // Restore modal elements
     this.restoreModal = document.getElementById('restoreModal');
     this.restoreModalMessage = document.getElementById('restoreModalMessage');
+    this.restoreModalBody = document.querySelector('#restoreModal .restore-modal-body');
+    this.restoreModalActions = document.querySelector('#restoreModal .restore-modal-actions');
     this.cancelRestore = document.getElementById('cancelRestore');
     this.confirmRestoreBtn = document.getElementById('confirmRestore');
     this.pendingRestoreVersionId = null;
@@ -1950,6 +1952,8 @@ class GameCreatorApp {
 
       case 'error':
         this.hideStreaming();
+        this.hideRestoreModal();
+        this.resetRestoreModal();
         this.addMessage(data.message, 'error');
         this.updateStatus('connected', '接続中');
         this.isProcessing = false;
@@ -2024,10 +2028,13 @@ class GameCreatorApp {
 
       case 'restoreProgress':
         this.updateStreamingStatus(data.message);
+        this.updateRestoreLoading(data.message);
         break;
 
       case 'versionRestored':
         this.completeStreaming();
+        this.hideRestoreModal();
+        this.resetRestoreModal();
         this.currentVersionId = data.versionId;
         this.addMessage(`バージョン ${data.versionId} に戻しました`, 'system');
         this.hideVersionPanel();
@@ -3276,13 +3283,53 @@ class GameCreatorApp {
     this.pendingRestoreVersionId = null;
   }
 
+  showRestoreLoading(message) {
+    // Switch modal body to loading state
+    if (this.restoreModalBody) {
+      this.restoreModalBody.innerHTML = `
+        <div class="restore-modal-loading">
+          <div class="spinner"></div>
+          <span class="restore-modal-loading-text">${message}</span>
+        </div>
+      `;
+    }
+    // Hide action buttons
+    if (this.restoreModalActions) {
+      this.restoreModalActions.style.display = 'none';
+    }
+  }
+
+  updateRestoreLoading(message) {
+    const textEl = this.restoreModal?.querySelector('.restore-modal-loading-text');
+    if (textEl) {
+      textEl.textContent = message;
+    }
+  }
+
+  resetRestoreModal() {
+    // Restore modal to original state for next use
+    if (this.restoreModalBody) {
+      this.restoreModalBody.innerHTML = `
+        <p id="restoreModalMessage">このバージョンに戻しますか？</p>
+        <p class="restore-modal-hint">現在のバージョンにもいつでも戻れます</p>
+      `;
+      this.restoreModalMessage = document.getElementById('restoreModalMessage');
+    }
+    if (this.restoreModalActions) {
+      this.restoreModalActions.style.display = '';
+    }
+  }
+
   confirmRestore() {
     if (!this.pendingRestoreVersionId || !this.currentProjectId) {
       this.hideRestoreModal();
       return;
     }
 
-    // Show loading immediately for user feedback
+    // Show loading in the modal (for mobile users on preview screen)
+    this.showRestoreLoading('バージョン復元中...');
+
+    // Also show streaming UI (for desktop users on chat screen)
     this.showStreaming();
     this.updateStreamingStatus('バージョン復元中...');
 
@@ -3291,8 +3338,6 @@ class GameCreatorApp {
       projectId: this.currentProjectId,
       versionId: this.pendingRestoreVersionId
     }));
-
-    this.hideRestoreModal();
   }
 
   // Streaming methods
