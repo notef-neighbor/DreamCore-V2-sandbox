@@ -1994,6 +1994,9 @@ class GameCreatorApp {
           // after the AbortError propagates through the async stack
           setTimeout(() => {
             this.limitExceededRetryPending = false;
+            // Reset processing state to allow resend
+            this.isProcessing = false;
+            this.sendButton.disabled = false;
             // Restore attached assets if any
             if (pendingData.attachedAssets && pendingData.attachedAssets.length > 0) {
               this.attachedAssetsList = pendingData.attachedAssets.slice();
