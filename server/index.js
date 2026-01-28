@@ -25,6 +25,16 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { supabaseAdmin } = require('./supabaseClient');
 const { ErrorCodes, createWsError, sendHttpError } = require('./errorResponse');
+const config = require('./config');
+
+// Lazy-load Modal client (only when USE_MODAL=true)
+let modalClient = null;
+function getModalClient() {
+  if (!modalClient) {
+    modalClient = require('./modalClient');
+  }
+  return modalClient;
+}
 
 /**
  * Safe async git commit (no shell interpolation)
@@ -893,12 +903,6 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
     return res.status(403).json({ error: 'Access denied' });
   }
 
-  // Filesystem check (no DB query needed - ownership verified above)
-  const projectDir = getProjectPath(userId, projectId);
-  if (!fs.existsSync(projectDir)) {
-    return res.status(404).json({ error: 'Project not found' });
-  }
-
   const ext = path.extname(filename).toLowerCase();
   const contentTypes = {
     '.html': 'text/html',
@@ -924,7 +928,50 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
   const binaryExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.wav', '.ogg', '.woff', '.woff2', '.ttf'];
   const isBinary = binaryExtensions.includes(ext);
 
-  // projectDir is already defined above for existence check
+  // USE_MODAL=true: Serve files from Modal Volume
+  if (config.USE_MODAL) {
+    try {
+      const client = getModalClient();
+      const content = await client.getFile(userId, projectId, filename);
+
+      if (content === null) {
+        return res.status(404).send('File not found');
+      }
+
+      res.type(contentTypes[ext] || 'application/octet-stream');
+
+      if (isBinary) {
+        // Binary content is already a Buffer
+        res.send(content);
+      } else {
+        let textContent = content;
+
+        // Inject error detection script into HTML files
+        if (ext === '.html' && filename === 'index.html') {
+          if (textContent.includes('<head>')) {
+            textContent = textContent.replace('<head>', '<head>' + ERROR_DETECTION_SCRIPT);
+          } else if (textContent.includes('<HEAD>')) {
+            textContent = textContent.replace('<HEAD>', '<HEAD>' + ERROR_DETECTION_SCRIPT);
+          } else {
+            textContent = ERROR_DETECTION_SCRIPT + textContent;
+          }
+        }
+
+        res.send(textContent);
+      }
+    } catch (err) {
+      console.error('[Modal getFile error]', err.message);
+      return res.status(500).json({ error: 'Failed to fetch file from Modal' });
+    }
+    return;
+  }
+
+  // USE_MODAL=false: Serve files from local filesystem
+  const projectDir = getProjectPath(userId, projectId);
+  if (!fs.existsSync(projectDir)) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
   const filePath = path.join(projectDir, filename);
 
   // Path traversal protection
