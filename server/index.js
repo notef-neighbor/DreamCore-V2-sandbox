@@ -1351,7 +1351,8 @@ wss.on('connection', (ws) => {
                   jobs: activeJobs,
                   // Store pending prompt info for retry after cancel
                   pendingPrompt: {
-                    content: data.content,
+                    content: data.rawContent || data.content,  // Prefer raw user input
+                    attachedAssets: data.attachedAssets || [],
                     selectedStyle: data.selectedStyle
                   }
                 });

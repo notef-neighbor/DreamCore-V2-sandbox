@@ -1989,6 +1989,11 @@ class GameCreatorApp {
           this.pendingLimitExceededPrompt = null;
           // Small delay to ensure slot is released
           setTimeout(() => {
+            // Restore attached assets if any
+            if (pendingData.attachedAssets && pendingData.attachedAssets.length > 0) {
+              this.attachedAssetsList = pendingData.attachedAssets.slice();
+              this.renderAttachedAssets();
+            }
             // Set the input value and call sendMessage (it reads from chatInput)
             if (this.chatInput && pendingData.content) {
               this.chatInput.value = pendingData.content;
@@ -2385,6 +2390,8 @@ class GameCreatorApp {
     this.ws.send(JSON.stringify({
       type: 'message',
       content: finalContent,
+      rawContent: content,  // Original user input (for pendingPrompt restore)
+      attachedAssets: this.attachedAssetsList.slice(),  // For pendingPrompt restore
       debugOptions
     }));
   }
