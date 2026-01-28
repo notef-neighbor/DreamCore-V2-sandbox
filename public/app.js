@@ -1989,7 +1989,11 @@ class GameCreatorApp {
           this.pendingLimitExceededPrompt = null;
           // Small delay to ensure slot is released
           setTimeout(() => {
-            this.sendMessage(pendingData.content, pendingData.selectedStyle);
+            // Set the input value and call sendMessage (it reads from chatInput)
+            if (this.chatInput && pendingData.content) {
+              this.chatInput.value = pendingData.content;
+              this.sendMessage();
+            }
           }, 100);
         }
         break;
