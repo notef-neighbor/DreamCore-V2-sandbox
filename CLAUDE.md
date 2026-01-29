@@ -110,6 +110,10 @@ api.anthropic.com / generativelanguage.googleapis.com
 
 計画書: `.claude/docs/session-persistence-plan.md`（セッション永続化、CIDR Allowlist 等）
 
+## 公開ゲームのセキュリティ
+
+iframe sandbox 設定: `docs/IFRAME-SECURITY.md`（sandbox 属性、Permissions Policy の詳細）
+
 ---
 
 ## Supabase 設定（DreamCore-V2 と共有）
@@ -249,6 +253,7 @@ cron: */5 * * * *
 - `docs/ENGINEER-HANDOFF.md` - **Modal統合の引き継ぎ文書（必読）**
 - `docs/MODAL-MIGRATION-PLAN.md` - Modal移行計画
 - `docs/MODAL-DESIGN.md` - Modal技術設計
+- `docs/API-REFERENCE.md` - **API/エンドポイント一覧（実装準拠）**
 - `.claude/plans/auth-migration.md` - 認証移行ドキュメント（実装の詳細）
 - `.claude/plans/sandbox-architecture.md` - セキュリティ/サンドボックス設計
 - `server/authMiddleware.js` - 認証ミドルウェア
