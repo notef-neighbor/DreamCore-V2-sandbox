@@ -29,23 +29,22 @@
   <meta name="description" content="チャットで会話するだけで、オリジナルのゲームが作れます。">
   <!-- Early auth check + Supabase lazy loader -->
   <script>
+    // Early check temporarily disabled for debugging
+    // TODO: Re-enable after fixing OAuth flow
+    /*
     (function() {
-      // Skip early check if this is an OAuth callback or fresh navigation
       var search = window.location.search;
       var hash = window.location.hash;
-      // OAuth callback detection (code or access_token)
       if ((hash && hash.includes('access_token')) ||
           (search && (search.includes('code=') || search.includes('error=')))) {
-        return; // Let auth.js handle the OAuth callback
+        return;
       }
-      // Check for Supabase internal session (sb-*-auth-token)
       for (var i = 0; i < localStorage.length; i++) {
         var key = localStorage.key(i);
         if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
-          return; // Supabase has a session, let auth.js handle it
+          return;
         }
       }
-      // Check our own cache
       var cached = localStorage.getItem('dreamcore_session_cache');
       if (!cached) { window.location.href = '/'; return; }
       try {
@@ -53,6 +52,7 @@
         if (Date.now() - data.timestamp > 300000) { window.location.href = '/'; }
       } catch(e) { window.location.href = '/'; }
     })();
+    */
     window.__SUPABASE__ = {
       url: 'https://tcynrijrovktirsvwiqb.supabase.co',
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjeW5yaWpyb3ZrdGlyc3Z3aXFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjY5OTAsImV4cCI6MjA4NDYwMjk5MH0.y-_E-vuQg84t8BGISdPL18oaYcayS8ip1OLJsZwM3hI'
