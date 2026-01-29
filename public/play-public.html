@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Play Game - DreamCore</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            max-width: 56.25vh; /* 9:16 aspect ratio (mobile portrait) */
+            border: none;
+            background: #111;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #333;
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <div>Loading game...</div>
+        </div>
+        <div class="error" id="error">
+            <div>Game not found</div>
+        </div>
+        <!-- Security: allow-same-origin removed to prevent iframe from accessing parent -->
+        <iframe id="gameFrame" sandbox="allow-scripts allow-pointer-lock allow-popups" style="display:none;"></iframe>
+    </div>
+    <script>
+        (function() {
+            // Extract gameId from URL path: /g/:gameId
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            const gameId = pathParts[1]; // ['g', 'gameId']
+
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const gameFrame = document.getElementById('gameFrame');
+
+            if (!gameId) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            // Fetch game info to validate it exists and is public/unlisted
+            fetch('/api/published-games/' + gameId)
+                .then(res => {
+                    if (!res.ok) throw new Error('Game not found');
+                    return res.json();
+                })
+                .then(game => {
+                    // Load game from v2.dreamcore.gg
+                    // The game's HTML will be served from the main domain
+                    const v2Domain = 'https://v2.dreamcore.gg';
+                    gameFrame.src = v2Domain + '/g/' + gameId + '/index.html';
+                    gameFrame.style.display = 'block';
+                    loadingEl.style.display = 'none';
+                })
+                .catch(err => {
+                    console.error('Failed to load game:', err);
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'block';
+                });
+
+            // When iframe loads, increment play count
+            gameFrame.addEventListener('load', function() {
+                loadingEl.style.display = 'none';
+
+                // Increment play count (fire and forget)
+                fetch('/api/published-games/' + gameId + '/play', {
+                    method: 'POST'
+                }).catch(function() {
+                    // Ignore errors - play count is not critical
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

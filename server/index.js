@@ -109,11 +109,19 @@ const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3
   .map(s => s.trim())
   .filter(Boolean);  // Remove empty strings
 
+// Host detection middleware for play.dreamcore.gg
+app.use((req, res, next) => {
+  req.isPlayDomain = req.get('host')?.includes('play.dreamcore.gg');
+  next();
+});
+
 app.use((req, res, next) => {
   if (req.path.startsWith('/user-assets/') ||
       req.path.startsWith('/global-assets/') ||
       req.path.startsWith('/game/') ||
-      req.path.startsWith('/api/assets/')) {
+      req.path.startsWith('/g/') ||
+      req.path.startsWith('/api/assets/') ||
+      req.path.startsWith('/api/published-games/')) {
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin);
@@ -887,6 +895,42 @@ const ERROR_DETECTION_SCRIPT = `
 </script>
 `;
 
+// Inject asset base URL and normalize /user-assets/ to absolute URLs (optional)
+const getAssetBaseUrl = (req) => {
+  if (config.ASSET_BASE_URL) {
+    return config.ASSET_BASE_URL.replace(/\/+$/, '');
+  }
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  const host = (req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+  return host ? `${proto}://${host}` : '';
+};
+
+const buildAssetInjectScript = (baseUrl) => {
+  return `\n<script>window.ASSET_BASE_URL=${JSON.stringify(baseUrl)};</script>\n`;
+};
+
+const rewriteUserAssets = (html, baseUrl) => {
+  if (!baseUrl) return html;
+  const prefix = `${baseUrl}/user-assets/`;
+  return html.replace(/(^|["'(\s])\/user-assets\//g, `$1${prefix}`);
+};
+
+const injectGameHtml = (html, req) => {
+  const assetBase = getAssetBaseUrl(req);
+  const injectScript = buildAssetInjectScript(assetBase) + ERROR_DETECTION_SCRIPT;
+  let content = rewriteUserAssets(html, assetBase);
+
+  if (content.includes('<head>')) {
+    content = content.replace('<head>', '<head>' + injectScript);
+  } else if (content.includes('<HEAD>')) {
+    content = content.replace('<HEAD>', '<HEAD>' + injectScript);
+  } else {
+    content = injectScript + content;
+  }
+
+  return content;
+};
+
 // Serve project game files (supports nested paths: js/, css/, assets/)
 // Authentication required - owner-only access (Phase 1 policy)
 app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
@@ -948,15 +992,13 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
 
     let content = fs.readFileSync(localFilePath, 'utf-8');
 
-    // Inject error detection script into HTML files
+    // Inject asset base + error detection script into HTML files
     if (ext === '.html' && filename === 'index.html') {
-      if (content.includes('<head>')) {
-        content = content.replace('<head>', '<head>' + ERROR_DETECTION_SCRIPT);
-      } else if (content.includes('<HEAD>')) {
-        content = content.replace('<HEAD>', '<HEAD>' + ERROR_DETECTION_SCRIPT);
-      } else {
-        content = ERROR_DETECTION_SCRIPT + content;
-      }
+      content = injectGameHtml(content, req);
+    } else if (['.css', '.js', '.mjs', '.json', '.html'].includes(ext)) {
+      // Normalize /user-assets/ to absolute URLs for other text assets
+      const assetBase = getAssetBaseUrl(req);
+      content = rewriteUserAssets(content, assetBase);
     }
 
     return res.send(content);
@@ -978,16 +1020,17 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
         res.send(content);
       } else {
         let textContent = content;
+        if (Buffer.isBuffer(textContent)) {
+          textContent = textContent.toString('utf-8');
+        }
 
-        // Inject error detection script into HTML files
+        // Inject asset base + error detection script into HTML files
         if (ext === '.html' && filename === 'index.html') {
-          if (textContent.includes('<head>')) {
-            textContent = textContent.replace('<head>', '<head>' + ERROR_DETECTION_SCRIPT);
-          } else if (textContent.includes('<HEAD>')) {
-            textContent = textContent.replace('<HEAD>', '<HEAD>' + ERROR_DETECTION_SCRIPT);
-          } else {
-            textContent = ERROR_DETECTION_SCRIPT + textContent;
-          }
+          textContent = injectGameHtml(textContent, req);
+        } else if (['.css', '.js', '.mjs', '.json', '.html'].includes(ext)) {
+          // Normalize /user-assets/ to absolute URLs for other text assets
+          const assetBase = getAssetBaseUrl(req);
+          textContent = rewriteUserAssets(textContent, assetBase);
         }
 
         res.send(textContent);
@@ -1000,6 +1043,270 @@ app.get('/game/:userId/:projectId/*', authenticate, async (req, res) => {
   }
 
   // File not found locally and Modal not enabled
+  return res.status(404).send('File not found');
+});
+
+// ==================== Published Games API ====================
+
+// GET /api/published-games/:id - Get published game info (public access)
+// Note: Does NOT increment play count (use POST /api/published-games/:id/play for that)
+app.get('/api/published-games/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidUUID(id)) {
+    return res.status(400).json({ error: 'Invalid game ID' });
+  }
+
+  const game = await db.getPublishedGameById(id);
+  if (!game) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  res.json(game);
+});
+
+// POST /api/published-games/:id/play - Increment play count (call when game actually starts)
+app.post('/api/published-games/:id/play', async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidUUID(id)) {
+    return res.status(400).json({ error: 'Invalid game ID' });
+  }
+
+  // Verify game exists and is public/unlisted
+  const game = await db.getPublishedGameById(id);
+  if (!game) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  // Increment play count
+  await db.incrementPlayCount(id);
+
+  res.json({ success: true });
+});
+
+// POST /api/projects/:projectId/publish - Publish a game
+app.post('/api/projects/:projectId/publish', authenticate, checkProjectOwnership, async (req, res) => {
+  const { projectId } = req.params;
+  const userId = req.user.id;
+
+  const { title, description, howToPlay, tags, visibility, allowRemix, thumbnailUrl } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  // Validate visibility
+  const validVisibilities = ['public', 'private', 'unlisted'];
+  if (visibility && !validVisibilities.includes(visibility)) {
+    return res.status(400).json({ error: 'Invalid visibility option' });
+  }
+
+  // Validate tags (must be array of strings)
+  if (tags && (!Array.isArray(tags) || tags.some(t => typeof t !== 'string'))) {
+    return res.status(400).json({ error: 'Tags must be an array of strings' });
+  }
+
+  const game = await db.publishGame(projectId, userId, {
+    title: title.trim(),
+    description: description || null,
+    howToPlay: howToPlay || null,
+    tags: tags || [],
+    visibility: visibility || 'public',
+    allowRemix: allowRemix !== false,
+    thumbnailUrl: thumbnailUrl || null
+  });
+
+  if (!game) {
+    return res.status(500).json({ error: 'Failed to publish game' });
+  }
+
+  console.log(`[publish] Game published: ${game.id} (project: ${projectId})`);
+  res.json({ success: true, gameId: game.id, game });
+});
+
+// GET /api/projects/:projectId/published - Get published status for a project
+app.get('/api/projects/:projectId/published', authenticate, checkProjectOwnership, async (req, res) => {
+  const { projectId } = req.params;
+
+  const game = await db.getPublishedGameByProjectId(req.supabase, projectId);
+  res.json({ published: !!game, game: game || null });
+});
+
+// DELETE /api/projects/:projectId/publish - Unpublish a game
+app.delete('/api/projects/:projectId/publish', authenticate, checkProjectOwnership, async (req, res) => {
+  const { projectId } = req.params;
+
+  const success = await db.unpublishGame(req.supabase, projectId);
+  if (!success) {
+    return res.status(500).json({ error: 'Failed to unpublish game' });
+  }
+
+  console.log(`[unpublish] Game unpublished: project ${projectId}`);
+  res.json({ success: true });
+});
+
+// GET /api/published-games - List public games (for discover page)
+app.get('/api/published-games', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const offset = parseInt(req.query.offset) || 0;
+
+  const games = await db.getPublicGames(limit, offset);
+  res.json({ games });
+});
+
+// GET /api/my-published-games - Get user's own published games
+app.get('/api/my-published-games', authenticate, async (req, res) => {
+  const games = await db.getPublishedGamesByUserId(req.supabase, req.user.id);
+  res.json({ games });
+});
+
+// ==================== Public Game File Serving ====================
+
+// Inject script for public games (uses fixed V2_DOMAIN, no error detection)
+const injectPublicGameHtml = (html) => {
+  // Use fixed V2_DOMAIN for consistent asset URLs
+  const assetBaseUrl = config.V2_DOMAIN || '';
+  const injection = `<script>window.ASSET_BASE_URL=${JSON.stringify(assetBaseUrl)};</script>`;
+
+  // Rewrite /user-assets/ to absolute URLs
+  let content = html;
+  if (assetBaseUrl) {
+    const prefix = `${assetBaseUrl}/user-assets/`;
+    content = content.replace(/(^|["'(\s])\/user-assets\//g, `$1${prefix}`);
+  }
+
+  if (content.includes('<head>')) {
+    content = content.replace('<head>', '<head>' + injection);
+  } else if (content.includes('<HEAD>')) {
+    content = content.replace('<HEAD>', '<HEAD>' + injection);
+  } else {
+    content = injection + content;
+  }
+
+  return content;
+};
+
+// GET /g/:gameId - Play page for play.dreamcore.gg (iframe wrapper)
+// GET /g/:gameId/* - Public game file serving for v2.dreamcore.gg
+app.get('/g/:gameId', async (req, res, next) => {
+  // If accessed from play.dreamcore.gg, serve the iframe wrapper
+  if (req.isPlayDomain) {
+    return res.sendFile(path.join(__dirname, '..', 'public', 'play-public.html'));
+  }
+  // Otherwise continue to file serving
+  next();
+});
+
+app.get('/g/:gameId/*', async (req, res) => {
+  const { gameId } = req.params;
+  const filename = req.params[0] || 'index.html';
+
+  // Validate UUID
+  if (!isValidUUID(gameId)) {
+    return res.status(400).send('Invalid game ID');
+  }
+
+  // Path traversal protection
+  if (filename.includes('..') || filename.startsWith('/')) {
+    return res.status(400).send('Invalid file path');
+  }
+
+  // Get published game info (uses admin client, returns public/unlisted only)
+  const game = await db.getPublishedGameById(gameId);
+  if (!game || !['public', 'unlisted'].includes(game.visibility)) {
+    return res.status(404).send('Game not found');
+  }
+
+  const userId = game.user_id;
+  const projectId = game.project_id;
+  const projectDir = getProjectPath(userId, projectId);
+  const localFilePath = path.join(projectDir, filename);
+
+  // Path safety check
+  if (!isPathSafe(projectDir, localFilePath)) {
+    return res.status(400).send('Invalid path');
+  }
+
+  const ext = path.extname(filename).toLowerCase();
+  const contentTypes = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.mjs': 'application/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf'
+  };
+
+  const binaryExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.wav', '.ogg', '.woff', '.woff2', '.ttf'];
+  const isBinary = binaryExtensions.includes(ext);
+
+  // Set CSP header to restrict iframe embedding
+  const playDomain = config.PLAY_DOMAIN || 'https://play.dreamcore.gg';
+  res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${playDomain}`);
+
+  // Try local filesystem first
+  if (fs.existsSync(localFilePath)) {
+    res.type(contentTypes[ext] || 'application/octet-stream');
+
+    if (isBinary) {
+      return res.sendFile(localFilePath);
+    }
+
+    let content = fs.readFileSync(localFilePath, 'utf-8');
+
+    // Inject ASSET_BASE_URL into index.html
+    if (ext === '.html' && filename === 'index.html') {
+      content = injectPublicGameHtml(content);
+    }
+
+    return res.send(content);
+  }
+
+  // Fallback to Modal if USE_MODAL=true
+  if (config.USE_MODAL) {
+    try {
+      const client = getModalClient();
+      const content = await client.getFile(userId, projectId, filename);
+
+      if (content === null) {
+        return res.status(404).send('File not found');
+      }
+
+      res.type(contentTypes[ext] || 'application/octet-stream');
+
+      if (isBinary) {
+        return res.send(content);
+      }
+
+      let textContent = content;
+      if (Buffer.isBuffer(textContent)) {
+        textContent = textContent.toString('utf-8');
+      }
+
+      // Inject ASSET_BASE_URL into index.html
+      if (ext === '.html' && filename === 'index.html') {
+        textContent = injectPublicGameHtml(textContent);
+      }
+
+      return res.send(textContent);
+    } catch (err) {
+      console.error('[/g Modal getFile error]', err.message);
+      return res.status(500).json({ error: 'Failed to fetch file from Modal' });
+    }
+  }
+
   return res.status(404).send('File not found');
 });
 

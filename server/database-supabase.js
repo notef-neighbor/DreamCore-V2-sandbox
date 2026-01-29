@@ -1251,6 +1251,213 @@ const migrateFromJsonFiles = async () => {
   return { migrated: 0 };
 };
 
+// ==================== Published Games Operations ====================
+
+/**
+ * Get published game by ID (public access)
+ * Uses admin client to bypass RLS, returns public/unlisted games only
+ * @param {string} gameId - Published game ID
+ * @returns {Promise<Object|null>} Published game or null
+ */
+const getPublishedGameById = async (gameId) => {
+  const { data, error } = await supabaseAdmin
+    .from('published_games')
+    .select('*, projects(id, name)')
+    .eq('id', gameId)
+    .in('visibility', ['public', 'unlisted'])
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    console.error('[DB] getPublishedGameById error:', error.message);
+    return null;
+  }
+  return data;
+};
+
+/**
+ * Get published game by project ID (owner access)
+ * @param {Object} client - Supabase client with user JWT
+ * @param {string} projectId - Project ID
+ * @returns {Promise<Object|null>} Published game or null
+ */
+const getPublishedGameByProjectId = async (client, projectId) => {
+  const { data, error } = await client
+    .from('published_games')
+    .select('*')
+    .eq('project_id', projectId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    console.error('[DB] getPublishedGameByProjectId error:', error.message);
+    return null;
+  }
+  return data;
+};
+
+/**
+ * Publish a game (upsert)
+ * @param {string} projectId - Project ID
+ * @param {string} userId - User ID
+ * @param {Object} gameData - Game metadata
+ * @returns {Promise<Object|null>} Published game or null
+ */
+const publishGame = async (projectId, userId, gameData) => {
+  const { data, error } = await supabaseAdmin
+    .from('published_games')
+    .upsert({
+      project_id: projectId,
+      user_id: userId,
+      title: gameData.title,
+      description: gameData.description || null,
+      how_to_play: gameData.howToPlay || null,
+      tags: gameData.tags || [],
+      thumbnail_url: gameData.thumbnailUrl || null,
+      visibility: gameData.visibility || 'public',
+      allow_remix: gameData.allowRemix !== false,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'project_id' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[DB] publishGame error:', error.message);
+    return null;
+  }
+  return data;
+};
+
+/**
+ * Unpublish a game
+ * @param {Object} client - Supabase client with user JWT
+ * @param {string} projectId - Project ID
+ * @returns {Promise<boolean>} Success
+ */
+const unpublishGame = async (client, projectId) => {
+  const { error } = await client
+    .from('published_games')
+    .delete()
+    .eq('project_id', projectId);
+
+  if (error) {
+    console.error('[DB] unpublishGame error:', error.message);
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Update published game metadata
+ * @param {Object} client - Supabase client with user JWT
+ * @param {string} gameId - Published game ID
+ * @param {Object} updateData - Fields to update
+ * @returns {Promise<Object|null>} Updated game or null
+ */
+const updatePublishedGame = async (client, gameId, updateData) => {
+  const updatePayload = { updated_at: new Date().toISOString() };
+
+  if (updateData.title !== undefined) updatePayload.title = updateData.title;
+  if (updateData.description !== undefined) updatePayload.description = updateData.description;
+  if (updateData.howToPlay !== undefined) updatePayload.how_to_play = updateData.howToPlay;
+  if (updateData.tags !== undefined) updatePayload.tags = updateData.tags;
+  if (updateData.thumbnailUrl !== undefined) updatePayload.thumbnail_url = updateData.thumbnailUrl;
+  if (updateData.visibility !== undefined) updatePayload.visibility = updateData.visibility;
+  if (updateData.allowRemix !== undefined) updatePayload.allow_remix = updateData.allowRemix;
+
+  const { data, error } = await client
+    .from('published_games')
+    .update(updatePayload)
+    .eq('id', gameId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[DB] updatePublishedGame error:', error.message);
+    return null;
+  }
+  return data;
+};
+
+/**
+ * Get public games list (for discover page)
+ * @param {number} limit - Maximum games to return
+ * @param {number} offset - Offset for pagination
+ * @returns {Promise<Array>} List of public games
+ */
+const getPublicGames = async (limit = 50, offset = 0) => {
+  const { data, error } = await supabaseAdmin
+    .from('published_games')
+    .select(`
+      id,
+      title,
+      description,
+      tags,
+      thumbnail_url,
+      play_count,
+      like_count,
+      published_at,
+      projects(id, name),
+      users(display_name, avatar_url)
+    `)
+    .eq('visibility', 'public')
+    .order('published_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('[DB] getPublicGames error:', error.message);
+    return [];
+  }
+  return data || [];
+};
+
+/**
+ * Increment play count for a game
+ * @param {string} gameId - Published game ID
+ * @returns {Promise<boolean>} Success
+ */
+const incrementPlayCount = async (gameId) => {
+  const { error } = await supabaseAdmin
+    .rpc('increment_play_count', { game_id: gameId });
+
+  if (error) {
+    // Fallback: manual increment if RPC doesn't exist
+    const { data: game } = await supabaseAdmin
+      .from('published_games')
+      .select('play_count')
+      .eq('id', gameId)
+      .single();
+
+    if (game) {
+      await supabaseAdmin
+        .from('published_games')
+        .update({ play_count: (game.play_count || 0) + 1 })
+        .eq('id', gameId);
+    }
+  }
+  return true;
+};
+
+/**
+ * Get games by user (owner's published games)
+ * @param {Object} client - Supabase client with user JWT
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} List of user's published games
+ */
+const getPublishedGamesByUserId = async (client, userId) => {
+  const { data, error } = await client
+    .from('published_games')
+    .select('*, projects(id, name)')
+    .eq('user_id', userId)
+    .order('published_at', { ascending: false });
+
+  if (error) {
+    console.error('[DB] getPublishedGamesByUserId error:', error.message);
+    return [];
+  }
+  return data || [];
+};
+
 // ==================== V2 Asset Functions ====================
 
 /**
@@ -1439,6 +1646,16 @@ module.exports = {
   getAssetByAliasAdmin,
   getGlobalAssetAdmin,
   createAssetV2,
+
+  // Published games operations
+  getPublishedGameById,
+  getPublishedGameByProjectId,
+  publishGame,
+  unpublishGame,
+  updatePublishedGame,
+  getPublicGames,
+  incrementPlayCount,
+  getPublishedGamesByUserId,
 
   // Admin client for special cases
   supabaseAdmin

@@ -25,11 +25,60 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ---
 
+## 技術負債・リファクタリング提案
+
+**詳細:** `/Users/admin/DreamCore-V2-sandbox/.claude/docs/technical-debt-refactoring.md`
+
+専門家レビュー（2026-01-29）に基づく構造改善・セキュリティ改善提案。
+
+### セキュリティ改善（Phase 0）
+
+| 対象 | 問題 | 工数 |
+|------|------|------|
+| サムネURLトークン削除 | 公開エンドポイントに不要なトークン付与 | 0.5日 |
+| authMiddlewareクエリ廃止 | URLクエリでaccess_token受付（漏洩リスク） | 1日 |
+| ゲームiframeトークン排除 | ゲーム側からトークン読み取り可能 | 2-3日 |
+| sessionStorage移行 | localStorageのセッション露出 | 0.5日 |
+
+### 高優先度（コア改善・Phase 1）
+
+| 対象 | 問題 | 工数 |
+|------|------|------|
+| server/index.js (2,441行) | 9機能ブロック混在、60+エンドポイント | 3-4日 |
+| server/claudeRunner.js (3,219行) | 5責務混在、processJob()が247行 | 3-4日 |
+| public/app.js (5,677行) | 221メソッド、handleMessage()が375行 | 4-5日 |
+
+### 中優先度（品質改善・Phase 2）
+
+| 対象 | 問題 | 工数 |
+|------|------|------|
+| server/database-supabase.js | 43箇所の{data,error}重複（17%削減可能） | 1日 |
+| server/userManager.js | 69行HTMLテンプレート埋め込み | 0.5日 |
+
+### 低優先度（長期改善・Phase 3）
+
+| 対象 | 問題 | 工数 |
+|------|------|------|
+| getModalClient() | 3ファイルで同一関数を独立実装 | 0.5日 |
+| フロントエンド共通化 | 認証パターン重複（45行削減可能） | 1日 |
+| errorResponse.js | 48箇所が直接形式（標準化未使用） | 2日 |
+
+---
+
 ## Phase 2 準備（基盤整備後に着手）
 
-- [ ] 公開機能の設計
+- [x] 公開機能の設計 ✅ 2026-01-30
+- [x] Published Games API 実装 ✅ 2026-01-30
+  - `POST /api/projects/:projectId/publish` - ゲーム公開
+  - `DELETE /api/projects/:projectId/publish` - 非公開化
+  - `GET /api/published-games/:id` - 公開ゲーム情報（認証不要）
+  - `POST /api/published-games/:id/play` - プレイ数カウント（認証不要）
+  - `GET /api/published-games` - 公開ゲーム一覧
+  - `GET /g/:gameId/*` - 公開ゲームファイル配信（認証不要）
 - [ ] `/discover` ページ実装
-- [ ] `/api/public-games` エンドポイント復活
+- [ ] フロントエンド公開 UI 実装（公開ボタン等）
+- [ ] Nginx 設定（v2.dreamcore.gg / play.dreamcore.gg）
+- [ ] SSL 証明書設定（Let's Encrypt）
 
 ---
 
@@ -54,6 +103,7 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 - [ ] **Sandbox 上限** - ユーザーあたり最大3個の制限（Phase 2）
 
 ### 低優先度（将来）
+- [ ] **play_count レート制限** - IP+gameId で短時間重複を抑制（悪用対策）
 - [ ] カスタムスキル ZIP 配布（ゲームテンプレート）
 - [ ] Host Tools パターン（Express 側でのアセット検索）
 - [ ] Multi-Provider 抽象化（Modal 以外への切り替え）

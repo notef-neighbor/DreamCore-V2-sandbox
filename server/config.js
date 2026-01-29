@@ -141,6 +141,15 @@ const isValidGitHash = (hash) => {
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Optional: Base URL for assets (e.g., https://v2.dreamcore.gg)
+const ASSET_BASE_URL = process.env.ASSET_BASE_URL || '';
+
+// V2 Domain for public game URLs (e.g., https://v2.dreamcore.gg)
+// Used for ASSET_BASE_URL injection in public games
+const V2_DOMAIN = process.env.V2_DOMAIN || '';
+
+// Play domain for iframe embedding (e.g., https://play.dreamcore.gg)
+const PLAY_DOMAIN = process.env.PLAY_DOMAIN || '';
 
 // ==================== Startup Guard ====================
 
@@ -150,10 +159,16 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
  */
 const validateEnvironment = () => {
   const missing = [];
+  const warnings = [];
 
   if (!SUPABASE_URL) missing.push('SUPABASE_URL');
   if (!SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY');
   if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+
+  // Warn if V2_DOMAIN is not set (required for public game asset URLs)
+  if (!V2_DOMAIN) {
+    warnings.push('V2_DOMAIN not set - public game assets may not load correctly from play domain');
+  }
 
   if (missing.length > 0) {
     console.error('='.repeat(60));
@@ -164,6 +179,13 @@ const validateEnvironment = () => {
     console.error('See .env.example for reference.');
     console.error('='.repeat(60));
     process.exit(1);
+  }
+
+  if (warnings.length > 0) {
+    console.warn('='.repeat(60));
+    console.warn('WARNING: Configuration issues detected:');
+    warnings.forEach(w => console.warn(`  - ${w}`));
+    console.warn('='.repeat(60));
   }
 
   console.log('Environment validation passed');
@@ -267,6 +289,9 @@ module.exports = {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
+  ASSET_BASE_URL,
+  V2_DOMAIN,
+  PLAY_DOMAIN,
   validateEnvironment,
 
   // GCS
