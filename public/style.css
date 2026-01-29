@@ -177,9 +177,9 @@ body::before {
 }
 
 .brand-text {
-  font-size: 0.75rem;
+  font-size: 1.125rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.02em;
   color: var(--gray-900);
 }
 
@@ -2108,7 +2108,7 @@ body::before {
   }
 
   .brand-text {
-    font-size: 0.6875rem;
+    font-size: 1rem;
   }
 
   .create-hero {
