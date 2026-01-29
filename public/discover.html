@@ -5,71 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Discover - DreamCore</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #0a0a0a;
-            color: #fff;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 56px;
-            background: rgba(10, 10, 10, 0.95);
-            border-bottom: 1px solid #222;
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-        }
-
-        .header-logo {
-            font-size: 18px;
-            font-weight: 700;
-            color: #ff4444;
-            text-decoration: none;
-        }
-
-        .header-nav {
-            margin-left: auto;
-            display: flex;
-            gap: 24px;
-        }
-
-        .header-nav a {
-            color: #888;
-            text-decoration: none;
-            font-size: 14px;
-        }
-
-        .header-nav a:hover {
-            color: #fff;
-        }
-
-        .header-nav a.active {
-            color: #fff;
-        }
-
-        .container {
+        .coming-soon-container {
             flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 72px 16px 32px;
+            padding: 72px 16px 100px;
             text-align: center;
         }
 
@@ -86,6 +30,7 @@
             font-size: 28px;
             font-weight: 700;
             margin-bottom: 12px;
+            color: #fff;
         }
 
         .coming-soon p {
@@ -95,7 +40,7 @@
             margin-bottom: 24px;
         }
 
-        .back-link {
+        .create-link {
             display: inline-block;
             padding: 12px 24px;
             background: #ff4444;
@@ -106,21 +51,13 @@
             transition: background 0.2s;
         }
 
-        .back-link:hover {
+        .create-link:hover {
             background: #ff6666;
         }
     </style>
 </head>
 <body>
-    <header class="header">
-        <a href="/create.html" class="header-logo">DREAMCORE</a>
-        <nav class="header-nav">
-            <a href="/create.html">Create</a>
-            <a href="/discover.html" class="active">Discover</a>
-        </nav>
-    </header>
-
-    <div class="container">
+    <div class="coming-soon-container">
         <div class="coming-soon">
             <div class="coming-soon-icon">🚀</div>
             <h1>Coming Soon</h1>
@@ -128,8 +65,26 @@
                 Discover ページは現在制作中です。<br>
                 公開されたゲームを探索できる機能を準備しています。
             </p>
-            <a href="/create.html" class="back-link">ゲームを作る</a>
+            <a href="/create.html" class="create-link">ゲームを作る</a>
         </div>
     </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav" id="bottomNav">
+        <a href="/discover.html" class="nav-item active">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <span>発見</span>
+        </a>
+        <a href="/create.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>作る</span>
+        </a>
+    </nav>
 </body>
 </html>
