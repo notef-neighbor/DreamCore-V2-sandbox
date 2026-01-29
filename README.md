@@ -231,6 +231,20 @@ Browser ←→ WebSocket ←→ Express Server
 
 ## Security
 
+### API Key Protection (Modal Sandbox)
+
+API keys are **never** placed inside Modal Sandbox to prevent prompt injection attacks from leaking credentials.
+
+```
+Modal Sandbox (NO API keys)
+├── ANTHROPIC_BASE_URL → GCE api-proxy → api.anthropic.com
+└── GEMINI_BASE_URL    → GCE api-proxy → googleapis.com
+```
+
+The GCE api-proxy injects API keys server-side, so the Sandbox only knows proxy URLs with path secrets (not API keys).
+
+See `.claude/plans/api-key-proxy.md` for implementation details.
+
 ### Preview Sandbox
 
 ```html

@@ -78,6 +78,34 @@ DreamCore-V2 のユーザーが、何の違和感もなく使える状態
 - `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-MIGRATION-PLAN.md`
 - `/Users/admin/DreamCore-V2-sandbox/docs/MODAL-DESIGN.md`
 
+### API キーのセキュリティ（重要）
+
+**Modal Sandbox 内に `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` を配置してはならない。**
+
+| 原則 | 理由 |
+|------|------|
+| API キーは Sandbox 外で管理 | プロンプトインジェクションによる API キー漏洩を防止 |
+| GCE の api-proxy 経由でキーを注入 | Sandbox はプロキシ URL のみを知る |
+| URL パスシークレットで認証 | `/a/{secret}/` 形式でプロキシへの不正アクセスを防止 |
+
+**アーキテクチャ:**
+```
+Modal Sandbox (API キーなし)
+├── ANTHROPIC_BASE_URL=https://api-proxy.dreamcore.gg/a/{secret}
+└── GEMINI_BASE_URL=https://api-proxy.dreamcore.gg/g/{secret}
+        ↓
+GCE api-proxy (API キーを注入)
+        ↓
+api.anthropic.com / generativelanguage.googleapis.com
+```
+
+**禁止事項:**
+- Modal Secret に `ANTHROPIC_API_KEY` を追加しない
+- Modal Secret に `GEMINI_API_KEY` を追加しない
+- Sandbox 環境変数に API キーを渡さない
+
+詳細な実装計画: `.claude/plans/api-key-proxy.md`
+
 ## 将来の機能拡張
 
 計画書: `.claude/docs/session-persistence-plan.md`（セッション永続化、CIDR Allowlist 等）

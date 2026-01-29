@@ -17,6 +17,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Nginx)
 const PROXY_SECRET = process.env.PROXY_INTERNAL_SECRET;
 
 if (!PROXY_SECRET) {
