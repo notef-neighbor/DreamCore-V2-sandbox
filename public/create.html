@@ -30,13 +30,22 @@
   <!-- Early auth check + Supabase lazy loader -->
   <script>
     (function() {
-      // Skip early check if this is an OAuth callback
+      // Skip early check if this is an OAuth callback or fresh navigation
       var search = window.location.search;
       var hash = window.location.hash;
+      // OAuth callback detection (code or access_token)
       if ((hash && hash.includes('access_token')) ||
           (search && (search.includes('code=') || search.includes('error=')))) {
         return; // Let auth.js handle the OAuth callback
       }
+      // Check for Supabase internal session (sb-*-auth-token)
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          return; // Supabase has a session, let auth.js handle it
+        }
+      }
+      // Check our own cache
       var cached = localStorage.getItem('dreamcore_session_cache');
       if (!cached) { window.location.href = '/'; return; }
       try {
