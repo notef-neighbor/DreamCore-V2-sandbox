@@ -62,6 +62,24 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ## 作業履歴
 
+### 2026-01-29: サムネイル生成修正
+
+**詳細:** `.claude/logs/2026-01-29-thumbnail-generation-fix.md`
+
+**問題:** publish.html でサムネイルが表示されない
+
+**原因:**
+1. GCE に `python3.12-venv` パッケージがない
+2. NanoBanana の依存関係（`google-genai`, `pillow`）がない
+3. プロンプト生成にローカル Claude CLI を使用（GCE にない）
+
+**対応:**
+- `sudo apt-get install python3.12-venv`
+- NanoBanana venv 作成 + 依存関係インストール
+- `generate-thumbnail` を Modal Haiku 対応に修正
+
+---
+
 ### 2026-01-29: claudeChat Modal Haiku 統合
 
 **詳細:** `.claude/logs/2026-01-29-claudechat-modal-haiku.md`
@@ -528,4 +546,4 @@ cron: */5 * * * *
 
 ---
 
-最終更新: 2026-01-29 (claudeChat Modal Haiku 統合)
+最終更新: 2026-01-29 (サムネイル生成修正)
