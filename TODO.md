@@ -104,6 +104,7 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ### 低優先度（将来）
 - [ ] **play_count レート制限** - IP+gameId で短時間重複を抑制（悪用対策）
+- [ ] **Bottom Navigation 共通化** - 各HTMLに直接記述 → JS動的挿入 or Web Components
 - [ ] カスタムスキル ZIP 配布（ゲームテンプレート）
 - [ ] Host Tools パターン（Express 側でのアセット検索）
 - [ ] Multi-Provider 抽象化（Modal 以外への切り替え）
