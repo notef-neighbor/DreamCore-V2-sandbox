@@ -21,7 +21,7 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 - [x] profiles テーブル削除 ✅ 2026-01-23
 - [ ] インデックス冗長整理（`pg_stat_user_indexes` で確認後）
 - [ ] 本番 Redirect URLs に本番URL追加（デプロイ時）
-- [ ] iframe sandbox属性のセキュリティ対策（Phase 2でサブドメイン方式で対応）
+- [x] iframe sandbox属性のセキュリティ対策 ✅ 2026-01-30（itch.io モデル採用）
 
 ---
 
@@ -111,6 +111,29 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 ---
 
 ## 作業履歴
+
+### 2026-01-30: サンドボックスアーキテクチャ実装
+
+**詳細:** `.claude/logs/2026-01-30-sandbox-architecture.md`
+**ドキュメント:** `docs/IFRAME-SECURITY.md`
+
+**変更内容:**
+- アーキテクチャ反転（v2 が play を iframe 埋め込み）
+- `/game/:gameId` ゲーム詳細ページ追加
+- iframe sandbox/permissions 設定強化
+
+**sandbox 属性（許可）:**
+- `allow-scripts`, `allow-pointer-lock`, `allow-popups`
+- `allow-orientation-lock`, `allow-forms`
+
+**sandbox 属性（禁止）:**
+- `allow-modals`, `allow-same-origin`, `allow-top-navigation`, `allow-downloads`
+
+**Permissions Policy（許可）:**
+- `fullscreen`, `accelerometer`, `gyroscope`, `gamepad`
+- `camera`, `microphone`, `autoplay`
+
+---
 
 ### 2026-01-30: V2 ゲーム公開・表示機能実装
 
