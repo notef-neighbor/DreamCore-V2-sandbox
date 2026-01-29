@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登録完了 - DreamCore</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .waitlist-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      text-align: center;
+      background: linear-gradient(135deg, #fef7f7 0%, #f7fef7 50%, #f7f7fe 100%);
+    }
+
+    .waitlist-card {
+      max-width: 400px;
+      background: white;
+      border-radius: 24px;
+      padding: 48px 32px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .waitlist-icon {
+      font-size: 64px;
+      margin-bottom: 24px;
+    }
+
+    .waitlist-card h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--gray-900);
+    }
+
+    .waitlist-card p {
+      color: var(--gray-600);
+      font-size: 15px;
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--gray-50);
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-avatar-placeholder {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--gray-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: var(--gray-500);
+    }
+
+    .user-details {
+      text-align: left;
+    }
+
+    .user-name {
+      font-weight: 600;
+      color: var(--gray-900);
+      font-size: 15px;
+    }
+
+    .user-email {
+      color: var(--gray-500);
+      font-size: 13px;
+    }
+
+    .logout-btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: var(--gray-100);
+      color: var(--gray-700);
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: var(--gray-200);
+    }
+
+    .note {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--gray-100);
+      color: var(--gray-500);
+      font-size: 13px;
+    }
+  </style>
+  <script>
+    window.__SUPABASE__ = {
+      url: 'https://tcynrijrovktirsvwiqb.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjeW5yaWpyb3ZrdGlyc3Z3aXFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjY5OTAsImV4cCI6MjA4NDYwMjk5MH0.y-_E-vuQg84t8BGISdPL18oaYcayS8ip1OLJsZwM3hI'
+    };
+    window.__loadSupabase = function() {
+      if (window.supabase) return Promise.resolve();
+      return new Promise(function(resolve) {
+        var s = document.createElement('script');
+        s.src = '/lib/supabase.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
+    };
+  </script>
+</head>
+<body>
+  <div class="waitlist-container">
+    <div class="waitlist-card">
+      <div class="waitlist-icon">🎉</div>
+      <h1>登録ありがとうございます！</h1>
+      <p>
+        DreamCore へのご登録ありがとうございます。<br>
+        現在、アクセスを順次開放しています。<br>
+        承認され次第、ご利用いただけるようになります。
+      </p>
+
+      <div class="user-info" id="userInfo" style="display: none;">
+        <div class="user-avatar-placeholder" id="avatarPlaceholder">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <img class="user-avatar" id="userAvatar" style="display: none;">
+        <div class="user-details">
+          <div class="user-name" id="userName">-</div>
+          <div class="user-email" id="userEmail">-</div>
+        </div>
+      </div>
+
+      <button class="logout-btn" id="logoutBtn">別のアカウントでログイン</button>
+
+      <div class="note">
+        承認には数日かかる場合があります。<br>
+        しばらくお待ちください。
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script>
+    (async function() {
+      await window.__loadSupabase();
+
+      // セッション確認
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        // 未ログインならトップへ
+        window.location.href = '/';
+        return;
+      }
+
+      const user = session.user;
+
+      // ユーザー情報を表示
+      document.getElementById('userInfo').style.display = 'flex';
+      document.getElementById('userName').textContent = user.user_metadata?.full_name || user.user_metadata?.name || 'ユーザー';
+      document.getElementById('userEmail').textContent = user.email;
+
+      if (user.user_metadata?.avatar_url || user.user_metadata?.picture) {
+        const avatar = document.getElementById('userAvatar');
+        avatar.src = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+        avatar.style.display = 'block';
+        document.getElementById('avatarPlaceholder').style.display = 'none';
+      }
+
+      // ウェイトリストに登録
+      try {
+        await fetch('/api/waitlist/register', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+      } catch (e) {
+        console.error('Waitlist registration error:', e);
+      }
+
+      // ログアウトボタン
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        localStorage.removeItem('dreamcore_session_cache');
+        window.location.href = '/';
+      });
+    })();
+  </script>
+</body>
+</html>

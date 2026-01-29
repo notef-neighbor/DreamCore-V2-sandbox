@@ -269,6 +269,36 @@ async function authFetch(url, options = {}) {
 }
 
 /**
+ * Check if user has access (waitlist/approval system)
+ * V2 初期リリース用。承認されたユーザーのみ利用可能。
+ *
+ * @returns {Object} { allowed: boolean, status: 'pending'|'approved'|null }
+ */
+async function checkAccess() {
+  const token = await getAccessToken();
+  if (!token) {
+    return { allowed: false, status: null };
+  }
+
+  try {
+    const response = await fetch('/api/check-access', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      return { allowed: false, status: null };
+    }
+
+    return await response.json();
+  } catch (e) {
+    console.error('[Auth] Access check error:', e);
+    return { allowed: false, status: null };
+  }
+}
+
+/**
  * Require authentication - redirect to login if not authenticated
  * Call this at the start of protected pages
  */
@@ -278,6 +308,27 @@ async function requireAuth() {
     window.location.href = '/';
     return false;
   }
+  return true;
+}
+
+/**
+ * Require authentication AND access approval
+ * Redirects to waitlist page if not approved
+ * Call this at the start of protected pages that require approval
+ */
+async function requireAuthAndAccess() {
+  const authenticated = await isAuthenticated();
+  if (!authenticated) {
+    window.location.href = '/';
+    return false;
+  }
+
+  const { allowed } = await checkAccess();
+  if (!allowed) {
+    window.location.href = '/waitlist.html';
+    return false;
+  }
+
   return true;
 }
 
@@ -295,5 +346,7 @@ window.DreamCoreAuth = {
   onAuthStateChange,
   offAuthStateChange,
   authFetch,
-  requireAuth
+  requireAuth,
+  checkAccess,           // V2 waitlist: check access status
+  requireAuthAndAccess   // V2 waitlist: require auth + approval
 };

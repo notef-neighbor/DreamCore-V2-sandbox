@@ -137,7 +137,19 @@
   <script src="/auth.js" defer></script>
   <script>
     // Simple navigation handler for coming soon page
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
+      // V2 Waitlist: Check access permission
+      const session = await DreamCoreAuth.getSession();
+      if (!session) {
+        window.location.href = '/';
+        return;
+      }
+      const { allowed } = await DreamCoreAuth.checkAccess();
+      if (!allowed) {
+        window.location.href = '/waitlist.html';
+        return;
+      }
+
       document.querySelectorAll('.nav-item').forEach(function(item) {
         item.addEventListener('click', function() {
           var tab = this.dataset.tab;

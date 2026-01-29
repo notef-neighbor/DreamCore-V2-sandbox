@@ -113,6 +113,27 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ## 作業履歴
 
+### 2026-01-30: ウェイトリスト/アクセス管理
+
+**詳細:** `.claude/logs/2026-01-30-sandbox-architecture.md`（末尾セクション）
+**ドキュメント:** `docs/WAITLIST.md`
+
+**実装内容:**
+- V2 初期リリース用アクセス制御
+- Google OAuth でログイン → `pending` / `approved` で管理
+- 承認は Supabase Dashboard から手動
+
+**変更ファイル:**
+- `supabase/migrations/009_user_access.sql` - テーブル定義
+- `server/waitlist.js` - API ルート
+- `public/waitlist.html` - ウェイトリストページ
+- `public/auth.js` - `checkAccess()` 追加
+- `public/app.js`, `mypage.js`, `discover.html` - アクセスチェック追加
+
+**無効化方法:** `server/index.js` で `waitlist.setupRoutes(app);` をコメントアウト
+
+---
+
 ### 2026-01-30: サンドボックスアーキテクチャ実装
 
 **詳細:** `.claude/logs/2026-01-30-sandbox-architecture.md`
@@ -649,4 +670,4 @@ cron: */5 * * * *
 
 ---
 
-最終更新: 2026-01-30 (V2 ゲーム公開・表示機能実装)
+最終更新: 2026-01-30 (ウェイトリスト/アクセス管理実装)

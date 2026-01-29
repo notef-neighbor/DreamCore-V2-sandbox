@@ -285,6 +285,14 @@ class GameCreatorApp {
             window.location.href = '/';
             return;
           }
+
+          // V2 Waitlist: Check access permission
+          const { allowed } = await DreamCoreAuth.checkAccess();
+          if (!allowed) {
+            window.location.href = '/waitlist.html';
+            return;
+          }
+
           this.accessToken = session.access_token;
           this.currentUser = session.user;
           this.userId = session.user.id;
@@ -320,13 +328,21 @@ class GameCreatorApp {
 
       // BACKGROUND: Verify session with SDK (refresh if needed)
       // This runs after UI is already displayed
-      DreamCoreAuth.getSession().then(session => {
+      DreamCoreAuth.getSession().then(async session => {
         if (!session) {
           // Session expired - redirect to login
           window.location.href = '/';
-        } else if (session.access_token !== cachedSession.access_token) {
+          return;
+        }
+        if (session.access_token !== cachedSession.access_token) {
           // Token refreshed - update
           this.accessToken = session.access_token;
+        }
+
+        // V2 Waitlist: Check access permission
+        const { allowed } = await DreamCoreAuth.checkAccess();
+        if (!allowed) {
+          window.location.href = '/waitlist.html';
         }
       }).catch(err => {
         console.warn('[Auth] Background verification failed:', err);

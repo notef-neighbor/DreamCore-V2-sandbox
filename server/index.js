@@ -26,6 +26,7 @@ const { execFile } = require('child_process');
 const { supabaseAdmin } = require('./supabaseClient');
 const { ErrorCodes, createWsError, sendHttpError } = require('./errorResponse');
 const config = require('./config');
+const waitlist = require('./waitlist');
 
 // Lazy-load Modal client (only when USE_MODAL=true)
 let modalClient = null;
@@ -163,6 +164,10 @@ app.get('/api/config', (req, res) => {
     playDomain: config.PLAY_DOMAIN || 'https://play.dreamcore.gg'
   });
 });
+
+// ==================== Waitlist/Access Control ====================
+// V2 初期リリース用。無効化方法: この行をコメントアウト
+waitlist.setupRoutes(app);
 
 // ==================== REST API Endpoints ====================
 

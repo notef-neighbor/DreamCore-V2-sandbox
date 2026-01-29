@@ -114,6 +114,14 @@ api.anthropic.com / generativelanguage.googleapis.com
 
 iframe sandbox 設定: `docs/IFRAME-SECURITY.md`（sandbox 属性、Permissions Policy の詳細）
 
+## ウェイトリスト/アクセス管理
+
+V2 初期リリース用。詳細: `docs/WAITLIST.md`
+
+- 承認されたユーザーのみアプリ利用可能
+- Google OAuth でログイン → `user_access` テーブルで管理
+- 無効化: `server/index.js` で `waitlist.setupRoutes(app);` をコメントアウト
+
 ---
 
 ## Supabase 設定（DreamCore-V2 と共有）

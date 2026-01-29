@@ -28,6 +28,13 @@ class MyPageApp {
       return;
     }
 
+    // V2 Waitlist: Check access permission
+    const { allowed } = await DreamCoreAuth.checkAccess();
+    if (!allowed) {
+      window.location.href = '/waitlist.html';
+      return;
+    }
+
     this.currentUser = session.user;
     this.userId = session.user.id;
     this.accessToken = session.access_token;

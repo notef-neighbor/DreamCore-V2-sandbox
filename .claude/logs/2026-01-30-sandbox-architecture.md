@@ -175,7 +175,46 @@ v2.dreamcore.gg からのみ iframe 埋め込み可能。
 
 ---
 
+## ウェイトリスト/アクセス管理
+
+V2 初期リリース用。承認されたユーザーのみアプリ利用可能。
+
+### 設計
+
+- Google OAuth でログイン
+- `user_access` テーブルで `pending` / `approved` を管理
+- 承認は Supabase Dashboard から手動
+- 機能は `server/waitlist.js` に集約（削除・無効化が容易）
+
+### 実装
+
+| ファイル | 変更内容 |
+|----------|----------|
+| `supabase/migrations/009_user_access.sql` | テーブル定義（新規） |
+| `server/waitlist.js` | API ルート（新規） |
+| `server/index.js` | waitlist モジュール統合 |
+| `public/waitlist.html` | ウェイトリストページ（新規） |
+| `public/auth.js` | `checkAccess()`, `requireAuthAndAccess()` 追加 |
+| `public/app.js` | アクセスチェック追加 |
+| `public/mypage.js` | アクセスチェック追加 |
+| `public/discover.html` | アクセスチェック追加 |
+| `docs/WAITLIST.md` | ドキュメント（新規） |
+
+### フロー
+
+```
+ログイン → /api/check-access → allowed: false → /waitlist.html
+                             → allowed: true  → アプリ利用可能
+```
+
+### 無効化方法
+
+`server/index.js` の `waitlist.setupRoutes(app);` をコメントアウト
+
+---
+
 ## 参考
 
 - [itch.io のセキュリティモデル](https://itch.io/docs/creators/html5)
-- 詳細ドキュメント: `docs/IFRAME-SECURITY.md`
+- iframe セキュリティ: `docs/IFRAME-SECURITY.md`
+- ウェイトリスト: `docs/WAITLIST.md`
