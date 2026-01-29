@@ -1710,12 +1710,30 @@ app.put('/api/projects/:projectId/publish-draft', authenticate, checkProjectOwne
   }
 });
 
-// Generate title, description, tags using Claude CLI (Sonnet)
+// Generate title, description, tags using Claude CLI (Haiku)
 app.post('/api/projects/:projectId/generate-publish-info', authenticate, checkProjectOwnership, async (req, res) => {
   const { projectId } = req.params;
 
   try {
-    // Get project code
+    // Use Modal when enabled
+    if (config.USE_MODAL) {
+      const modal = getModalClient();
+      const result = await modal.generatePublishInfo({
+        user_id: req.user.id,
+        project_id: projectId,
+        project_name: req.project.name,
+      });
+
+      // Check for error in response
+      if (result.error) {
+        console.error('Error generating publish info:', result.error);
+        return res.status(500).json({ error: result.error, raw: result.raw || '' });
+      }
+
+      return res.json(result);
+    }
+
+    // Local fallback (when USE_MODAL=false)
     const projectDir = getProjectPath(req.user.id, projectId);
     const indexPath = path.join(projectDir, 'index.html');
     let gameCode = '';

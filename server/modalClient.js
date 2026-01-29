@@ -446,6 +446,38 @@ class ModalClient {
     }
   }
 
+  /**
+   * Generate publish info (title, description, howToPlay, tags) using Haiku on Modal
+   * @param {Object} params
+   * @param {string} params.user_id - User ID (UUID)
+   * @param {string} params.project_id - Project ID (UUID)
+   * @param {string} params.project_name - Project name
+   * @returns {Promise<Object>} { title, description, howToPlay, tags }
+   */
+  async generatePublishInfo({ user_id, project_id, project_name }) {
+    const endpoint = getEndpoint(
+      null, // No explicit config, derive from base
+      this.baseEndpoint,
+      'generate_publish_info'
+    );
+    if (!endpoint) {
+      throw new Error('Modal generate_publish_info endpoint is not configured');
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ user_id, project_id, project_name }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Modal generate_publish_info error: ${response.status} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
   // ========================================================================
   // Git Operations (via apply_files endpoint with action parameter)
   // ========================================================================
