@@ -62,6 +62,27 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ## 作業履歴
 
+### 2026-01-29: claudeChat Modal Haiku 統合
+
+**詳細:** `.claude/logs/2026-01-29-claudechat-modal-haiku.md`
+
+**問題:** GCE に Claude CLI がなく、チャットモードが常に Gemini にフォールバックしていた
+
+**実装内容:**
+- Modal `chat_haiku` エンドポイント追加
+- `modalClient.chatHaiku()` メソッド追加
+- `claudeChat.js` を Modal Haiku 対応に書き換え
+- インポートエラー修正 (`getModalClient` → `modalClient` 直接使用)
+
+**検証結果:**
+```
+[claudeChat] Calling Modal chat_haiku...
+[claudeChat] Modal Haiku responded in 16204ms
+Job completed with Haiku (chat mode): 91b17fd1-...
+```
+
+---
+
 ### 2026-01-29: API キープロキシ実装
 
 **詳細:** `.claude/logs/2026-01-29-api-key-proxy.md`
@@ -507,4 +528,4 @@ cron: */5 * * * *
 
 ---
 
-最終更新: 2026-01-29 (API キープロキシ実装)
+最終更新: 2026-01-29 (claudeChat Modal Haiku 統合)
