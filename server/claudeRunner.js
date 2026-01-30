@@ -1456,8 +1456,13 @@ ${skillInstructions}
             console.log(`[Modal sync] Synced ${filesToSync.length} files to Modal Volume`);
           }
         } catch (modalErr) {
-          console.error('[Modal sync] Failed to sync to Modal Volume:', modalErr.message);
+          // Log detailed error for monitoring - this causes git history to be missing
+          console.error(`[Modal sync] CRITICAL: Failed to sync project ${projectId} to Modal Volume`);
+          console.error(`[Modal sync] User: ${userId}, Files: ${filesToSync.length}`);
+          console.error(`[Modal sync] Error:`, modalErr.message);
+          console.error(`[Modal sync] Stack:`, modalErr.stack);
           // Continue even if Modal sync fails - local files are still valid
+          // Note: Git history will be auto-initialized on first view (handle_git_log)
         }
       } else {
         // Local mode: Create git commit with AI context
