@@ -969,7 +969,7 @@ const injectGameHtml = (html, req) => {
 // Serve project game files (supports nested paths: js/, css/, assets/)
 // Authentication required for index.html - owner-only access (Phase 1 policy)
 // Sub-resources (js, css, etc.) are allowed if Referer matches the same project
-app.get('/game/:userId/:projectId/*', authenticateOptional, async (req, res) => {
+app.get('/game/:userId/:projectId/*', optionalAuth, async (req, res) => {
   const { userId, projectId } = req.params;
   const filename = req.params[0] || 'index.html';
 
