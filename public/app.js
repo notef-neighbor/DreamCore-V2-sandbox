@@ -2557,6 +2557,14 @@ class GameCreatorApp {
         messageDiv.appendChild(btnContainer);
       }
     } else {
+      // Support for raw HTML content (e.g., quota error messages)
+      if (options.isHtml) {
+        messageDiv.innerHTML = content;
+        this.chatMessages.appendChild(messageDiv);
+        this.scrollToLatestMessage(messageDiv);
+        return;
+      }
+
       let displayContent = content;
       let assetsToShow = [];
 
