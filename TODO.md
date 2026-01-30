@@ -133,6 +133,19 @@ Phase 1 リファクタリング完了。セキュリティ・安定性の改善
 
 ---
 
+### 2026-01-30: プロモーション動画セクション非表示
+
+**実装内容:**
+- publish ページからプロモーション動画生成セクションを削除
+- 将来的に機能を有効化する場合はコードを復元
+
+**変更ファイル:**
+- `public/publish.html` - movie-section 削除
+- `public/publish.css` - movie 関連スタイル削除
+- `public/publish.js` - movie 関連処理をコメントアウト
+
+---
+
 ### 2026-01-30: ウェイトリスト/アクセス管理
 
 **詳細:** `.claude/logs/2026-01-30-sandbox-architecture.md`（末尾セクション）
