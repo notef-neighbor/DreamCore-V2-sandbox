@@ -76,6 +76,12 @@
             display: flex;
             flex-direction: column;
             -webkit-font-smoothing: antialiased;
+            /* Disable text selection on game page */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         /* ===== Top Bar - Glass Header ===== */
@@ -186,6 +192,12 @@
             background: var(--black);
             box-shadow: 0 4px 32px rgba(0, 0, 0, 0.12);
             position: relative;
+            /* Disable text selection */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         .game-frame {
