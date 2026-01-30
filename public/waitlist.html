@@ -172,10 +172,9 @@
   <script src="/auth.js"></script>
   <script>
     (async function() {
-      await window.__loadSupabase();
-
-      // セッション確認
-      const { data: { session } } = await supabase.auth.getSession();
+      // DreamCoreAuth を使用してセッション取得
+      await DreamCoreAuth.initAuth();
+      const session = await DreamCoreAuth.getSession();
 
       if (!session) {
         // 未ログインならトップへ
@@ -199,21 +198,20 @@
 
       // ウェイトリストに登録
       try {
-        await fetch('/api/waitlist/register', {
+        const response = await fetch('/api/waitlist/register', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
         });
+        console.log('[Waitlist] Registration response:', await response.json());
       } catch (e) {
-        console.error('Waitlist registration error:', e);
+        console.error('[Waitlist] Registration error:', e);
       }
 
       // ログアウトボタン
       document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await supabase.auth.signOut();
-        localStorage.removeItem('dreamcore_session_cache');
-        window.location.href = '/';
+        await DreamCoreAuth.signOut();
       });
     })();
   </script>
