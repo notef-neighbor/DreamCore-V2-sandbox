@@ -7603,7 +7603,6 @@ body[data-page="notifications"] {
 
 .quota-error-content {
   flex: 1;
-  min-width: 0;
 }
 
 .quota-error-title {
@@ -7611,6 +7610,7 @@ body[data-page="notifications"] {
   font-weight: 600;
   color: #92400E;
   margin-bottom: 4px;
+  white-space: nowrap;
 }
 
 .quota-error-detail {
@@ -7622,17 +7622,6 @@ body[data-page="notifications"] {
 .quota-error-reset {
   font-size: 0.75rem;
   color: #D97706;
-}
-
-/* Quota Error - Mobile */
-@media (max-width: 480px) {
-  .quota-error-icon {
-    display: none;
-  }
-
-  .quota-error-content {
-    text-align: center;
-  }
 }
 
 /* Quota Limit Modal */
