@@ -7491,36 +7491,163 @@ body[data-page="notifications"] {
 /* ===== Quota Display ===== */
 .quota-display {
   display: flex;
-  gap: var(--s-8);
+  align-items: center;
+  gap: var(--s-12);
+  padding: 4px 10px;
+  background: var(--gray-100);
+  border-radius: var(--r-8);
   font-size: 0.75rem;
   color: var(--gray-600);
-  cursor: pointer;
-  transition: opacity 0.2s ease;
 }
 
-.quota-display:hover {
-  opacity: 0.8;
+.quota-display.hidden {
+  display: none;
 }
 
 .quota-item {
-  background: var(--gray-100);
-  padding: var(--s-4) var(--s-8);
-  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.quota-item svg {
+  opacity: 0.7;
+}
+
+/* Quota Popup */
+.quota-popup {
+  position: fixed;
+  top: 60px;
+  right: 16px;
+  z-index: 1000;
+  animation: quotaPopupIn 0.2s ease-out;
+}
+
+@keyframes quotaPopupIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quota-popup-content {
+  background: white;
+  border-radius: var(--r-12);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  padding: var(--s-16);
+  min-width: 220px;
+}
+
+.quota-popup-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: var(--s-12);
+  padding-bottom: var(--s-8);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.quota-popup-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.quota-popup-label {
+  font-size: 0.8125rem;
+  color: var(--gray-600);
+}
+
+.quota-popup-value {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.quota-popup-reset {
+  margin-top: var(--s-12);
+  padding-top: var(--s-8);
+  border-top: 1px solid var(--gray-200);
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+/* Quota Exceeded Error */
+.quota-exceeded-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-12);
+  padding: var(--s-16);
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border-radius: var(--r-12);
+  border: 1px solid #F59E0B;
+}
+
+.quota-error-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F59E0B;
+  border-radius: var(--r-8);
+  color: white;
+}
+
+.quota-error-content {
+  flex: 1;
+}
+
+.quota-error-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #92400E;
+  margin-bottom: 4px;
   white-space: nowrap;
 }
 
-/* Quota Modal */
-.quota-icon {
-  color: #f59e0b;
+.quota-error-detail {
+  font-size: 0.8125rem;
+  color: #B45309;
+  margin-bottom: 4px;
+}
+
+.quota-error-reset {
+  font-size: 0.75rem;
+  color: #D97706;
+}
+
+/* Quota Limit Modal */
+#quotaLimitModal .new-game-content {
+  max-width: 440px;
+}
+
+#quotaLimitModal .new-game-header h2 {
+  white-space: nowrap;
+  font-size: 1.125rem;
+}
+
+.new-game-icon.quota-icon {
+  background: #FEF3C7;
+  color: #F59E0B;
 }
 
 .quota-limit-message {
-  color: var(--gray-600);
-  margin: var(--s-8) 0;
   font-size: 0.9375rem;
+  color: var(--gray-700);
+  text-align: center;
+  margin-bottom: 8px;
 }
 
 .quota-limit-reset {
-  color: var(--gray-400);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--gray-500);
+  text-align: center;
 }

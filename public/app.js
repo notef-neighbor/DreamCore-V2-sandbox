@@ -3188,70 +3188,172 @@ class GameCreatorApp {
   // ==================== Quota Display ====================
 
   async updateQuotaDisplay() {
-    const el = document.getElementById('quotaDisplay');
-    if (!el) return;
+    const quotaEl = document.getElementById('quotaDisplay');
+    if (!quotaEl) return;
 
     try {
-      // Token null guard: skip if not logged in
       const token = await DreamCoreAuth.getAccessToken();
-      if (!token) {
-        el.classList.add('hidden');
-        return;
-      }
+      if (!token) return;
 
       const res = await fetch('/api/quota', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!res.ok) {
-        el.classList.add('hidden');
-        return;
-      }
+      if (!res.ok) return;
 
       const quota = await res.json();
-      this.currentQuota = quota;
+      this.currentQuota = quota; // Store for popup
 
-      el.innerHTML = `
-        <span class="quota-item" title="メッセージ残り">💬 ${quota.messages.remaining === -1 ? '∞' : quota.messages.remaining}</span>
-        <span class="quota-item" title="プロジェクト作成残り">📁 ${quota.projects.remaining === -1 ? '∞' : quota.projects.remaining}</span>
+      const messagesRemaining = quota.messages.remaining;
+      const projectsRemaining = quota.projects.remaining;
+
+      quotaEl.innerHTML = `
+        <span class="quota-item" title="メッセージ残り">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          ${messagesRemaining === -1 ? '∞' : messagesRemaining}
+        </span>
+        <span class="quota-item" title="プロジェクト作成残り">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          ${projectsRemaining === -1 ? '∞' : projectsRemaining}
+        </span>
       `;
-      el.classList.remove('hidden');
-      el.onclick = () => this.showQuotaPopup();
-    } catch (e) {
-      console.error('[Quota] Display update failed:', e);
-      el.classList.add('hidden');
+      quotaEl.classList.remove('hidden');
+
+      // Add click handler for popup (only once)
+      if (!quotaEl.dataset.hasClickHandler) {
+        quotaEl.dataset.hasClickHandler = 'true';
+        quotaEl.style.cursor = 'pointer';
+        quotaEl.addEventListener('click', () => this.showQuotaPopup());
+      }
+    } catch (err) {
+      console.error('[Quota] Failed to update display:', err);
     }
   }
 
+  /**
+   * Show quota info popup
+   */
   showQuotaPopup() {
     if (!this.currentQuota) return;
-    const q = this.currentQuota;
-    const reset = new Date(q.resetAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    const planLabel = { free: '無料', pro: 'Pro', team: 'Team' }[q.plan] || q.plan;
-    alert(`プラン: ${planLabel}\nメッセージ: ${q.messages.used}/${q.messages.limit === -1 ? '∞' : q.messages.limit}\nプロジェクト: ${q.projects.used}/${q.projects.limit === -1 ? '∞' : q.projects.limit}\nリセット: ${reset}`);
+
+    const quota = this.currentQuota;
+    const resetTime = new Date(quota.resetAt);
+    const resetTimeStr = resetTime.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+
+    const msgLimit = quota.messages.limit === -1 ? '無制限' : `${quota.messages.limit}回`;
+    const msgUsed = quota.messages.used;
+    const projLimit = quota.projects.limit === -1 ? '無制限' : `${quota.projects.limit}回`;
+    const projUsed = quota.projects.used;
+
+    // Create popup
+    const existingPopup = document.getElementById('quotaPopup');
+    if (existingPopup) existingPopup.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'quotaPopup';
+    popup.className = 'quota-popup';
+    popup.innerHTML = `
+      <div class="quota-popup-content">
+        <div class="quota-popup-title">本日の利用状況</div>
+        <div class="quota-popup-item">
+          <span class="quota-popup-label">チャット（修正依頼）</span>
+          <span class="quota-popup-value">${msgUsed} / ${msgLimit}</span>
+        </div>
+        <div class="quota-popup-item">
+          <span class="quota-popup-label">プロジェクト作成</span>
+          <span class="quota-popup-value">${projUsed} / ${projLimit}</span>
+        </div>
+        <div class="quota-popup-reset">リセット: 毎日 09:00（日本時間）</div>
+      </div>
+    `;
+
+    document.body.appendChild(popup);
+
+    // Close on click outside
+    const closePopup = (e) => {
+      if (!popup.contains(e.target) && e.target.id !== 'quotaDisplay') {
+        popup.remove();
+        document.removeEventListener('click', closePopup);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closePopup), 10);
   }
 
-  showQuotaLimitModal(type, limit, resetTime) {
+  /**
+   * Show quota limit modal (for create page)
+   */
+  showQuotaLimitModal(limitType, limit, resetTimeStr) {
     const modal = document.getElementById('quotaLimitModal');
+    const title = document.getElementById('quotaLimitTitle');
+    const message = document.getElementById('quotaLimitMessage');
+    const reset = document.getElementById('quotaLimitReset');
+    const closeBtn = document.getElementById('closeQuotaLimit');
+
     if (!modal) return;
-    document.getElementById('quotaLimitTitle').textContent = '本日の上限に達しました';
-    document.getElementById('quotaLimitMessage').textContent = `${type}の上限（${limit}回/日）に達しました`;
-    document.getElementById('quotaLimitReset').textContent = `リセット時刻: ${resetTime}`;
+
+    title.textContent = `本日の${limitType}上限に達しました`;
+    message.textContent = `1日${limit}回までご利用いただけます`;
+    reset.textContent = `リセット時刻: 明日 ${resetTimeStr}（日本時間）`;
+
     modal.classList.remove('hidden');
-    document.getElementById('closeQuotaLimit').onclick = () => modal.classList.add('hidden');
+
+    // Close handler
+    const close = () => {
+      modal.classList.add('hidden');
+      closeBtn.removeEventListener('click', close);
+    };
+    closeBtn.addEventListener('click', close);
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close();
+    }, { once: true });
   }
 
   showQuotaExceededError(error) {
-    const isProject = error.code === 'DAILY_PROJECT_LIMIT_EXCEEDED';
-    const type = isProject ? 'プロジェクト作成' : 'メッセージ送信';
-    const reset = new Date(error.resetAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    const resetTime = new Date(error.resetAt);
+    const resetTimeStr = resetTime.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
 
-    // Show modal if no chat is available (list view), otherwise show in chat
-    if (!this.chatMessages || !this.currentProjectId) {
-      this.showQuotaLimitModal(type, error.limit, reset);
-    } else {
-      this.addMessage(`本日の${type}上限（${error.limit}回）に達しました。リセット: ${reset}`, 'error');
+    const isProjectLimit = error.code === 'DAILY_PROJECT_LIMIT_EXCEEDED';
+    const limitType = isProjectLimit ? 'プロジェクト作成' : 'メッセージ送信';
+
+    // On create page (no chatMessages), show modal
+    if (!this.chatMessages) {
+      this.showQuotaLimitModal(limitType, error.limit, resetTimeStr);
+      return;
     }
+
+    // On editor page, show styled message in chat
+    const errorHtml = `
+      <div class="quota-exceeded-error">
+        <div class="quota-error-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <div class="quota-error-content">
+          <div class="quota-error-title">本日の${limitType}上限に達しました</div>
+          <div class="quota-error-detail">1日${error.limit}回までご利用いただけます</div>
+          <div class="quota-error-reset">リセット時刻: 明日 ${resetTimeStr}（日本時間）</div>
+        </div>
+      </div>
+    `;
+
+    this.addMessage(errorHtml, 'system', { isHtml: true });
     this.updateQuotaDisplay();
   }
 
