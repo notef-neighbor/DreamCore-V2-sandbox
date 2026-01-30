@@ -7517,8 +7517,6 @@ body[data-page="notifications"] {
 /* Quota Popup */
 .quota-popup {
   position: fixed;
-  top: 60px;
-  right: 16px;
   z-index: 1000;
   animation: quotaPopupIn 0.2s ease-out;
 }

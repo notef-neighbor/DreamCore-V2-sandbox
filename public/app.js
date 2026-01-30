@@ -2235,6 +2235,18 @@ class GameCreatorApp {
   }
 
   createNewProject() {
+    // Check quota before creating project
+    if (this.currentQuota && this.currentQuota.projects.remaining === 0) {
+      const resetTime = new Date(this.currentQuota.resetAt);
+      const resetTimeStr = resetTime.toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Tokyo'
+      });
+      this.showQuotaLimitModal('作成', this.currentQuota.projects.limit, resetTimeStr);
+      return;
+    }
+
     // Skip modal and directly create project with default name
     this.ws.send(JSON.stringify({
       type: 'createProject',
@@ -3272,7 +3284,7 @@ class GameCreatorApp {
       <div class="quota-popup-content">
         <div class="quota-popup-title">本日の利用状況</div>
         <div class="quota-popup-item">
-          <span class="quota-popup-label">チャット（修正依頼）</span>
+          <span class="quota-popup-label">チャット</span>
           <span class="quota-popup-value">${msgUsed} / ${msgLimit}</span>
         </div>
         <div class="quota-popup-item">
@@ -3284,6 +3296,22 @@ class GameCreatorApp {
     `;
 
     document.body.appendChild(popup);
+
+    // Position below quota-display element (left-aligned, but not overflow right edge)
+    const quotaDisplay = document.getElementById('quotaDisplay');
+    if (quotaDisplay) {
+      const rect = quotaDisplay.getBoundingClientRect();
+      const popupWidth = 220; // min-width from CSS
+      const margin = 16;
+      popup.style.top = `${rect.bottom + 8}px`;
+
+      // Check if popup would overflow right edge
+      if (rect.left + popupWidth + margin > window.innerWidth) {
+        popup.style.right = `${margin}px`;
+      } else {
+        popup.style.left = `${rect.left}px`;
+      }
+    }
 
     // Close on click outside
     const closePopup = (e) => {
