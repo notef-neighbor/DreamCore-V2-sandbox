@@ -15,23 +15,20 @@
            ============================================ */
 
         :root {
-            /* Signature Color - Nintendo Red (warm) */
+            /* Signature Color - Nintendo Red */
             --red: #FF3B30;
-            --red-soft: #FF5A52;
-            --red-light: rgba(255, 59, 48, 0.08);
-            --red-glow: rgba(255, 59, 48, 0.3);
+            --red-light: rgba(255, 59, 48, 0.1);
+            --red-glow: rgba(255, 59, 48, 0.4);
 
-            /* Warm Palette - Miyamoto Style */
-            --white: #FFFDF9;
-            --white-pure: #FFFFFF;
-            --cream: #FFF8F0;
-            --black: #1A1A1A;
-            --gray-50: #FBF9F7;
-            --gray-100: #F5F3F0;
-            --gray-200: #E8E5E0;
-            --gray-400: #9C9690;
-            --gray-600: #5C564F;
-            --gray-900: #2C2824;
+            /* Minimal Palette */
+            --white: #FFFFFF;
+            --black: #000000;
+            --gray-50: #FAFAFA;
+            --gray-100: #F5F5F5;
+            --gray-200: #E5E5E5;
+            --gray-400: #A3A3A3;
+            --gray-600: #525252;
+            --gray-900: #171717;
 
             /* Glass */
             --glass-white: rgba(255, 255, 255, 0.72);
@@ -115,22 +112,22 @@
             width: 40px;
             height: 40px;
             border-radius: var(--r-full);
-            background: var(--gray-100);
+            background: transparent;
             border: none;
-            color: var(--gray-600);
+            color: var(--gray-900);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s var(--ease-out);
+            transition: opacity 0.15s ease;
         }
 
         .back-button:hover {
-            background: var(--gray-200);
+            opacity: 0.6;
         }
 
         .back-button:active {
-            transform: scale(0.95);
+            opacity: 0.4;
         }
 
         /* Action Buttons */
@@ -144,31 +141,26 @@
             width: 44px;
             height: 44px;
             border-radius: var(--r-full);
-            background: var(--gray-100);
+            background: transparent;
             border: none;
-            color: var(--gray-600);
+            color: var(--gray-900);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s var(--ease-out);
-        }
-
-        .action-btn svg {
-            fill: var(--gray-200);
+            transition: opacity 0.15s ease;
         }
 
         .action-btn:hover {
-            background: var(--gray-200);
+            opacity: 0.6;
         }
 
         .action-btn:active {
-            transform: scale(0.95);
+            opacity: 0.4;
         }
 
         .action-btn.active {
             color: var(--red);
-            background: var(--red-light);
         }
 
         .action-btn.active svg {
@@ -194,16 +186,15 @@
             height: 100%;
             max-width: 100%;
             max-height: 100%;
-            /* Friendly rounded corners - like a toy */
-            border-radius: 24px;
+            /* Refined radius */
+            border-radius: 20px;
             overflow: hidden;
             background: var(--black);
-            /* Warm, inviting shadow - like a window to another world */
+            /* Premium layered shadow - subtle but sophisticated */
             box-shadow:
-                0 0 0 1px rgba(255, 90, 82, 0.08),
-                0 2px 4px rgba(44, 40, 36, 0.04),
-                0 8px 16px rgba(44, 40, 36, 0.06),
-                0 24px 48px rgba(44, 40, 36, 0.10);
+                0 1px 2px rgba(0, 0, 0, 0.04),
+                0 4px 8px rgba(0, 0, 0, 0.04),
+                0 16px 32px rgba(0, 0, 0, 0.08);
             position: relative;
             -webkit-user-select: none;
             -moz-user-select: none;
@@ -211,19 +202,13 @@
             user-select: none;
             -webkit-touch-callout: none;
             -webkit-tap-highlight-color: transparent;
-            /* Welcoming entrance */
-            animation: gameEnter 0.5s var(--ease-out);
+            /* Smooth fade in - no bounce */
+            animation: fadeIn 0.4s ease-out;
         }
 
-        @keyframes gameEnter {
-            from {
-                opacity: 0;
-                transform: scale(0.98);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .game-frame {
@@ -273,24 +258,22 @@
             display: none;
         }
 
-        /* ===== Bottom Navigation - Friendly Floating Pill ===== */
+        /* ===== Bottom Navigation - Floating Pill ===== */
         .bottom-nav {
             position: fixed;
             bottom: 12px;
             bottom: calc(12px + env(safe-area-inset-bottom));
             left: 50%;
             transform: translateX(-50%);
-            height: 56px;
-            background: var(--white-pure);
-            border-radius: 20px;
-            box-shadow:
-                0 0 0 1px rgba(44, 40, 36, 0.04),
-                0 4px 24px rgba(44, 40, 36, 0.12);
+            height: 52px;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.12);
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 4px;
-            padding: 0 8px;
+            padding: 0 6px;
             z-index: 2000;
         }
 
@@ -299,13 +282,13 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 2px;
-            width: 54px;
-            height: 48px;
+            gap: 1px;
+            width: 52px;
+            height: 44px;
             padding: 0;
             background: transparent;
             border: none;
-            border-radius: 14px;
+            border-radius: 12px;
             color: var(--gray-400);
             cursor: pointer;
             transition: all 0.2s var(--ease-out);
@@ -313,30 +296,27 @@
         }
 
         .nav-item svg {
-            width: 22px;
-            height: 22px;
-            stroke-width: 2;
-            fill: var(--gray-200);
+            width: 24px;
+            height: 24px;
+            stroke-width: 1.75;
         }
 
         .nav-item span {
             font-size: 9px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
+            font-weight: 500;
+            opacity: 0.9;
         }
 
         .nav-item.active {
             color: var(--gray-900);
-            background: var(--gray-100);
         }
 
         .nav-item.active svg {
             stroke-width: 2.25;
-            fill: var(--gray-100);
         }
 
         .nav-item:active {
-            transform: scale(0.96);
+            transform: scale(0.95);
         }
 
         /* ===== Loading ===== */
@@ -349,7 +329,7 @@
             align-items: center;
             justify-content: center;
             z-index: 50;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.2s ease;
         }
 
         .loading-overlay.hidden {
@@ -358,20 +338,12 @@
         }
 
         .loading-spinner {
-            width: 36px;
-            height: 36px;
-            border: 3px solid var(--gray-100);
-            border-top-color: var(--red-soft);
+            width: 32px;
+            height: 32px;
+            border: 2.5px solid var(--gray-100);
+            border-top-color: var(--red);
             border-radius: 50%;
-            animation: spin 0.8s ease-in-out infinite;
-        }
-
-        .loading-text {
-            margin-top: 16px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-400);
-            letter-spacing: 0.02em;
+            animation: spin 0.7s linear infinite;
         }
 
         @keyframes spin {
@@ -400,7 +372,7 @@
             width: 64px;
             height: 64px;
             border-radius: var(--r-full);
-            background: var(--red-light);
+            background: var(--gray-100);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -408,7 +380,7 @@
         }
 
         .error-icon svg {
-            color: var(--red-soft);
+            color: var(--gray-400);
         }
 
         .error-title {
@@ -427,8 +399,8 @@
         .error-back-btn {
             padding: var(--s-12) var(--s-24);
             border-radius: var(--r-full);
-            background: var(--red-soft);
-            color: var(--white-pure);
+            background: var(--red);
+            color: var(--white);
             border: none;
             font-size: 14px;
             font-weight: 600;
@@ -437,11 +409,8 @@
         }
 
         .error-back-btn:hover {
-            background: var(--red);
-        }
-
-        .error-back-btn:active {
-            transform: scale(0.98);
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px var(--red-glow);
         }
 
         /* ===== Panels (Slide up) ===== */
@@ -466,13 +435,12 @@
             left: 0;
             right: 0;
             max-height: 70vh;
-            background: var(--white-pure);
-            border-radius: 28px 28px 0 0;
+            background: var(--white);
+            border-radius: var(--r-24) var(--r-24) 0 0;
             z-index: 3001;
             transform: translateY(100%);
             transition: transform 0.3s var(--ease-out);
             overflow: hidden;
-            box-shadow: 0 -4px 32px rgba(44, 40, 36, 0.08);
         }
 
         .panel-overlay.visible .panel {
@@ -535,12 +503,12 @@
         }
 
         .info-how-to-play {
-            background: var(--cream);
+            background: var(--gray-50);
             padding: var(--s-16);
-            border-radius: var(--r-16);
+            border-radius: var(--r-12);
             color: var(--gray-600);
             font-size: 14px;
-            line-height: 1.7;
+            line-height: 1.6;
             white-space: pre-wrap;
             margin-bottom: var(--s-24);
         }
@@ -552,9 +520,9 @@
         }
 
         .info-tag {
-            background: var(--cream);
+            background: var(--gray-100);
             color: var(--gray-600);
-            padding: 8px var(--s-12);
+            padding: 6px var(--s-12);
             border-radius: var(--r-full);
             font-size: 13px;
             font-weight: 500;
@@ -593,7 +561,7 @@
         }
 
         .share-option-icon.copy {
-            background: var(--cream);
+            background: var(--gray-100);
             color: var(--gray-600);
         }
 
@@ -626,7 +594,6 @@
     <!-- Loading -->
     <div class="loading-overlay" id="loading">
         <div class="loading-spinner"></div>
-        <div class="loading-text">Loading...</div>
     </div>
 
     <!-- Error -->
