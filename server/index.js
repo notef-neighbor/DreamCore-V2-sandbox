@@ -1220,7 +1220,14 @@ app.get('/api/my-published-games', authenticate, async (req, res) => {
 const injectPublicGameHtml = (html) => {
   // Use fixed V2_DOMAIN for consistent asset URLs
   const assetBaseUrl = config.V2_DOMAIN || '';
-  const injection = `<script>window.ASSET_BASE_URL=${JSON.stringify(assetBaseUrl)};</script>`;
+
+  // Script injection for asset URL
+  const scriptInjection = `<script>window.ASSET_BASE_URL=${JSON.stringify(assetBaseUrl)};</script>`;
+
+  // Style injection to disable text selection (prevents blue highlight when dragging)
+  const styleInjection = `<style>*,*::before,*::after{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}</style>`;
+
+  const injection = styleInjection + scriptInjection;
 
   // Rewrite /user-assets/ to absolute URLs
   let content = html;
