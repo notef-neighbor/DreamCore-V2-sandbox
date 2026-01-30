@@ -2082,7 +2082,7 @@ class GameCreatorApp {
           this.pendingRestore = false;
           this.addMessage('戻せるバージョンがありません', 'system');
         } else {
-          this.displayVersions(data.versions);
+          this.displayVersions(data.versions, data.autoInitialized);
         }
         break;
 
@@ -3545,11 +3545,22 @@ class GameCreatorApp {
     }
   }
 
-  displayVersions(versions) {
+  displayVersions(versions, autoInitialized = false) {
     this.versionList.innerHTML = '';
 
+    // Show notice if git was auto-initialized (history was recovered)
+    if (autoInitialized) {
+      const notice = document.createElement('div');
+      notice.className = 'version-notice';
+      notice.innerHTML = `
+        <span class="version-notice-icon">ℹ️</span>
+        <span>履歴が復元されました。以前の変更履歴は利用できません。</span>
+      `;
+      this.versionList.appendChild(notice);
+    }
+
     if (versions.length === 0) {
-      this.versionList.innerHTML = '<div class="version-item"><span style="color:#666">No versions yet</span></div>';
+      this.versionList.innerHTML += '<div class="version-item"><span style="color:#666">No versions yet</span></div>';
       return;
     }
 

@@ -552,7 +552,10 @@ class ModalClient {
     }
 
     const data = await response.json();
-    return data.commits || [];
+    return {
+      commits: data.commits || [],
+      autoInitialized: data.autoInitialized || false
+    };
   }
 
   /**

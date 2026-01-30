@@ -1923,7 +1923,8 @@ wss.on('connection', (ws) => {
             type: 'versionsList',
             projectId: data.projectId,
             versions: versionResult.versions,
-            currentHead: versionResult.currentHead
+            currentHead: versionResult.currentHead,
+            autoInitialized: versionResult.autoInitialized || false
           });
           break;
 

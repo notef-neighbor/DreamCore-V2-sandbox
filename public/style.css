@@ -1660,6 +1660,23 @@ body::before {
   padding: var(--s-16);
 }
 
+.version-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: var(--s-12);
+  margin-bottom: var(--s-12);
+  background: var(--blue-light, #EBF5FF);
+  border: 1px solid var(--blue, #3B82F6);
+  border-radius: var(--r-8);
+  font-size: 0.8125rem;
+  color: var(--blue, #3B82F6);
+}
+
+.version-notice-icon {
+  flex-shrink: 0;
+}
+
 .version-item {
   padding: var(--s-16);
   border-radius: var(--r-12);

@@ -958,7 +958,9 @@ const getVersionsModal = async (userId, projectId, options = {}) => {
 
   try {
     const client = getModalClient();
-    const commits = await client.gitLog(userId, projectId, 50);
+    const gitLogResult = await client.gitLog(userId, projectId, 50);
+    const commits = gitLogResult.commits;
+    const autoInitialized = gitLogResult.autoInitialized;
 
     // Filter out internal commits (same as local)
     const restorePatterns = ['Before restore', 'Restored to', 'Initial project setup', 'Migration from'];
@@ -1001,7 +1003,7 @@ const getVersionsModal = async (userId, projectId, options = {}) => {
     // Get current version from local tracking file, or default to latest
     const currentHead = getCurrentVersion(projectDir) || (finalVersions[0]?.id || null);
 
-    return { versions: finalVersions, currentHead };
+    return { versions: finalVersions, currentHead, autoInitialized };
   } catch (err) {
     console.error('[getVersionsModal] Error:', err.message);
     return { versions: [], currentHead: null };
