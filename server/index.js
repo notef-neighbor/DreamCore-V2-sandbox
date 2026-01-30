@@ -1224,8 +1224,12 @@ const injectPublicGameHtml = (html) => {
   // Script injection for asset URL
   const scriptInjection = `<script>window.ASSET_BASE_URL=${JSON.stringify(assetBaseUrl)};</script>`;
 
-  // Style injection to disable text selection (prevents blue highlight when dragging)
-  const styleInjection = `<style>*,*::before,*::after{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}</style>`;
+  // Style injection to disable text selection and tap highlight (prevents blue highlight when dragging/tapping)
+  const styleInjection = `<style>
+    *,*::before,*::after{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:rgba(0,0,0,0)!important;}
+    *:focus,*:focus-visible{outline:none!important;box-shadow:none!important;-webkit-focus-ring-color:transparent!important;}
+    ::selection{background:transparent!important;}
+  </style>`;
 
   const injection = styleInjection + scriptInjection;
 

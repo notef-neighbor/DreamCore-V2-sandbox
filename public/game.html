@@ -61,6 +61,15 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Hide any accidental selection */
+        ::selection {
+            background: transparent;
+        }
+        ::-moz-selection {
+            background: transparent;
         }
 
         html, body {
@@ -76,12 +85,13 @@
             display: flex;
             flex-direction: column;
             -webkit-font-smoothing: antialiased;
-            /* Disable text selection on game page */
+            /* Disable text selection and tap highlight on game page */
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* ===== Top Bar - Glass Header ===== */
@@ -192,12 +202,13 @@
             background: var(--black);
             box-shadow: 0 4px 32px rgba(0, 0, 0, 0.12);
             position: relative;
-            /* Disable text selection */
+            /* Disable text selection and tap highlight */
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .game-frame {
@@ -205,6 +216,17 @@
             height: 100%;
             border: none;
             background: var(--black);
+            /* Disable tap highlight and selection on iframe element */
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            outline: none;
+            touch-action: manipulation;
+        }
+
+        .game-frame:focus,
+        .game-frame:focus-visible {
+            outline: none !important;
+            box-shadow: none !important;
         }
 
         /* Remix Badge */
@@ -637,7 +659,7 @@
 
     <!-- Game Section -->
     <section class="game-section">
-        <div class="game-container">
+        <div class="game-container" onselectstart="return false" ondragstart="return false">
             <div class="remix-badge hidden" id="remixBadge">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 16V4m0 0L3 8m4-4l4 4"/>
@@ -645,7 +667,7 @@
                 </svg>
                 <span id="remixText">REMIXED FROM</span>
             </div>
-            <iframe id="gameFrame" class="game-frame" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-popups allow-orientation-lock allow-forms" allow="fullscreen; accelerometer; gyroscope; gamepad; camera; microphone; autoplay"></iframe>
+            <iframe id="gameFrame" class="game-frame" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-popups allow-orientation-lock allow-forms" allow="fullscreen; accelerometer; gyroscope; gamepad; camera; microphone; autoplay" tabindex="-1"></iframe>
         </div>
     </section>
 
@@ -903,6 +925,30 @@
             window.open(`https://line.me/R/msg/text/?${url}`, '_blank');
             closePanel('sharePanelOverlay');
         }
+
+        // Prevent selection highlight on game area
+        const gameContainer = document.querySelector('.game-container');
+        const gameFrame = document.getElementById('gameFrame');
+
+        function clearSelection() {
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            }
+        }
+
+        // Prevent select start
+        gameContainer.onselectstart = () => false;
+        gameFrame.onselectstart = () => false;
+
+        // Clear selection on touch/mouse events
+        ['touchstart', 'touchend', 'mousedown'].forEach(event => {
+            gameContainer.addEventListener(event, clearSelection, { passive: true });
+        });
+
+        // Blur iframe when focused to prevent focus highlight
+        gameFrame.addEventListener('focus', () => {
+            gameFrame.blur();
+        });
 
         loadGame();
     </script>

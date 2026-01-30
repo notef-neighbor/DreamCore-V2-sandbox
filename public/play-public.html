@@ -9,6 +9,13 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        ::selection {
+            background: transparent;
         }
 
         html, body {
@@ -16,6 +23,7 @@
             height: 100%;
             background: #000;
             overflow: hidden;
+            -webkit-touch-callout: none;
         }
 
         .game-container {
@@ -32,6 +40,13 @@
             max-width: 56.25vh; /* 9:16 aspect ratio (mobile portrait) */
             border: none;
             background: #111;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+        }
+
+        iframe:focus,
+        iframe:focus-visible {
+            outline: none !important;
         }
 
         .loading {
@@ -130,6 +145,11 @@
                 }).catch(function() {
                     // Ignore errors - play count is not critical
                 });
+            });
+
+            // Blur iframe on focus to prevent highlight
+            gameFrame.addEventListener('focus', function() {
+                gameFrame.blur();
             });
         })();
     </script>
