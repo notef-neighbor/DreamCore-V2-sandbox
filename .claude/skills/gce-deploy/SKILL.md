@@ -1,3 +1,8 @@
+---
+name: gce-deploy
+description: DreamCore-V2-sandbox を GCE にデプロイ・管理するスキル。デプロイ、ログ確認、再起動などを実行します。
+---
+
 # GCE Deploy Skill
 
 DreamCore-V2-sandbox を GCE (Google Compute Engine) にデプロイ・管理するスキル。
@@ -13,16 +18,16 @@ DreamCore-V2-sandbox を GCE (Google Compute Engine) にデプロイ・管理す
 
 ## GCE接続情報
 
-```
-Instance: dreamcore-v2
-Zone: asia-northeast1-a
-User: notef
-IP: 35.200.79.157
-Port: 3005
-App Dir: /home/notef/DreamCore-V2-sandbox
-Process: PM2 (dreamcore-sandbox)
-URL: http://35.200.79.157:3005
-```
+| 項目 | 値 |
+|------|-----|
+| Instance | `dreamcore-v2` |
+| Zone | `asia-northeast1-a` |
+| User | `notef` |
+| IP | `35.200.79.157` |
+| Port | `3005` |
+| App Dir | `/home/notef/DreamCore-V2-sandbox` |
+| PM2 Process | `dreamcore-sandbox` |
+| URL | `http://35.200.79.157:3005` / `https://v2.dreamcore.gg` |
 
 ## SSH接続コマンド
 
@@ -38,6 +43,12 @@ URL: http://35.200.79.157:3005
 /usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="cd /home/notef/DreamCore-V2-sandbox && git pull && npm install && pm2 restart dreamcore-sandbox"
 ```
 
+**ブランチ指定デプロイ:**
+
+```bash
+/usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="cd /home/notef/DreamCore-V2-sandbox && git fetch origin && git checkout ブランチ名 && git pull && pm2 restart dreamcore-sandbox"
+```
+
 ### ステータス確認
 
 ```bash
@@ -47,7 +58,11 @@ URL: http://35.200.79.157:3005
 ### ログ確認
 
 ```bash
+# 最新50行
 /usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="pm2 logs dreamcore-sandbox --lines 50 --nostream"
+
+# エラーログのみ
+/usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="pm2 logs dreamcore-sandbox --err --lines 50 --nostream"
 ```
 
 ### 環境変数確認
@@ -60,6 +75,12 @@ URL: http://35.200.79.157:3005
 
 ```bash
 /usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="pm2 restart dreamcore-sandbox"
+```
+
+### 現在のブランチ確認
+
+```bash
+/usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="cd /home/notef/DreamCore-V2-sandbox && git branch --show-current"
 ```
 
 ## ウォームアップ設定
@@ -101,3 +122,9 @@ cron: */5 * * * *
 # 手動ウォームアップテスト
 /usr/local/bin/gcloud compute ssh notef@dreamcore-v2 --zone=asia-northeast1-a --command="/home/notef/bin/modal-warmup.sh && echo OK"
 ```
+
+## デプロイ後の確認手順
+
+1. PM2 ステータス確認
+2. ログにエラーがないか確認
+3. ブラウザで動作確認: https://v2.dreamcore.gg
