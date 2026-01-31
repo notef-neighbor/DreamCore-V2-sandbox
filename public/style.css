@@ -1246,7 +1246,6 @@ body::before {
   outline: none;
   overflow-y: auto;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  min-height: 44px;
   max-height: 50vh;
 }
 
