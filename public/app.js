@@ -2536,6 +2536,10 @@ class GameCreatorApp {
       useClaude: this.useClaudeToggle?.checked || false
     };
 
+    // Set processing flag immediately to prevent double-send
+    this.isProcessing = true;
+    this.updateUIForProcessing(true);
+
     this.ws.send(JSON.stringify({
       type: 'message',
       content: finalContent,
@@ -2543,6 +2547,15 @@ class GameCreatorApp {
       attachedAssets: attachedAssetsCopy,  // For pendingPrompt restore
       debugOptions
     }));
+  }
+
+  updateUIForProcessing(processing) {
+    if (this.sendButton) {
+      this.sendButton.disabled = processing;
+    }
+    if (this.chatInput) {
+      this.chatInput.disabled = processing;
+    }
   }
 
   stopGeneration() {
