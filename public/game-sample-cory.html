@@ -9,22 +9,22 @@
     <style>
         /* ============================================
            Cory Schmitz × DreamCore
-           任天堂カラーを軸に、PlayStation風ジオメトリック
+           白背景 + 任天堂レッド、ジオメトリックでボールド
            ============================================ */
 
         :root {
             /* DreamCore Nintendo Colors */
             --red: #FF3B30;
             --red-dark: #CC2F26;
-            --red-glow: rgba(255, 59, 48, 0.5);
-            --red-subtle: rgba(255, 59, 48, 0.15);
+            --red-subtle: rgba(255, 59, 48, 0.1);
 
-            /* Cory's Game UI Palette */
-            --bg: #1C1C1E;
-            --surface: #2C2C2E;
-            --surface-light: #3A3A3C;
-            --white: #FFFFFF;
-            --gray: #8E8E93;
+            /* Cory's Clean Palette */
+            --bg: #FFFFFF;
+            --surface: #F5F5F5;
+            --surface-dark: #EBEBEB;
+            --black: #1A1A1A;
+            --gray: #888888;
+            --border: #E0E0E0;
         }
 
         * {
@@ -42,13 +42,13 @@
         body {
             font-family: 'Inter', -apple-system, sans-serif;
             background: var(--bg);
-            color: var(--white);
+            color: var(--black);
             display: flex;
             flex-direction: column;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* Top Bar with accent line */
+        /* Top Bar with bold red accent line */
         .top-bar {
             height: 60px;
             padding: 0 16px;
@@ -63,8 +63,8 @@
             height: 44px;
             border-radius: 12px;
             background: var(--surface);
-            border: 2px solid var(--surface-light);
-            color: var(--white);
+            border: 2px solid var(--border);
+            color: var(--black);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -87,7 +87,7 @@
             height: 44px;
             border-radius: 12px;
             background: var(--surface);
-            border: 2px solid var(--surface-light);
+            border: 2px solid var(--border);
             color: var(--gray);
             cursor: pointer;
             display: flex;
@@ -103,7 +103,7 @@
         .action-btn.active {
             background: var(--red);
             border-color: var(--red);
-            color: var(--white);
+            color: var(--bg);
         }
 
         /* Game Area with geometric frame */
@@ -127,7 +127,7 @@
         .game-frame {
             width: 100%;
             height: 100%;
-            background: var(--bg);
+            background: var(--black);
             border-radius: 17px;
             display: flex;
             align-items: center;
@@ -145,13 +145,14 @@
             left: 12px;
             right: 12px;
             height: 64px;
-            background: var(--surface);
+            background: var(--bg);
             border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: space-around;
             padding-bottom: env(safe-area-inset-bottom);
-            border: 2px solid var(--surface-light);
+            border: 2px solid var(--border);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
         }
 
         .nav-item {
