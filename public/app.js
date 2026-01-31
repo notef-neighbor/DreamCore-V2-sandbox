@@ -2353,6 +2353,10 @@ class GameCreatorApp {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (!isMobile) return;
 
+    // iOS uses CSS sticky positioning instead of JS (see style.css @supports)
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) return;
+
     const inputContainer = document.querySelector('.chat-input-container');
     const chatMessages = document.getElementById('chatMessages');
     let isKeyboardVisible = false;

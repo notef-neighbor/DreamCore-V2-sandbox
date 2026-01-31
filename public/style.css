@@ -2547,6 +2547,30 @@ body::before {
   }
 }
 
+/* ===== iOS Keyboard Fix ===== */
+/* iOS Safari uses sticky instead of JS-controlled fixed positioning */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 768px) {
+    .container {
+      position: relative;
+      height: 100dvh;
+    }
+
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .chat-input-container {
+      position: sticky;
+      bottom: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+      background: white;
+    }
+  }
+}
+
 /* ===== High Contrast Mode ===== */
 @media (prefers-contrast: high) {
   :root {
@@ -5900,6 +5924,13 @@ body::before {
   gap: 4px;
   padding: 0 6px;
   z-index: 2000;
+}
+
+/* Hide bottom nav in mobile browser (not PWA/standalone) */
+@media (display-mode: browser) and (max-width: 768px) {
+  .bottom-nav {
+    display: none;
+  }
 }
 
 .nav-item {
