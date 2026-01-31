@@ -1368,25 +1368,38 @@ body::before {
   background: var(--red-dark);
 }
 
-/* Expand button */
+/* Chat input wrapper for expand button positioning */
+.chat-input-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.chat-input-wrapper #chatInput {
+  padding-right: 36px; /* Space for expand button */
+}
+
+/* Expand button (inside textarea, bottom-right corner) */
 .expand-chat-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--r-full);
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-4);
   border: none;
-  background: var(--gray-100);
-  color: var(--gray-600);
+  background: transparent;
+  color: var(--gray-400);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
+  padding: 0;
+  transition: color 0.2s ease;
 }
 
 .expand-chat-btn:hover {
-  background: var(--gray-200);
-  color: var(--gray-900);
+  color: var(--gray-600);
 }
 
 #chatInput::placeholder {
