@@ -57,6 +57,12 @@ class GameCreatorApp {
     // DOM elements (editor view)
     this.chatMessages = document.getElementById('chatMessages');
     this.chatInput = document.getElementById('chatInput');
+    this.expandChatButton = document.getElementById('expandChatButton');
+    this.chatFullscreenOverlay = document.getElementById('chatFullscreenOverlay');
+    this.chatFullscreenInput = document.getElementById('chatFullscreenInput');
+    this.closeChatFullscreen = document.getElementById('closeChatFullscreen');
+    this.cancelChatFullscreen = document.getElementById('cancelChatFullscreen');
+    this.sendChatFullscreen = document.getElementById('sendChatFullscreen');
     this.attachedAssetsContainer = document.getElementById('attachedAssets');
     this.sendButton = document.getElementById('sendButton');
     this.stopButton = document.getElementById('stopButton');
@@ -1355,12 +1361,19 @@ class GameCreatorApp {
       this.isComposing = false;
     });
 
-    this.chatInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey && !this.isComposing) {
-        e.preventDefault();
-        this.sendMessage();
-      }
+    // Enter key now inserts newline (no auto-send)
+    // Users must click send button to send message
+
+    // Auto-resize textarea as content grows
+    this.chatInput?.addEventListener('input', () => {
+      this.autoResizeTextarea(this.chatInput);
     });
+
+    // Chat fullscreen mode
+    this.expandChatButton?.addEventListener('click', () => this.openChatFullscreen());
+    this.closeChatFullscreen?.addEventListener('click', () => this.closeChatFullscreenMode());
+    this.cancelChatFullscreen?.addEventListener('click', () => this.closeChatFullscreenMode());
+    this.sendChatFullscreen?.addEventListener('click', () => this.sendFromFullscreen());
 
     // Mobile keyboard visibility handling (iOS/Android)
     if (this.chatInput) {
@@ -2445,6 +2458,45 @@ class GameCreatorApp {
     });
   }
 
+  // ==================== Chat Input Helpers ====================
+
+  autoResizeTextarea(textarea) {
+    if (!textarea) return;
+    // Reset height to auto to get the correct scrollHeight
+    textarea.style.height = 'auto';
+    // Set height to scrollHeight (content height)
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }
+
+  openChatFullscreen() {
+    if (!this.chatFullscreenOverlay || !this.chatFullscreenInput) return;
+    // Copy current content to fullscreen textarea
+    this.chatFullscreenInput.value = this.chatInput?.value || '';
+    this.chatFullscreenOverlay.classList.add('active');
+    this.chatFullscreenInput.focus();
+    // Move cursor to end
+    this.chatFullscreenInput.setSelectionRange(
+      this.chatFullscreenInput.value.length,
+      this.chatFullscreenInput.value.length
+    );
+  }
+
+  closeChatFullscreenMode() {
+    if (!this.chatFullscreenOverlay) return;
+    this.chatFullscreenOverlay.classList.remove('active');
+  }
+
+  sendFromFullscreen() {
+    if (!this.chatFullscreenInput || !this.chatInput) return;
+    // Copy content back to main input
+    this.chatInput.value = this.chatFullscreenInput.value;
+    this.autoResizeTextarea(this.chatInput);
+    // Close fullscreen
+    this.closeChatFullscreenMode();
+    // Send message
+    this.sendMessage();
+  }
+
   sendMessage() {
     // Handle reconnect mode
     if (!this.isConnected) {
@@ -2475,6 +2527,7 @@ class GameCreatorApp {
     // Display message to user (show attached images as thumbnails)
     this.addMessage(content, 'user', { attachedAssets: attachedAssetsCopy });
     this.chatInput.value = '';
+    this.chatInput.style.height = 'auto'; // Reset textarea height
     this.clearAttachedAssets();
 
     // Include debug options
