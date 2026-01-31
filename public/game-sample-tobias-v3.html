@@ -402,61 +402,61 @@
         .gb-game-tag {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 3px 8px;
-            border-radius: 6px;
+            gap: 3px;
+            padding: 2px 6px;
+            border-radius: 4px;
             font-size: 9px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.15s ease;
             text-decoration: none;
+            max-width: 120px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .gb-game-tag:hover {
-            transform: scale(1.02);
-        }
-
-        .gb-game-tag:active {
-            transform: scale(0.98);
+            opacity: 0.8;
         }
 
         .gb-game-tag svg {
-            width: 10px;
-            height: 10px;
+            width: 9px;
+            height: 9px;
+            flex-shrink: 0;
+        }
+
+        .gb-game-tag-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .gb-game-tag.blue {
-            background: rgba(0, 122, 255, 0.1);
+            background: rgba(0, 122, 255, 0.08);
             color: var(--tag-blue);
         }
 
         .gb-game-tag.purple {
-            background: rgba(175, 82, 222, 0.1);
+            background: rgba(175, 82, 222, 0.08);
             color: var(--tag-purple);
         }
 
         .gb-game-tag.green {
-            background: rgba(52, 199, 89, 0.1);
+            background: rgba(52, 199, 89, 0.08);
             color: var(--tag-green);
         }
 
         .gb-game-tag.orange {
-            background: rgba(255, 149, 0, 0.1);
+            background: rgba(255, 149, 0, 0.08);
             color: var(--tag-orange);
         }
 
         /* Chat Message with Game Tag */
         .gb-message {
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-self: flex-start;
-            max-width: 95%;
-        }
-
-        .gb-message-main {
-            display: flex;
             gap: 10px;
+            align-self: flex-start;
+            max-width: 90%;
         }
 
         .gb-message-avatar {
@@ -559,12 +559,19 @@
             font-size: 18px;
         }
 
+        .gb-message-footer {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            padding-left: 4px;
+            flex-wrap: wrap;
+        }
+
         .gb-message-actions {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-top: 6px;
-            padding-left: 4px;
         }
 
         .gb-action-btn {
@@ -921,21 +928,21 @@
                 <div class="gb-feed">
                     <!-- Message with Game Tag -->
                     <div class="gb-message">
-                        <a href="#" class="gb-game-tag blue">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                            スペースインベーダー
-                        </a>
-                        <div class="gb-message-main">
-                            <div class="gb-message-avatar">🐱</div>
-                            <div class="gb-message-content">
-                                <div class="gb-message-header">
-                                    <span class="gb-message-name">ねこすき</span>
-                                    <span class="gb-message-time">1m ago</span>
-                                </div>
-                                <div class="gb-bubble-wrapper">
-                                    <div class="gb-message-bubble">めっちゃ面白い！ステージ3がむずかしい〜</div>
-                                    <span class="gb-sparkle">⚡</span>
-                                </div>
+                        <div class="gb-message-avatar">🐱</div>
+                        <div class="gb-message-content">
+                            <div class="gb-message-header">
+                                <span class="gb-message-name">ねこすき</span>
+                                <span class="gb-message-time">1m ago</span>
+                            </div>
+                            <div class="gb-bubble-wrapper">
+                                <div class="gb-message-bubble">めっちゃ面白い！ステージ3がむずかしい〜</div>
+                                <span class="gb-sparkle">⚡</span>
+                            </div>
+                            <div class="gb-message-footer">
+                                <a href="#" class="gb-game-tag blue">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
+                                    <span class="gb-game-tag-text">スペースインベーダー</span>
+                                </a>
                                 <div class="gb-message-actions">
                                     <button class="gb-action-btn liked">
                                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -953,7 +960,7 @@
                             <span class="gb-reaction-game-text">reacted to</span>
                             <a href="#" class="gb-game-tag purple">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                                ブロック崩し
+                                <span class="gb-game-tag-text">ブロック崩し</span>
                             </a>
                         </div>
                         <div class="gb-reaction">
@@ -983,28 +990,28 @@
                             <span class="gb-visit-text"><strong>Beat</strong> visited</span>
                             <a href="#" class="gb-game-tag green">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                                タワーディフェンス
+                                <span class="gb-game-tag-text">タワーディフェンス</span>
                             </a>
                         </div>
                     </div>
 
                     <!-- Another Message with different game -->
                     <div class="gb-message">
-                        <a href="#" class="gb-game-tag orange">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                            パズルゲーム
-                        </a>
-                        <div class="gb-message-main">
-                            <div class="gb-message-avatar">🦊</div>
-                            <div class="gb-message-content">
-                                <div class="gb-message-header">
-                                    <span class="gb-message-name">きつね</span>
-                                    <span class="gb-message-time">5m ago</span>
-                                </div>
-                                <div class="gb-bubble-wrapper">
-                                    <div class="gb-message-bubble">レベル50クリアした！神ゲーすぎる</div>
-                                    <span class="gb-sparkle">⚡</span>
-                                </div>
+                        <div class="gb-message-avatar">🦊</div>
+                        <div class="gb-message-content">
+                            <div class="gb-message-header">
+                                <span class="gb-message-name">きつね</span>
+                                <span class="gb-message-time">5m ago</span>
+                            </div>
+                            <div class="gb-bubble-wrapper">
+                                <div class="gb-message-bubble">レベル50クリアした！神ゲーすぎる</div>
+                                <span class="gb-sparkle">⚡</span>
+                            </div>
+                            <div class="gb-message-footer">
+                                <a href="#" class="gb-game-tag orange">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
+                                    <span class="gb-game-tag-text">パズルゲーム</span>
+                                </a>
                                 <div class="gb-message-actions">
                                     <button class="gb-action-btn">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -1018,17 +1025,17 @@
 
                     <!-- Author reply (no game tag needed) -->
                     <div class="gb-message">
-                        <div class="gb-message-main">
-                            <div class="gb-message-avatar">🎮</div>
-                            <div class="gb-message-content">
-                                <div class="gb-message-header">
-                                    <span class="gb-message-name">ゲーム作者</span>
-                                    <span class="gb-message-badge">Author</span>
-                                    <span class="gb-message-time">4m ago</span>
-                                </div>
-                                <div class="gb-bubble-wrapper">
-                                    <div class="gb-message-bubble">みんな遊んでくれてありがとう！新作も準備中だよ 🚀</div>
-                                </div>
+                        <div class="gb-message-avatar">🎮</div>
+                        <div class="gb-message-content">
+                            <div class="gb-message-header">
+                                <span class="gb-message-name">ゲーム作者</span>
+                                <span class="gb-message-badge">Author</span>
+                                <span class="gb-message-time">4m ago</span>
+                            </div>
+                            <div class="gb-bubble-wrapper">
+                                <div class="gb-message-bubble">みんな遊んでくれてありがとう！新作も準備中だよ 🚀</div>
+                            </div>
+                            <div class="gb-message-footer">
                                 <div class="gb-message-actions">
                                     <button class="gb-action-btn liked">
                                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -1046,7 +1053,7 @@
                             <span class="gb-reaction-game-text">reacted to</span>
                             <a href="#" class="gb-game-tag blue">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                                スペースインベーダー
+                                <span class="gb-game-tag-text">スペースインベーダー</span>
                             </a>
                         </div>
                         <div class="gb-reaction">
@@ -1076,27 +1083,27 @@
                             <span class="gb-visit-text"><strong>ぱんだ</strong> visited</span>
                             <a href="#" class="gb-game-tag purple">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                                ブロック崩し
+                                <span class="gb-game-tag-text">ブロック崩し</span>
                             </a>
                         </div>
                     </div>
 
                     <!-- Message on same game as above -->
                     <div class="gb-message">
-                        <a href="#" class="gb-game-tag purple">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                            ブロック崩し
-                        </a>
-                        <div class="gb-message-main">
-                            <div class="gb-message-avatar">🐶</div>
-                            <div class="gb-message-content">
-                                <div class="gb-message-header">
-                                    <span class="gb-message-name">わんこ</span>
-                                    <span class="gb-message-time">12m ago</span>
-                                </div>
-                                <div class="gb-bubble-wrapper">
-                                    <div class="gb-message-bubble">ハイスコア更新した！！</div>
-                                </div>
+                        <div class="gb-message-avatar">🐶</div>
+                        <div class="gb-message-content">
+                            <div class="gb-message-header">
+                                <span class="gb-message-name">わんこ</span>
+                                <span class="gb-message-time">12m ago</span>
+                            </div>
+                            <div class="gb-bubble-wrapper">
+                                <div class="gb-message-bubble">ハイスコア更新した！！</div>
+                            </div>
+                            <div class="gb-message-footer">
+                                <a href="#" class="gb-game-tag purple">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
+                                    <span class="gb-game-tag-text">ブロック崩し</span>
+                                </a>
                                 <div class="gb-message-actions">
                                     <button class="gb-action-btn">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -1195,21 +1202,21 @@
                 newMsg.className = 'gb-message';
                 newMsg.style.animationDelay = '0s';
                 newMsg.innerHTML = `
-                    <a href="#" class="gb-game-tag blue">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
-                        スペースインベーダー
-                    </a>
-                    <div class="gb-message-main">
-                        <div class="gb-message-avatar">👤</div>
-                        <div class="gb-message-content">
-                            <div class="gb-message-header">
-                                <span class="gb-message-name">You</span>
-                                <span class="gb-message-time">now</span>
-                            </div>
-                            <div class="gb-bubble-wrapper">
-                                <div class="gb-message-bubble">${commentInput.value}</div>
-                                <span class="gb-sparkle">⚡</span>
-                            </div>
+                    <div class="gb-message-avatar">👤</div>
+                    <div class="gb-message-content">
+                        <div class="gb-message-header">
+                            <span class="gb-message-name">You</span>
+                            <span class="gb-message-time">now</span>
+                        </div>
+                        <div class="gb-bubble-wrapper">
+                            <div class="gb-message-bubble">${commentInput.value}</div>
+                            <span class="gb-sparkle">⚡</span>
+                        </div>
+                        <div class="gb-message-footer">
+                            <a href="#" class="gb-game-tag blue">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M18 12h.01"/></svg>
+                                <span class="gb-game-tag-text">スペースインベーダー</span>
+                            </a>
                             <div class="gb-message-actions">
                                 <button class="gb-action-btn">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
