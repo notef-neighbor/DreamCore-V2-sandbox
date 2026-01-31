@@ -661,6 +661,42 @@
             font-weight: 700;
         }
 
+        .gb-visitor-game {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 9px;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        .gb-visitor-game svg {
+            width: 9px;
+            height: 9px;
+        }
+
+        .gb-visitor-game.blue {
+            background: rgba(0, 122, 255, 0.12);
+            color: #007AFF;
+        }
+
+        .gb-visitor-game.purple {
+            background: rgba(175, 82, 222, 0.12);
+            color: #AF52DE;
+        }
+
+        .gb-visitor-game.green {
+            background: rgba(52, 199, 89, 0.12);
+            color: #34C759;
+        }
+
+        .gb-visitor-game.orange {
+            background: rgba(255, 149, 0, 0.12);
+            color: #FF9500;
+        }
+
         /* Collapse button */
         .gb-collapse-btn {
             display: flex;
@@ -1275,23 +1311,23 @@
                         <div class="gb-visitors-list">
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐱</div>
-                                <span class="gb-visitor-text"><strong>ねこすき</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>ねこすき</strong> visited <span class="gb-visitor-game blue">このゲーム</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐰</div>
-                                <span class="gb-visitor-text"><strong>うさぎ</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>うさぎ</strong> visited <span class="gb-visitor-game blue">このゲーム</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🦊</div>
-                                <span class="gb-visitor-text"><strong>きつね</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>きつね</strong> visited <span class="gb-visitor-game purple">別のゲーム</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐻</div>
-                                <span class="gb-visitor-text"><strong>くまさん</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>くまさん</strong> visited <span class="gb-visitor-game green">冒険RPG</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐼</div>
-                                <span class="gb-visitor-text"><strong>ぱんだ</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>ぱんだ</strong> visited <span class="gb-visitor-game orange">パズル</span></span>
                             </div>
                             <button class="gb-collapse-btn">Collapse</button>
                         </div>
@@ -1340,27 +1376,27 @@
                         <div class="gb-visitors-list">
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐶</div>
-                                <span class="gb-visitor-text"><strong>Glitch</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>Glitch</strong> visited <span class="gb-visitor-game blue">このゲーム</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🦁</div>
-                                <span class="gb-visitor-text"><strong>Neon</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>Neon</strong> visited <span class="gb-visitor-game blue">このゲーム</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐧</div>
-                                <span class="gb-visitor-text"><strong>Penguin</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>Penguin</strong> visited <span class="gb-visitor-game purple">別のゲーム</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐨</div>
-                                <span class="gb-visitor-text"><strong>Koala</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>Koala</strong> visited <span class="gb-visitor-game green">冒険RPG</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🦊</div>
-                                <span class="gb-visitor-text"><strong>Fox</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>Fox</strong> visited <span class="gb-visitor-game orange">パズル</span></span>
                             </div>
                             <div class="gb-visitor-item">
                                 <div class="gb-visitor-avatar">🐻</div>
-                                <span class="gb-visitor-text"><strong>Bear</strong> visited</span>
+                                <span class="gb-visitor-text"><strong>Bear</strong> visited <span class="gb-visitor-game blue">このゲーム</span></span>
                             </div>
                             <button class="gb-collapse-btn">Collapse</button>
                         </div>
