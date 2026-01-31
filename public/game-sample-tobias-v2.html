@@ -205,6 +205,113 @@
             padding: 6px 10px;
             border-radius: 6px;
         }
+
+        /* ===== Info Panel ===== */
+        .panel-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 3000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .panel-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 70vh;
+            background: var(--bg);
+            border-radius: 24px 24px 0 0;
+            z-index: 3001;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }
+
+        .panel-overlay.visible .panel {
+            transform: translateY(0);
+        }
+
+        .panel-handle {
+            width: 36px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            margin: 12px auto;
+        }
+
+        .panel-content {
+            padding: 0 24px 24px;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom));
+            max-height: calc(70vh - 28px);
+            overflow-y: auto;
+        }
+
+        .info-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+        }
+
+        .info-author {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--gray-600);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .info-author-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--surface);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .info-author-avatar svg {
+            width: 14px;
+            height: 14px;
+            color: var(--gray-400);
+        }
+
+        .info-description {
+            color: var(--gray-600);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .info-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .info-how-to-play {
+            background: var(--surface);
+            padding: 16px;
+            border-radius: 12px;
+            color: var(--gray-600);
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -223,6 +330,9 @@
             </button>
             <button class="action-btn">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            </button>
+            <button class="action-btn" id="infoBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             </button>
         </div>
     </header>
@@ -262,5 +372,45 @@
             <span>マイ</span>
         </a>
     </nav>
+
+    <!-- Info Panel -->
+    <div class="panel-overlay" id="infoPanelOverlay">
+        <div class="panel">
+            <div class="panel-handle"></div>
+            <div class="panel-content">
+                <h1 class="info-title">スペースインベーダー 2024</h1>
+                <div class="info-author">
+                    <div class="info-author-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                    <span>@game_creator</span>
+                </div>
+                <p class="info-description">クラシックなスペースインベーダーを現代風にアレンジしました。宇宙からの侵略者を撃退して、ハイスコアを目指そう！</p>
+                <div class="info-section-title">遊び方</div>
+                <div class="info-how-to-play">← → キーまたはスワイプで移動
+スペースキーまたはタップで発射
+敵を全滅させるとステージクリア</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Info Panel
+        const infoBtn = document.getElementById('infoBtn');
+        const infoPanelOverlay = document.getElementById('infoPanelOverlay');
+
+        infoBtn.addEventListener('click', () => {
+            infoPanelOverlay.classList.add('visible');
+        });
+
+        infoPanelOverlay.addEventListener('click', (e) => {
+            if (e.target === infoPanelOverlay) {
+                infoPanelOverlay.classList.remove('visible');
+            }
+        });
+    </script>
 </body>
 </html>
