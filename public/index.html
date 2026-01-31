@@ -134,7 +134,8 @@
       (async () => {
         try {
           await DreamCoreAuth.initAuth();
-          const session = await DreamCoreAuth.getSession();
+          // Use getFreshSession to avoid expired token redirect loop
+          const session = await DreamCoreAuth.getFreshSession();
 
           if (session) {
             // Already logged in - redirect

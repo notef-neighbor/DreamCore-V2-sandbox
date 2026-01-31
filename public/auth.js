@@ -16,6 +16,17 @@ const SESSION_CACHE_KEY = 'dreamcore_session_cache';
 const SESSION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Check if session token is expired
+ * @param {Object} session - Supabase session object
+ * @returns {boolean} True if expired
+ */
+function isSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  // expires_at is Unix timestamp in seconds, add 60s buffer
+  return Date.now() / 1000 > session.expires_at - 60;
+}
+
+/**
  * Get cached session from localStorage
  * @returns {Object|null} Cached session or null if expired/missing
  */
@@ -25,7 +36,13 @@ function getCachedSession() {
     if (!cached) return null;
 
     const { session, timestamp } = JSON.parse(cached);
+    // Check cache TTL
     if (Date.now() - timestamp > SESSION_CACHE_TTL) {
+      localStorage.removeItem(SESSION_CACHE_KEY);
+      return null;
+    }
+    // Check session token expiry
+    if (isSessionExpired(session)) {
       localStorage.removeItem(SESSION_CACHE_KEY);
       return null;
     }
