@@ -184,12 +184,30 @@ async function notifyDiscord(record: UserAccessRecord): Promise<void> {
 - Discord 通知セクションを追加
 - 両方の通知を管理する統合ドキュメント化
 
+### Discord 承認通知追加（v10）
+
+```typescript
+async function notifyDiscordApproval(record: UserAccessRecord): Promise<void> {
+  const displayName = record.display_name || "(名前未設定)";
+  const embed = {
+    title: "✅ ユーザーを承認しました",
+    color: 0x00C853, // Green
+    description: `**${displayName}** さんのアクセスを承認しました`,
+    timestamp: new Date().toISOString()
+  };
+  // ...
+}
+```
+
+UPDATE ハンドラ内で `notifyDiscordApproval(record)` を呼び出し。
+
 ### 最終状態
 
 | 項目 | 状態 |
 |------|------|
-| Edge Function | v9 デプロイ済み（メール + Discord） |
-| Discord 通知 | ✅ 動作確認済み |
+| Edge Function | v10 デプロイ済み（メール + Discord登録/承認） |
+| Discord 登録通知 | ✅ 動作確認済み |
+| Discord 承認通知 | ✅ 動作確認済み |
 | ドキュメント | 統合・更新済み |
 
 ---
