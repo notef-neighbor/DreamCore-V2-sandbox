@@ -1,6 +1,13 @@
-# ウェイトリストメール通知 セットアップガイド
+# ウェイトリスト通知システム セットアップガイド
 
-ウェイトリスト登録・承認時に自動でメール通知を送信する機能。
+ウェイトリスト登録・承認時に自動で通知を送信する機能。
+
+## 通知チャンネル
+
+| チャンネル | タイミング | 内容 |
+|-----------|----------|------|
+| **メール（Brevo）** | 登録時・承認時 | ウェルカムメール、アクセス承認メール |
+| **Discord** | 登録時 | 管理者向け通知（新規登録のお知らせ） |
 
 ## キー・シークレット管理
 
@@ -8,6 +15,7 @@
 |--------|----------|------|
 | `BREVO_API_KEY` | Supabase Edge Function Secrets | Brevo API認証 |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Edge Function Secrets | DB更新 |
+| `DISCORD_WEBHOOK_URL` | Supabase Edge Function Secrets | Discord通知 |
 
 **重要**: `SUPABASE_SERVICE_ROLE_KEY` は自動設定されません。手動で Secrets に設定する必要があります。
 
@@ -282,6 +290,64 @@ Brevoで独自ドメインを認証すると、迷惑メールに入りにくく
 3. 指示に従ってDNSレコードを追加（SPF, DKIM）
 4. 認証完了を待つ
 
+## 10. Discord 通知
+
+ウェイトリスト登録時に Discord サーバーへ通知を送信する。
+メール通知と同じ Edge Function 内で並行実行される。
+
+### 10.1 Discord Webhook URL 取得
+
+1. Discord サーバーの設定を開く
+2. **連携サービス** → **ウェブフック**
+3. **新しいウェブフック** をクリック
+4. 名前を設定（例: `DreamCore Waitlist`）
+5. 投稿先チャンネルを選択
+6. **ウェブフックURLをコピー**
+
+### 10.2 Supabase Secret に保存
+
+```bash
+npx supabase secrets set DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx/yyy --project-ref tcynrijrovktirsvwiqb
+```
+
+### 10.3 動作確認
+
+Edge Function を再デプロイ後、テスト INSERT で通知が届くことを確認:
+
+```sql
+INSERT INTO user_access (email, display_name, status, language, requested_at)
+VALUES ('discord-test@example.com', 'Discord Test', 'pending', 'ja', NOW());
+```
+
+### 10.4 通知内容
+
+| 項目 | 表示内容 |
+|------|----------|
+| タイトル | 📝 新規ウェイトリスト登録 |
+| 表示名 | display_name（未設定の場合は「(未設定)」） |
+| 言語 | 🇯🇵 日本語 / 🇺🇸 English |
+| タイムスタンプ | 登録日時 |
+
+**注意**: メールアドレスはプライバシー保護のため表示しない。
+
+### 10.5 トラブルシューティング
+
+**通知が届かない場合:**
+
+1. Secret が設定されているか確認:
+   ```bash
+   npx supabase secrets list --project-ref tcynrijrovktirsvwiqb
+   ```
+
+2. Edge Function ログを確認:
+   ```bash
+   npx supabase functions logs waitlist-email --tail
+   ```
+
+3. Discord Webhook URL が有効か確認（Discord サーバー設定）
+
+**注意**: Discord Webhook は 30 リクエスト/分 のレート制限あり（通常のウェイトリスト運用では問題なし）
+
 ## アーキテクチャ
 
 ```
@@ -289,18 +355,22 @@ Brevoで独自ドメインを認証すると、迷惑メールに入りにくく
                                               ↓
                                     [Database Webhook]
                                               ↓
-                                    [Edge Function]
+                                    [Edge Function: waitlist-email]
                                               ↓
-                                    [Brevo API → メール送信]
-                                              ↓
-                                    [user_access.welcome_email_sent_at 更新]
+                                    ┌────────┴────────┐
+                                    ↓                 ↓
+                              [Brevo API]      [Discord Webhook]
+                              (メール送信)      (チャンネル投稿)
+                                    ↓
+                        [user_access.*_email_sent_at 更新]
 ```
 
 ## 関連ファイル
 
 | ファイル | 説明 |
 |----------|------|
-| `supabase/functions/waitlist-email/index.ts` | Edge Function 本体 |
+| `supabase/functions/waitlist-email/index.ts` | Edge Function 本体（メール + Discord） |
 | `supabase/migrations/010_user_access_email_tracking.sql` | カラム追加マイグレーション |
-| `.claude/plans/waitlist-email-plugin.md` | 設計ドキュメント |
+| `.claude/plans/waitlist-email-plugin.md` | メール通知設計ドキュメント |
+| `.claude/plans/waitlist-discord-notification.md` | Discord通知設計ドキュメント |
 | `docs/WAITLIST.md` | ウェイトリスト機能の概要 |
